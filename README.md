@@ -1,6 +1,6 @@
 # Claude Code mods
 
-12 mods for Claude Code. They draw lines above the prompt, open panes, and hold risky commands until you answer. Each one is a plugin with a hook module that hot-reloads.
+13 mods for Claude Code. They draw lines above the prompt, open panes, and hold risky commands until you answer. Each one is a plugin with a hook module that hot-reloads.
 
 Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ ⭐ for Cursor slash commands.
 
@@ -31,6 +31,7 @@ claude --plugin-dir mods/token-weather
 | **agent-radar** | One live line per running subagent with its time, tool count and current action. | `/radar` |
 | **browser-lanes** | Says whether this session has a Playwright browser, and who holds it if not. | `/browser`, `/browser clean` |
 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed the PR once. Shows the PR's status above the prompt. Opinionated: built around one Codex review on `gpt-5.6-luna`. | `/gate`, `/gate rerun` |
+| **oneform-line** | Your OneForm day above the prompt: sleep, protein and calories left, today's training and the next planned session. | `/oneform` |
 | **rulebook-guard** | Swaps em dashes for commas in prose, and asks before `--amend`, an unformatted push, or personal info in notes. | |
 | **blast-radius** | Holds `rm -r`, force pushes and migrations, and shows what they would delete or overwrite. | |
 | **session-saver** | Saves where you left off and shows it when you resume. Names untitled sessions. | `/park [note]` |
@@ -40,7 +41,7 @@ claude --plugin-dir mods/token-weather
 
 ## How they behave
 
-**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate and session-saver each add a line there. They stack, and each one hides when it has nothing to show.
+**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add a line there. They stack, and each one hides when it has nothing to show.
 
 **Guards ask before they block.** blast-radius, rulebook-guard and merge-gate stop a tool call and ask you. Saying no refuses the call, and Claude gets the reason. Saying yes runs it as written. In auto mode the session waits for your answer.
 
@@ -69,6 +70,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 **blast-radius.** Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic). It lists the files and size an `rm` would delete, or the remote commits a force push would drop.
 
 **session-saver.** Needs [unpause](https://github.com/hamzafer/unpause). Run `/park` before you close, then `unpause open <name>`, and the note shows until you type. Untitled sessions get a name after their second turn.
+
+**oneform-line.** For OneForm, my own fitness coach app, so it's useful only if you run one. Set `url` and `key` in `/config` (the key goes to secure storage). It calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes, so the coach's usage log stays quiet. It hides what isn't logged yet, shows targets you passed as "over", and keeps the last answer with an "as of" time when OneForm can't be reached. `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days.
 
 **replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
 

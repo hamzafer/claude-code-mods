@@ -36,6 +36,12 @@
       "source": "./mods/mission-control"
     },
     {
+      "name": "oneform-line",
+      "description": "Your OneForm day above the prompt: sleep, protein and calories left, today's training, the next planned session. /oneform shows the whole day.",
+      "version": "0.1.0",
+      "source": "./mods/oneform-line"
+    },
+    {
       "name": "reels",
       "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
       "version": "0.1.0",
