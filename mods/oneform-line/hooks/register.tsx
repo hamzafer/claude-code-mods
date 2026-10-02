@@ -5,6 +5,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { OneFormDay, OneFormPlanItem, OneFormToday } from '../types'
 
 const EVERY_MS = 10 * 60 * 1000
+const RETRY_MS = 60 * 1000 // after a failed refresh
 const PLAN_LABEL: Record<string, string> = {
   strength: 'Strength',
   run: 'Run',
@@ -21,23 +22,25 @@ const triedAt = atom({ plugin: 'oneform-line', key: 'triedAt' } as const, 0)
 export const register: Register = (on, options) => {
   const url = String(options.url ?? '').replace(/\/+$/, '')
   const key = String(options.key ?? '')
-  const isSetUp = url !== '' && key !== ''
+  // The key rides in a header, so it goes over https only (or to this machine).
+  const isSafe = /^https:\/\//.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url)
+  const isSetUp = url !== '' && key !== '' && isSafe
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await $.command.register({ name: 'oneform', description: 'Your OneForm day: meals, training, check-in and the week ahead' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
-    if (isSetUp) await refresh($, url, key, false)
+    if (isSetUp) void refresh($, url, key, false) // in the background: a slow OneForm never holds up the session
     return result
   })
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (isSetUp && !e.agentId) await refresh($, url, key, false) // main-loop turns only, not subagents
+    if (isSetUp && !e.agentId) void refresh($, url, key, false) // main-loop turns only, not subagents
     return result
   })
 
   on('command.run', { command: 'oneform' }, async $ => {
-    if (!isSetUp) return { text: SETUP }
+    if (!isSetUp) return { text: url !== '' && !isSafe ? NOT_HTTPS : SETUP }
     await refresh($, url, key, true)
     return { text: fullDay(await read($, day)) }
   })
@@ -57,7 +60,12 @@ export const register: Register = (on, options) => {
       )
     }
 
-    const bits = pieces(now, e.props.bodyColumns >= 60)
+    let bits: Piece[]
+    try {
+      bits = pieces(now, e.props.bodyColumns >= 60)
+    } catch {
+      return rest // an answer shaped unlike this OneForm's: draw nothing rather than fail
+    }
     if (bits.length === 0) return rest
 
     return (
@@ -84,6 +92,8 @@ const SETUP = [
   'Set them in `/config` (the key goes to secure storage), then restart the session.',
 ].join('\n')
 
+const NOT_HTTPS = 'OneForm Line sends your key in a header, so the **url** setting has to start with `https://` (plain `http://` only for localhost).'
+
 // At most once every 10 minutes, unless /oneform asked.
 async function refresh($: EngineInterface, url: string, key: string, isForced: boolean) {
   const now = await $.clock.now()
@@ -99,6 +109,7 @@ async function refresh($: EngineInterface, url: string, key: string, isForced: b
   } catch (err) {
     const error: OneFormDay['error'] = err instanceof KeyRejected ? 'key' : 'network'
     await update($, day, d => ({ ...d, error }))
+    await update($, triedAt, () => now - EVERY_MS + RETRY_MS) // try again sooner than the usual 10 minutes
   }
 }
 
@@ -110,9 +121,18 @@ async function call($: EngineInterface, url: string, key: string, tool: string, 
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (res.status === 401) throw new KeyRejected()
+  // OneForm's own refusal, not any 401 (a proxy or a deployment login page can answer 401 too).
+  if (res.status === 401 && parse(res.text)?.error === 'unauthorized') throw new KeyRejected()
   if (!res.ok) throw new Error(`${tool}: ${res.status}`)
   return JSON.parse(res.text)
+}
+
+function parse(text: string) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
 }
 
 type Piece = { text: string; color?: string }
@@ -127,7 +147,8 @@ function pieces({ today, plan }: OneFormDay, isWide: boolean): Piece[] {
   }
   if (today && today.meals.length > 0) {
     const p = today.remaining.protein
-    out.push(p > 0 ? { text: `🍗 ${p}g protein left`, color: 'white' } : { text: `🍗 +${-p}g over`, color: 'green' })
+    if (p > 0) out.push({ text: `🍗 ${p}g protein left`, color: 'white' })
+    else out.push({ text: p === 0 ? '🍗 protein ✓' : `🍗 +${-p}g over`, color: 'green' })
     if (isWide) {
       const c = today.remaining.calories
       out.push(c >= 0 ? { text: `🔥 ${num(c)} kcal left`, color: 'white' } : { text: `🔥 ${num(-c)} kcal over`, color: 'yellow' })
@@ -146,11 +167,11 @@ function pieces({ today, plan }: OneFormDay, isWide: boolean): Piece[] {
   return out
 }
 
-// The first plan item from today on that nothing has done yet.
+// The first training item from today on that nothing has done yet (a travel day is not a session).
 function nextSession(plan: OneFormPlanItem[], todayDate: string | undefined) {
   if (!todayDate) return undefined
   return plan
-    .filter(i => i.logical_date >= todayDate && i.status === 'planned' && i.satisfied_by === null)
+    .filter(i => i.logical_date >= todayDate && i.type !== 'travel' && i.status === 'planned' && i.satisfied_by === null)
     .sort((a, b) => a.logical_date.localeCompare(b.logical_date))[0]
 }
 

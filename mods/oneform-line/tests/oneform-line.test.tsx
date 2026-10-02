@@ -25,7 +25,7 @@ const PLAN = {
 }
 
 // Stands for the engine and OneForm beneath the mod.
-function engine(on: any, answer: { status: number; today?: object }) {
+function engine(on: any, answer: { status: number; today?: object; plan?: object; body?: string }) {
   const calls: { url: string; auth: string; body: string }[] = []
   let now = 1_000_000
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
@@ -38,14 +38,23 @@ function engine(on: any, answer: { status: number; today?: object }) {
   })
   on('http.fetch', (_$: any, e: any) => {
     calls.push({ url: e.url, auth: e.init?.headers?.authorization, body: e.init?.body })
-    if (answer.status !== 200) return { value: { status: answer.status, ok: false, headers: {}, text: '{}' } }
-    const text = JSON.stringify(e.url.endsWith('/get_today') ? (answer.today ?? TODAY) : PLAN)
+    if (answer.status !== 200) return { value: { status: answer.status, ok: false, headers: {}, text: answer.body ?? '{}' } }
+    const text = JSON.stringify(e.url.endsWith('/get_today') ? (answer.today ?? TODAY) : (answer.plan ?? PLAN))
     return { value: { status: 200, ok: true, headers: {}, text } }
   })
   return { calls, tick: (ms: number) => (now += ms) }
 }
 
-const start = ($: any) => $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+const settle = () => new Promise(done => (globalThis as any).setTimeout(done, 20)) // the refresh runs in the background
+const start = async ($: any) => {
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+}
+const turn = async ($: any) => {
+  await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+  await settle()
+}
+const UNAUTHORIZED = JSON.stringify({ error: 'unauthorized' })
 const mount = ($: any, surface: 'terminal' | 'desktop', bodyColumns = 140) =>
   $.ui.mount({ plugin: 'oneform-line', surface, ...BAND, props: { ...BAND.props, bodyColumns } })
 
@@ -94,10 +103,10 @@ describe('oneform-line', () => {
   test('refreshes at most every 10 minutes', OPTIONS, async ($, on) => {
     const h = engine(on, { status: 200 })
     await start($)
-    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await turn($)
     expect(h.calls.length).toBe(2)
     h.tick(10 * 60 * 1000)
-    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await turn($)
     expect(h.calls.length).toBe(4)
   })
 
@@ -113,7 +122,7 @@ describe('oneform-line', () => {
   })
 
   test('a rejected key says so', OPTIONS, async ($, on) => {
-    engine(on, { status: 401 })
+    engine(on, { status: 401, body: UNAUTHORIZED })
     await start($)
     const ui = await mount($, 'terminal')
     expect(await ui.find({ type: 'Text', text: /key rejected/ })).toBeDefined()
@@ -129,5 +138,51 @@ describe('oneform-line', () => {
     await ui.unmount()
     const r: any = await $.command.run({ command: 'oneform', args: '' } as any)
     expect(r.text).toMatch(/not set up yet/)
+  })
+
+  test('a 401 that is not OneForm\'s own is not called a bad key', OPTIONS, async ($, on) => {
+    engine(on, { status: 401, body: '<html>Log in to Vercel</html>' })
+    await start($)
+    const ui = await mount($, 'terminal')
+    expect(await ui.find({ type: 'Text', text: /key rejected/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('after a failure it tries again in a minute, not ten', OPTIONS, async ($, on) => {
+    const h = engine(on, { status: 503 })
+    await start($)
+    expect(h.calls.length).toBe(2)
+    h.tick(30 * 1000)
+    await turn($)
+    expect(h.calls.length).toBe(2)
+    h.tick(30 * 1000)
+    await turn($)
+    expect(h.calls.length).toBe(4)
+  })
+
+  test('exactly on the protein target is a tick, not an overage', OPTIONS, async ($, on) => {
+    engine(on, { status: 200, today: { ...TODAY, remaining: { calories: 300, protein: 0 } } })
+    await start($)
+    const ui = await mount($, 'terminal')
+    expect(await ui.find({ type: 'Text', text: /🍗 protein ✓/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /over/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('a travel day is not the next session', OPTIONS, async ($, on) => {
+    const travel = { logical_date: '2026-10-02', type: 'travel', status: 'planned', notes: null, satisfied_by: null }
+    engine(on, { status: 200, plan: { plan_items: [travel, ...PLAN.plan_items.slice(2)] } })
+    await start($)
+    const ui = await mount($, 'terminal')
+    expect(await ui.find({ type: 'Text', text: /📅 Long run Sun/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('refuses a plain http url, so the key never goes out in the clear', { options: { url: 'http://oneform.test', key: 'k' } }, async ($, on) => {
+    const h = engine(on, { status: 200 })
+    await start($)
+    expect(h.calls).toEqual([])
+    const r: any = await $.command.run({ command: 'oneform', args: '' } as any)
+    expect(r.text).toMatch(/https:\/\//)
   })
 })

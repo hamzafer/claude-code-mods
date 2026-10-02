@@ -71,7 +71,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 **session-saver.** Needs [unpause](https://github.com/hamzafer/unpause). Run `/park` before you close, then `unpause open <name>`, and the note shows until you type. Untitled sessions get a name after their second turn.
 
-**oneform-line.** For OneForm, my own fitness coach app, so it's useful only if you run one. Set `url` and `key` in `/config` (the key goes to secure storage). It calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes, so the coach's usage log stays quiet. It hides what isn't logged yet, shows targets you passed as "over", and keeps the last answer with an "as of" time when OneForm can't be reached. `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days.
+**oneform-line.** For OneForm, my own fitness coach app, so it's only useful if you run OneForm. Set `url` and `key` in `/config` (the key goes to secure storage). It calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes (1 minute after a failure), so it doesn't fill OneForm's tool-call log. The URL has to be `https://`. It hides what isn't logged yet, shows targets you passed as "over", and keeps the last answer with an "as of" time when OneForm can't be reached. `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days.
 
 **replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
 
