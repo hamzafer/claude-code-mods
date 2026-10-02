@@ -34,8 +34,8 @@ claude --plugin-dir mods/token-weather
 | **blast-radius** | Holds `rm -r`, force pushes and migrations, and shows what they would delete or overwrite. | |
 | **session-saver** | Saves where you left off and shows it when you resume. Names untitled sessions. | `/park [note]` |
 | **replay-theater** | Steps through the last turn's file edits, one diff at a time. | `/replay` |
-| **reels** | YouTube Shorts in a pane. Plays while Claude works, pauses when it's done. | `/reels` |
-| **snake** | Snake in a pane while Claude works. Pauses when Claude is done. | `/snake` |
+| **reels** | YouTube Shorts in a pane. Plays while Claude works, pauses when it's done. Nothing starts until `/reels`. | `/reels`, `/reels stop` |
+| **snake** | Snake in a pane while Claude works. Pauses when Claude is done. Nothing opens until `/snake`. | `/snake`, `/snake stop` |
 
 ## How they behave
 
@@ -69,7 +69,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 **replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
 
-**reels.** Needs Playwright once. `/reels` prints the install command.
+**reels and snake.** Both are opt-in. Installing them changes nothing until you type `/reels` or `/snake`, and `stop` turns them off again. Reels needs Playwright once, and `/reels` prints the install command.
 
 ## Screenshots
 

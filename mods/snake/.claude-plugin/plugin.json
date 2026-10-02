@@ -1,6 +1,6 @@
 {
   "name": "snake",
-  "version": "0.1.0",
-  "description": "Play Snake in a pane while Claude works; it pauses when Claude is done.",
+  "version": "0.2.0",
+  "description": "Snake in a pane while Claude works, paused when it's done. Opt-in: nothing opens until /snake.",
   "types": "./types/index.d.ts"
 }
