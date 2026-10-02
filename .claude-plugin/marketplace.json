@@ -30,6 +30,12 @@
       "source": "./mods/merge-gate"
     },
     {
+      "name": "mission-control",
+      "description": "/mission: a live map of the main agent, its subagents and every tool call, and a live code map of the files they touch.",
+      "version": "0.1.0",
+      "source": "./mods/mission-control"
+    },
+    {
       "name": "reels",
       "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
       "version": "0.1.0",

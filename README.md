@@ -1,6 +1,6 @@
 # Claude Code mods
 
-11 mods for Claude Code. They draw lines above the prompt, open panes, and hold risky commands until you answer. Each one is a plugin with a hook module that hot-reloads.
+12 mods for Claude Code. They draw lines above the prompt, open panes, and hold risky commands until you answer. Each one is a plugin with a hook module that hot-reloads.
 
 Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ ⭐ for Cursor slash commands.
 
@@ -25,6 +25,7 @@ claude --plugin-dir mods/token-weather
 
 | Mod | What it does | Command |
 | --- | --- | --- |
+| **mission-control** | A live map of the turn: main, its subagents and every tool call (Who), and a rendered diagram of the files they touch, with import arrows and a line on each change (Code). | `/mission`, `/mission code` |
 | **token-weather** | Shows how full the context window is, from Clear to Compact soon, with tokens used and the last turn's growth. | |
 | **where-am-i** | Shows the goal, what Claude is doing now, what it waits on from you, and the next step. | `/where` |
 | **agent-radar** | One live line per running subagent with its time, tool count and current action. | `/radar` |
@@ -44,6 +45,8 @@ claude --plugin-dir mods/token-weather
 **Guards ask before they block.** blast-radius, rulebook-guard and merge-gate stop a tool call and ask you. Saying no refuses the call, and Claude gets the reason. Saying yes runs it as written. In auto mode the session waits for your answer.
 
 ## Notes per mod
+
+**mission-control.** Press `w` for Who and `c` for Code. The code map is a picture drawn by headless Chrome (`/Applications/Google Chrome.app`) in a throwaway profile of its own, so it needs Chrome and a terminal that shows images, like Ghostty, kitty or iTerm2. A file glows blue while Claude reads it and orange while it edits it, and turns green with a check once changed. One Haiku call after each turn writes the line under each changed file.
 
 **token-weather.** The levels go by percent of the window. On a 1M window it stays Clear until 250k tokens.
 
@@ -72,6 +75,10 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 **reels and snake.** Both are opt-in. Installing them changes nothing until you type `/reels` or `/snake`, and `stop` turns them off again. Reels needs Playwright once, and `/reels` prints the install command.
 
 ## Screenshots
+
+**mission-control** at 4x: two subagents and a logout feature landing across four files, live on the code map
+
+![mission-control](docs/mission-control.gif)
 
 **browser-lanes, token-weather and where-am-i** stacked above the prompt
 
