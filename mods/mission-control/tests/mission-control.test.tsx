@@ -57,6 +57,8 @@ describe('mission-control', () => {
     expect(kept[0]?.id).toBe('main')
     expect(kept.some(n => n.id === 'ag')).toBe(true)
     expect(kept.at(-1)?.id).toBe('t399') // the newest calls stay
+    const crowd = Array.from({ length: 310 }, (_, i) => ({ id: `a${i}`, parent: 'main', kind: 'agent' as const, label: 'a', family: 'agent', status: 'done' as const, start: i }))
+    expect(cap([...crowd, ...many.slice(2)]).filter(n => n.kind === 'tool')).toHaveLength(0) // no room left: no tool calls
 
     const { runs } = engine(on, { noChrome: true }) // no Chrome on this machine
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
@@ -67,6 +69,17 @@ describe('mission-control', () => {
     await mockClock.advance(800)
     expect(await pane.find({ type: 'Text', text: /needs Google Chrome/ })).toBeDefined()
     expect(runs.some(a => a[0] === 'sh')).toBe(false)
+    await pane.unmount()
+  })
+
+  test('a background agent still running keeps its open calls when main ends', async ($, on) => {
+    engine(on)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'go', turnId: 't1' } as any)
+    await $.agent.spawn({ prompt: 'p', description: 'long runner' } as any) // agent ag1, background
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any) // main ends, ag1 runs on
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ type: 'Text', text: /1 agents \(1 running\)/ })).toBeDefined() // still running
     await pane.unmount()
   })
 

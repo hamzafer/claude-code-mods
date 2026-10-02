@@ -36,7 +36,8 @@ const changes = new Map<string, string[]>() // path → this turn's edits, for t
 export function cap(list: MissionNode[]) {
   if (list.length <= MAX_NODES) return list
   const tools = list.filter(n => n.kind === 'tool')
-  const keep = new Set(tools.slice(-(MAX_NODES - (list.length - tools.length))))
+  const room = Math.max(0, MAX_NODES - (list.length - tools.length))
+  const keep = new Set(room === 0 ? [] : tools.slice(-room))
   return list.filter(n => n.kind !== 'tool' || keep.has(n))
 }
 
@@ -122,7 +123,12 @@ export const register: Register = on => {
     const failed = e.reason === 'error' || e.reason === 'aborted'
     const isMain = !e.agentId
     // The main turn ending closes everything it left marked running, so the clock can rest.
-    await update($, nodes, list => list.map(n => ((n.id === id || (isMain && n.kind !== 'agent')) && n.status === 'running' ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n)))
+    await update($, nodes, list => {
+      // Only main's own leftovers: a background agent still running keeps its open calls.
+      const live = new Set(list.filter(n => n.kind === 'agent' && n.status === 'running' && n.id !== id).map(n => n.id))
+      const close = (n: MissionNode) => n.id === id || (isMain && n.kind === 'tool' && !live.has(n.parent ?? ''))
+      return list.map(n => (close(n) && n.status === 'running' ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n))
+    })
     if (isMain) {
       const t = await read($, turn)
       void explain($, t, new Map(changes)).catch(() => {}) // in the background, so the turn ends at once
