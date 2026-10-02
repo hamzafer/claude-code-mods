@@ -2,24 +2,27 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { edges, fit, importsOf, layout, svg, titleOf, wrap } from '../hooks/map'
 import { label, lines, summary } from '../hooks/tree'
+import { cap } from '../hooks/register'
 
+let mockClock: any
 const PANE = { component: 'Pane', requestId: 'mission-control', props: { title: 'Mission Control', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 30 } } }
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any) {
+function engine(on: any, opts: { noChrome?: boolean } = {}) {
   const runs: string[][] = []
   const writes: Record<string, string> = {}
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   const clock = mock.clock(on)
+  mockClock = clock
   on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('agent.spawn', () => ({ model: 'sonnet', agentId: 'ag1' }))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
   on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : '' }))
   on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
-  on('fs.exists', () => ({ value: true }))
+  on('fs.exists', () => ({ value: !opts.noChrome }))
   on('env.get', () => ({ value: '/tmp/' }))
   on('process.run', (_$: any, e: any) => (runs.push(e.argv), { value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -42,6 +45,30 @@ describe('mission-control', () => {
     expect(out).toContain('scale(1.500)')
   })
 
+
+  test('review fixes: the cap keeps main, a turn ending closes stuck calls, no Chrome says so', async ($, on) => {
+    const many = [
+      { id: 'main', parent: null, kind: 'main' as const, label: 'main', family: 'main', status: 'running' as const, start: 0 },
+      { id: 'ag', parent: 'main', kind: 'agent' as const, label: 'a', family: 'agent', status: 'running' as const, start: 0 },
+      ...Array.from({ length: 400 }, (_, i) => ({ id: `t${i}`, parent: 'main', kind: 'tool' as const, label: 'x', family: 'bash', status: 'done' as const, start: i })),
+    ]
+    const kept = cap(many)
+    expect(kept).toHaveLength(300)
+    expect(kept[0]?.id).toBe('main')
+    expect(kept.some(n => n.id === 'ag')).toBe(true)
+    expect(kept.at(-1)?.id).toBe('t399') // the newest calls stay
+
+    const { runs } = engine(on, { noChrome: true }) // no Chrome on this machine
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'go', turnId: 't1' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/a.ts' } as any)
+    await mockClock.advance(800)
+    expect(await pane.find({ type: 'Text', text: /needs Google Chrome/ })).toBeDefined()
+    expect(runs.some(a => a[0] === 'sh')).toBe(false)
+    await pane.unmount()
+  })
 
   test('labels tool calls by family', () => {
     expect(label({ tool: 'Bash', description: 'Run tests' })).toEqual({ label: 'Run tests', family: 'bash' })

@@ -78,7 +78,9 @@ export function wrap(text: string, per: number): [string, string] {
   return [text.slice(0, at), text.slice(at).trim()]
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+// Escapes markup, and drops control characters, one of which turns the picture into an XML error.
+const esc = (s: string) =>
+  s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 export type Look = { width: number; height: number; at: number; turn: number }
 

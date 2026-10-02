@@ -29,8 +29,24 @@ const turn = atom({ plugin: 'mission-control', key: 'turn' } as const, 0)
 const now = atom({ plugin: 'mission-control', key: 'now' } as const, 0)
 
 // Drawing bookkeeping; a reload starts it over.
-const draw = { size: { columns: 100, rows: 30 }, pending: false, n: 0 }
+const draw = { size: { columns: 100, rows: 30 }, pending: false, dirty: false, n: 0, error: '' }
 const changes = new Map<string, string[]>() // path → this turn's edits, for the one-line "why"
+
+// Under the cap, the oldest tool calls go first; main and the agents always stay.
+export function cap(list: MissionNode[]) {
+  if (list.length <= MAX_NODES) return list
+  const tools = list.filter(n => n.kind === 'tool')
+  const keep = new Set(tools.slice(-(MAX_NODES - (list.length - tools.length))))
+  return list.filter(n => n.kind !== 'tool' || keep.has(n))
+}
+
+// The first `max` characters, cut at a word.
+function words(text: string, max: number) {
+  const t = text.replace(/\s+/g, ' ').trim()
+  if (t.length <= max) return t
+  const cut = t.lastIndexOf(' ', max)
+  return `${t.slice(0, cut > max * 0.5 ? cut : max)}…`
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -49,8 +65,14 @@ export const register: Register = on => {
     const t = (await read($, turn)) + 1
     await update($, turn, () => t)
     changes.clear()
-    const main: MissionNode = { id: 'main', parent: null, kind: 'main', label: `main · ${e.text.replace(/\s+/g, ' ').slice(0, 50)}`, family: 'main', status: 'running', start: Date.now() }
-    await update($, nodes, () => [main])
+    const main: MissionNode = { id: 'main', parent: null, kind: 'main', label: `main · ${words(e.text, 50)}`, family: 'main', status: 'running', start: Date.now() }
+    // A background agent still running from the last turn carries over, with its open calls.
+    await update($, nodes, list => {
+      const agents = list.filter(n => n.kind === 'agent' && n.status === 'running').map(a => ({ ...a, parent: 'main' }))
+      const ids = new Set(agents.map(a => a.id))
+      const open = list.filter(n => n.kind === 'tool' && n.status === 'running' && ids.has(n.parent ?? ''))
+      return [main, ...agents, ...open]
+    })
     return next(e)
   })
 
@@ -59,7 +81,7 @@ export const register: Register = on => {
     if (r.agentId) {
       const id = r.agentId
       const agent: MissionNode = { id, parent: e.parentAgentId ?? 'main', kind: 'agent', label: e.description || e.subagentType, family: 'agent', status: 'running', start: Date.now() }
-      await update($, nodes, list => [...list, agent].slice(-MAX_NODES))
+      await update($, nodes, list => cap([...list, agent]))
     }
     return r
   })
@@ -70,14 +92,22 @@ export const register: Register = on => {
     const args = e as unknown as Record<string, unknown>
     const { label: text, family } = label(args)
     const id = e.tool_use_id
-    const node: MissionNode = { id, parent: e.agentId ?? 'main', kind: 'tool', label: text, family, status: 'running', start: Date.now() }
-    await update($, nodes, list => [...list, node].slice(-MAX_NODES))
+    await update($, nodes, list => {
+      // A call from an agent this tree does not know hangs off main rather than nowhere.
+      const parent = e.agentId && list.some(n => n.id === e.agentId) ? e.agentId : 'main'
+      return cap([...list, { id, parent, kind: 'tool', label: text, family, status: 'running', start: Date.now() }])
+    })
     const path = typeof args.file_path === 'string' ? args.file_path : undefined
     if (path) await touch($, path, e.tool === 'Read' ? 'read' : e.tool === 'Write' ? 'write' : e.tool === 'Edit' ? 'edit' : 'search', false)
 
-    const r = await next(e)
-    const failed = r.deny !== undefined || r.isError === true
-    await update($, nodes, list => list.map(n => (n.id === id ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n)))
+    let failed = true
+    let r: Awaited<ReturnType<typeof next>>
+    try {
+      r = await next(e)
+      failed = r.deny !== undefined || r.isError === true
+    } finally {
+      await update($, nodes, list => list.map(n => (n.id === id ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n)))
+    }
     if (path && !failed && (e.tool === 'Edit' || e.tool === 'Write')) {
       const what = e.tool === 'Edit' ? `- ${String(args.old_string ?? '').slice(0, 300)}\n+ ${String(args.new_string ?? '').slice(0, 300)}` : `wrote ${String(args.content ?? '').slice(0, 400)}`
       changes.set(path, [...(changes.get(path) ?? []), what])
@@ -90,8 +120,13 @@ export const register: Register = on => {
     const r = await next(e)
     const id = e.agentId ?? 'main'
     const failed = e.reason === 'error' || e.reason === 'aborted'
-    await update($, nodes, list => list.map(n => (n.id === id && n.status === 'running' ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n)))
-    if (!e.agentId) void explain($).catch(() => {}) // in the background, so the turn ends at once
+    const isMain = !e.agentId
+    // The main turn ending closes everything it left marked running, so the clock can rest.
+    await update($, nodes, list => list.map(n => ((n.id === id || (isMain && n.kind !== 'agent')) && n.status === 'running' ? { ...n, status: failed ? 'failed' : 'done', end: Date.now() } : n)))
+    if (isMain) {
+      const t = await read($, turn)
+      void explain($, t, new Map(changes)).catch(() => {}) // in the background, so the turn ends at once
+    }
     return r
   })
 
@@ -142,7 +177,7 @@ export const register: Register = on => {
           {f ? (
             <Image key="map" source={{ file: f.file, format: 'png', generation: f.n }} columns={draw.size.columns} rows={draw.size.rows} alt="Code map" />
           ) : (
-            <Text dimColor>Drawing the code map…</Text>
+            <Text dimColor>{draw.error || 'Drawing the code map…'}</Text>
           )}
         </Box>
       )
@@ -202,7 +237,7 @@ async function touch($: EngineInterface, path: string, act: MapFile['act'], isCh
   if (!CODE_FILE.test(path)) return // an image, a PDF, a lockfile: not code to map
   const t = await read($, turn)
   const text = await $.fs.read(path).catch(() => '')
-  const imports = typeof text === 'string' ? importsOf(path, text) : []
+  const imports = typeof text === 'string' ? importsOf(path, text.slice(0, 200_000)) : [] // imports sit near the top
   await update($, files, list => {
     const old = list.find(f => f.path === path)
     const next: MapFile = { path, act, at: Date.now(), changedTurn: isChange ? t : (old?.changedTurn ?? 0), imports: imports.length ? imports : (old?.imports ?? []), why: isChange ? undefined : old?.why }
@@ -213,10 +248,11 @@ async function touch($: EngineInterface, path: string, act: MapFile['act'], isCh
 }
 
 // One plain line per changed file, from what changed this turn.
-async function explain($: EngineInterface) {
-  if (changes.size === 0) return
-  const paths = [...changes.keys()]
-  const body = paths.map((p, i) => `<file n="${i + 1}" name="${p.split('/').slice(-2).join('/')}">\n${(changes.get(p) ?? []).join('\n').slice(0, 1500)}\n</file>`).join('\n')
+async function explain($: EngineInterface, forTurn: number, edits: Map<string, string[]>) {
+  if (edits.size === 0) return
+  const paths = [...edits.keys()]
+  const plain = (t: string) => t.replace(/[<>"]/g, ' ')
+  const body = paths.map((p, i) => `<file n="${i + 1}" name="${plain(p.split('/').slice(-2).join('/'))}">\n${plain((edits.get(p) ?? []).join('\n').slice(0, 1500))}\n</file>`).join('\n')
   const r = await $.model.complete({
     model: 'haiku',
     maxTokens: 400,
@@ -232,26 +268,41 @@ async function explain($: EngineInterface) {
   }
   if (!Array.isArray(whys)) return
   // By position, so nothing has to match a path the model may have rewritten.
-  const byPath = new Map(paths.map((p, i) => [p, typeof whys[i] === 'string' ? (whys[i] as string).replace(/\s*—\s*/g, ', ') : undefined]))
-  await update($, files, list => list.map(f => (byPath.get(f.path) ? { ...f, why: byPath.get(f.path) } : f)))
+  const byPath = new Map(paths.map((p, i) => [p, typeof whys[i] === 'string' ? (whys[i] as string).replace(/\s*—\s*/g, ', ').slice(0, 80) : undefined]))
+  // A slow answer from an earlier turn must not label this turn's changes.
+  if ((await read($, turn)) !== forTurn) return
+  await update($, files, list => list.map(f => (byPath.get(f.path) && f.changedTurn === forTurn ? { ...f, why: byPath.get(f.path) } : f)))
   await renderSoon($)
 }
 
 // Draws the code map at most about once a second, only while someone looks at it.
 async function renderSoon($: EngineInterface) {
-  if (draw.pending) return
+  if (draw.pending) {
+    draw.dirty = true // drawing now: draw once more when it is done
+    return
+  }
   if ((await read($, view)) !== 'code') return
   const isUp = (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
   if (!isUp) return
   draw.pending = true
+  draw.dirty = false
   $.clock.after(700, () => {
-    draw.pending = false
-    void renderMap($).catch(() => {})
+    void renderMap($)
+      .catch(() => {})
+      .finally(() => {
+        draw.pending = false // only now: two Chromes must never share the profile
+        if (draw.dirty) void renderSoon($).catch(() => {})
+      })
   })
 }
 
 async function renderMap($: EngineInterface) {
-  if (!(await $.fs.exists(CHROME))) return
+  if (!(await $.fs.exists(CHROME))) {
+    draw.error = `The code map needs Google Chrome at ${CHROME}.`
+    await update($, now, () => Date.now()) // redraw the pane with the message
+    return
+  }
+  draw.error = ''
   const tmp = ((await $.env.get('TMPDIR')) ?? '/tmp').replace(/\/$/, '')
   const dir = `${tmp}/mission-control`
   const n = ++draw.n
@@ -263,9 +314,9 @@ async function renderMap($: EngineInterface) {
   // Headless Chrome writes the screenshot but does not always exit: wait for the file,
   // then close that Chrome (its own throwaway profile, never the person's browser).
   const script =
-    'rm -f "$2"; "$1" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --no-first-run --no-default-browser-check ' +
+    'mkdir -p "$(dirname "$2")"; rm -f "$2"; "$1" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --no-first-run --no-default-browser-check ' +
     '--user-data-dir="$3" --window-size="$4" --screenshot="$2" "$5" >/dev/null 2>&1 & pid=$!; ' +
-    'i=0; while [ ! -s "$2" ] && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; sleep 0.2; kill $pid 2>/dev/null; [ -s "$2" ]'
-  const r = await $.process.run(['sh', '-c', script, 'mission-control', CHROME, png, `${dir}/chrome`, `${width},${height}`, `file://${svgPath}`], { timeoutMs: 20_000 })
+    'i=0; while [ ! -s "$2" ] && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; sleep 0.2; pkill -P $pid 2>/dev/null; kill $pid 2>/dev/null; [ -s "$2" ]'
+  const r = await $.process.run(['sh', '-c', script, 'mission-control', CHROME, png, `${dir}/chrome`, `${width},${height}`, `file://${encodeURI(svgPath)}`], { timeoutMs: 20_000 })
   if (r.exitCode === 0) await update($, frame, () => ({ file: png, n }))
 }
