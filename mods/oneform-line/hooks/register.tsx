@@ -23,26 +23,30 @@ export const register: Register = (on, options) => {
   const url = String(options.url ?? '').replace(/\/+$/, '')
   const key = String(options.key ?? '')
   // The key rides in a header, so it goes over https only (or to this machine).
-  const isSafe = /^https:\/\//.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url)
+  const isSafe = /^https:\/\//.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url)
   const isSetUp = url !== '' && key !== '' && isSafe
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await $.command.register({ name: 'oneform', description: 'Your OneForm day: meals, training, check-in and the week ahead' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
-    if (isSetUp) void refresh($, url, key, false) // in the background: a slow OneForm never holds up the session
+    if (isSetUp) void refresh($, url, key, false).catch(() => {}) // in the background: a slow OneForm never holds up the session
     return result
   })
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (isSetUp && !e.agentId) void refresh($, url, key, false) // main-loop turns only, not subagents
+    if (isSetUp && !e.agentId) void refresh($, url, key, false).catch(() => {}) // main-loop turns only, not subagents
     return result
   })
 
   on('command.run', { command: 'oneform' }, async $ => {
     if (!isSetUp) return { text: url !== '' && !isSafe ? NOT_HTTPS : SETUP }
     await refresh($, url, key, true)
-    return { text: fullDay(await read($, day)) }
+    try {
+      return { text: fullDay(await read($, day)) }
+    } catch {
+      return { text: "OneForm answered in a shape this mod doesn't know. Is the mod older than your OneForm?" }
+    }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
