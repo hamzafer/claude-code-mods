@@ -1,4 +1,4 @@
-// Where Am I: a live recap above the prompt (goal, now, waiting on you, next), plus /recap.
+// Where Am I: a live recap above the prompt (goal, now, waiting on you, next), plus /where.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -18,7 +18,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'recap', description: 'Where are we? A short recap of the session so far' })
+    await $.command.register({ name: 'where', description: 'Where are we? A short recap of the session so far' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     return r
   })
 
@@ -49,7 +49,7 @@ export const register: Register = on => {
     return r
   })
 
-  on('command.run', { command: 'recap' }, async $ => ({ text: await longRecap($, prompt, log) }))
+  on('command.run', { command: 'where' }, async $ => ({ text: await longRecap($, prompt, log) }))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const rest = await next(e) // what other mods and Claude Code draw here stays
@@ -58,7 +58,6 @@ export const register: Register = on => {
 
     const { Box, Text } = $.ui.resolve(e)
     const now = clip((await read($, live)) || r.now)
-    const running = await read($, agents)
 
     return (
       <Box flexDirection="column">
@@ -75,11 +74,6 @@ export const register: Register = on => {
           </Text>
           {r.waiting !== '' && (
             <Text color="yellow" wrap="truncate-end">{`  waiting on you: ${clip(r.waiting)}`}</Text>
-          )}
-          {running.length > 0 && (
-            <Text dimColor wrap="truncate-end">
-              {`  agents: ${running.length} running · ${running.map(a => a.description).join(', ')}`}
-            </Text>
           )}
         </Box>
         {rest}
@@ -141,9 +135,10 @@ async function longRecap($: EngineInterface, prompt: string, log: string[]) {
       'Write a recap of this coding session for someone who lost track. Plain words, no em dashes. ' +
       'At most 6 short bullets: the goal, what is done, what is happening now, what is waiting on them, the next step.',
     prompt: [
-      `Recent messages:\n${messages.map(m => `${m.role}: ${m.text.slice(0, 800)}`).join('\n')}`,
+      `<transcript>\n${messages.filter(m => m.text.trim() !== '').map(m => `[${m.role === 'user' ? 'person' : 'assistant'}] ${m.text.slice(0, 800)}`).join('\n')}\n</transcript>`,
       `Latest message: ${prompt}`,
       `Recent tool calls: ${log.join('; ') || 'none'}`,
+      'Write the recap of the transcript above now: the bullets only, not a reply to it.',
     ].join('\n\n'),
   })
   return r.isAnswered ? r.text : 'Could not build a recap right now.'

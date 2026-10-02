@@ -19,7 +19,7 @@ type Checks = { pass: number; fail: number; pending: number; failing: string[] }
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'gate', description: 'PR status: CI, Codex review, ready to merge? (/gate rerun retries failed CI)', argumentHint: '[rerun]' })
+    await $.command.register({ name: 'gate', description: 'PR status: CI, Codex review, ready to merge? (/gate rerun retries failed CI)', argumentHint: '[rerun]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     void refresh($).catch(() => {}) // background; a failed refresh just keeps the last band
     return r
   })
@@ -116,7 +116,7 @@ async function merge($: EngineInterface, command: string, run: () => Promise<Too
     // no one to ask: hold
   }
   if (answer === 'Merge anyway') return run()
-  return { deny: `Merge Gate held the merge of PR #${pr.number}: ${missing.join('; ')}. Finish those first (failed CI: /gate rerun).` }
+  return { deny: `Merge Gate held the merge of PR #${pr.number}: ${missing.join('; ')}. Finish those first${checks.fail > 0 ? ' (failed CI: /gate rerun)' : ''}.` }
 }
 
 // Ollama's ChatGPT toggle rewrites the config to a local server or an Ollama model.

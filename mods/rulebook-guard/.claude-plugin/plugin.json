@@ -1,5 +1,5 @@
 {
   "name": "rulebook-guard",
   "version": "0.1.0",
-  "description": "Enforces Hamza's written rules: no em dashes in prose, no --amend, formatted before push, no PII without asking."
+  "description": "Enforces written rules: no em dashes in prose, asks before --amend, before an unformatted push, and before PII in notes or commits."
 }

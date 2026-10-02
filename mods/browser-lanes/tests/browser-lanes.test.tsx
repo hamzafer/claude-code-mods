@@ -101,6 +101,63 @@ describe('browser-lanes', () => {
     expect(r.text).toMatch(/^Browser: attached/)
   })
 
+  test('cleaner: self-heal on "already in use", and closing on session end', async ($, on) => {
+    const kills: string[] = []
+    let chromeUnder = 202 // another Claude (200, same folder) holds the profile
+    let calls = 0
+    on('tool.call', { tool: 'AskUserQuestion' }, (_$: any, e: any) => {
+      const q = e.questions[0]
+      return { result: { questions: e.questions, answers: { [q.question]: 'Close it and retry' } }, text: '' }
+    })
+    on('tool.call', () => {
+      calls++
+      if (calls === 1) return { result: {}, text: 'Error: Browser is already in use for /x, use --isolated', isError: true }
+      chromeUnder = 102 // after the retry, our server launched its own Chrome
+      return { result: {}, text: 'ok' }
+    })
+    on('session.cwd', () => ({ value: '/work' }))
+    on('session.id', () => ({ value: 'me' }))
+    on('store.get', () => ({ value: undefined }))
+    on('store.set', () => ({ value: undefined }))
+    on('ui.toast', () => ({ value: undefined }))
+    on('session.end', () => ({ sessionId: 'me' }))
+    on('process.run', (_$: any, e: any) => {
+      const argv = e.argv as string[]
+      if (argv[0] === 'kill') kills.push(argv[1] as string)
+      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? ps(chromeUnder) : argv[0] === 'lsof' ? 'p200\nfcwd\nn/work\n' : ''
+      return { value: { exitCode: 0, stdout, stderr: '' } } as any
+    })
+
+    const r: any = await $.tool.call({ tool: `${PW}navigate`, url: 'https://example.com' } as any)
+    expect(kills).toEqual(['300']) // asked, closed the blocker, retried
+    expect(r.text).toBe('ok')
+    await new Promise(done => (globalThis as any).setTimeout(done, 10)) // the background re-check
+
+    await $.session.end({ reason: 'exit' } as any)
+    expect(kills).toEqual(['300', '300']) // now ours: closed with the session
+  })
+
+  test('/browser clean closes the other sessions browsers', async ($, on) => {
+    const kills: string[] = []
+    on('tool.call', { tool: 'AskUserQuestion' }, (_$: any, e: any) => {
+      const q = e.questions[0]
+      return { result: { questions: e.questions, answers: { [q.question]: 'Close all 1 other browsers' } }, text: '' }
+    })
+    on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
+    on('command.register', () => ({ value: undefined }) as any)
+    on('session.cwd', () => ({ value: '/work' }))
+    on('process.run', (_$: any, e: any) => {
+      const argv = e.argv as string[]
+      if (argv[0] === 'kill') kills.push(argv[1] as string)
+      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? ps(202) : ''
+      return { value: { exitCode: 0, stdout, stderr: '' } } as any
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const r = await $.command.run({ command: 'browser', args: 'clean' } as any)
+    expect(r.text).toMatch(/^Closed 1 of 1 browser\(s\):\n- Chrome 300 · Claude pid 200/)
+    expect(kills).toEqual(['300'])
+  })
+
   test('other tools pass straight through', async ($, on) => {
     const { ran } = engine(on)
     await $.tool.call({ tool: 'Read', file_path: '/a' } as any)

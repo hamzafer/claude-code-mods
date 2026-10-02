@@ -1,6 +1,6 @@
 {
   "name": "browser-lanes",
   "version": "0.1.0",
-  "description": "One Playwright driver at a time: subagents queue for the browser, screenshots are named by who took them, and a band shows who has it.",
+  "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. Subagents take turns.",
   "types": "./types/index.d.ts"
 }

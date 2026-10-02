@@ -54,6 +54,15 @@ describe('session-saver', () => {
     expect(runs.some(r => r.startsWith('unpause rename'))).toBe(false)
   })
 
+  test('loading into a session that already has messages shows the parked note once', async ($, on) => {
+    const { toasts } = engine(on, { store: [['park:sess-1', { leftOff: 'tested 7 mods', next: 'install', note: '', at: Date.now() }]] })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await wait()
+    expect(toasts).toEqual(['Last time (just now): tested 7 mods · next: install'])
+    await $.classic.SessionStart({ source: 'resume' } as any) // the engine's own signal after: not twice
+    expect(toasts).toHaveLength(1)
+  })
+
   test('/park saves a summary, and a resume shows it until you type', async ($, on) => {
     const { store, toasts } = engine(on, { reply: '{"leftOff":"3 mods tested, Merge Gate needs a PR repo","next":"install"}' })
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)

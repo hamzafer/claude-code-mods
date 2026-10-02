@@ -1,0 +1,75 @@
+{
+  "name": "claude-code-mods",
+  "description": "Claude Code mods: bands above the prompt, guards, panes and games.",
+  "owner": {
+    "name": "hamzafer"
+  },
+  "plugins": [
+    {
+      "name": "agent-radar",
+      "description": "Live band line per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
+      "version": "0.1.0",
+      "source": "./mods/agent-radar"
+    },
+    {
+      "name": "blast-radius",
+      "description": "Holds risky Bash commands and shows what they would change before they run.",
+      "version": "0.1.0",
+      "source": "./mods/blast-radius"
+    },
+    {
+      "name": "browser-lanes",
+      "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. Subagents take turns.",
+      "version": "0.1.0",
+      "source": "./mods/browser-lanes"
+    },
+    {
+      "name": "merge-gate",
+      "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR band and /gate.",
+      "version": "0.1.0",
+      "source": "./mods/merge-gate"
+    },
+    {
+      "name": "reels",
+      "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
+      "version": "0.1.0",
+      "source": "./mods/reels"
+    },
+    {
+      "name": "replay-theater",
+      "description": "Step through the last turn's file edits, one diff at a time.",
+      "version": "0.1.0",
+      "source": "./mods/replay-theater"
+    },
+    {
+      "name": "rulebook-guard",
+      "description": "Enforces written rules: no em dashes in prose, asks before --amend, before an unformatted push, and before PII in notes or commits.",
+      "version": "0.1.0",
+      "source": "./mods/rulebook-guard"
+    },
+    {
+      "name": "session-saver",
+      "description": "Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.",
+      "version": "0.1.0",
+      "source": "./mods/session-saver"
+    },
+    {
+      "name": "snake",
+      "description": "Play Snake in a pane while Claude works; it pauses when Claude is done.",
+      "version": "0.1.0",
+      "source": "./mods/snake"
+    },
+    {
+      "name": "token-weather",
+      "description": "A live forecast of the context window, drawn above the prompt.",
+      "version": "0.1.0",
+      "source": "./mods/token-weather"
+    },
+    {
+      "name": "where-am-i",
+      "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
+      "version": "0.1.0",
+      "source": "./mods/where-am-i"
+    }
+  ]
+}

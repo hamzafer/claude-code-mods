@@ -35,7 +35,6 @@ describe('where-am-i', () => {
     expect(await ui.find({ type: 'Text', text: /^Ship 3 mods$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^built Where Am I$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /waiting on you: you to test it/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /agents: 1 running · sweep runner/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /band below/ })).toBeDefined()
     await ui.unmount()
   })
@@ -43,7 +42,7 @@ describe('where-am-i', () => {
   test('/recap answers with a summary', async ($, on) => {
     engine(on, '- Goal: ship 3 mods')
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
-    const r = await $.command.run({ command: 'recap', args: '' } as any)
+    const r = await $.command.run({ command: 'where', args: '' } as any)
     expect(r.text).toBe('- Goal: ship 3 mods')
   })
 

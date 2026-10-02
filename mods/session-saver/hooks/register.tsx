@@ -13,27 +13,24 @@ const NAME_AFTER_TURNS = 2
 
 // Held by the host, so the resume note survives a hot reload of this file.
 const resumed = atom({ plugin: 'session-saver', key: 'resumed' } as const, null as Parked | null)
+// Whether this process showed the note yet: the session's state, so a reload does not show it twice.
+const isShown = atom({ plugin: 'session-saver', key: 'isShown' } as const, false)
 
 export const register: Register = on => {
   let prompt = ''
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'park', description: 'Save where you left off and the next step, for when you resume', argumentHint: '[note]' })
+    if ((await $.session.messages()).length > 0) void showResume($).catch(() => {})
+    await $.command.register({ name: 'park', description: 'Save where you left off and the next step, for when you resume', argumentHint: '[note]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     return r
   })
 
-  // A resumed session: bring back where it was left.
+  // A resumed session: bring back where it was left. The engine's resume signal can fire
+  // before this mod loads, so loading into a session that already has messages counts too.
   on('classic.SessionStart', async ($, e, next) => {
     const r = await next(e)
-    if (e.source === 'resume') {
-      const id = await $.session.id()
-      const parked = ((await $.store.get(`park:${id}`)) ?? (await $.store.get(`last:${id}`))) as Parked | undefined
-      if (parked) {
-        await update($, resumed, () => parked)
-        $.ui.toast(`Last time (${ago(parked.at)}): ${parked.leftOff}${parked.next ? ` · next: ${parked.next}` : ''}`, { timeoutMs: 8000 })
-      }
-    }
+    if (e.source === 'resume') await showResume($)
     return r
   })
 
@@ -60,9 +57,10 @@ export const register: Register = on => {
 
   on('command.run', { command: 'park' }, async ($, e) => {
     const id = await $.session.id()
-    const parked = await summarize($, e.args.trim())
+    const { why, ...parked } = await summarize($, e.args.trim(), prompt)
     await $.store.set(`park:${id}`, parked)
-    return { text: `Parked. Left off: ${parked.leftOff}${parked.next ? `\nNext: ${parked.next}` : ''}\nResume any time with unpause.` }
+    const lines = [`Parked. Left off: ${parked.leftOff}`, parked.next && `Next: ${parked.next}`, parked.note && `Note: ${parked.note}`, why && `(no AI summary: ${why})`, 'Resume any time with unpause.']
+    return { text: lines.filter(Boolean).join('\n') }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -85,6 +83,16 @@ export const register: Register = on => {
   })
 }
 
+async function showResume($: EngineInterface) {
+  if (await read($, isShown)) return
+  const id = await $.session.id()
+  const parked = ((await $.store.get(`park:${id}`)) ?? (await $.store.get(`last:${id}`))) as Parked | undefined
+  if (!parked) return
+  await update($, isShown, () => true)
+  await update($, resumed, () => parked)
+  $.ui.toast(`Last time (${ago(parked.at)}): ${parked.leftOff}${parked.next ? ` · next: ${parked.next}` : ''}`, { timeoutMs: 8000 })
+}
+
 // Names the session through unpause, only when nobody named it yet.
 async function autoname($: EngineInterface, id: string) {
   const list = await $.process.run(['unpause', 'list', '--json'], { timeoutMs: 20_000 })
@@ -105,23 +113,34 @@ async function autoname($: EngineInterface, id: string) {
   if (done.exitCode === 0) $.ui.toast(`Session named "${name}" (rename any time with /rename)`)
 }
 
-async function summarize($: EngineInterface, note: string): Promise<Parked> {
-  const messages = (await $.session.messages()).slice(-10)
+async function summarize($: EngineInterface, note: string, prompt: string): Promise<Parked & { why?: string }> {
+  // Only messages with words in them: tool-only turns and tool results carry no text.
+  const messages = (await $.session.messages()).filter(m => m.text.trim() !== '').slice(-12)
+  const asked = prompt || messages.filter(m => m.role === 'user').at(-1)?.text || ''
+  const fallback = { leftOff: asked ? `you asked: ${oneLine(asked, 70)}` : 'parked', next: '', note, at: Date.now() }
   const r = await $.model.complete({
     model: MODEL,
-    maxTokens: 200,
+    maxTokens: 300,
     system:
       'Someone is pausing a coding session and will resume it later. Plain words, no em dashes. ' +
-      'Reply with JSON only: {"leftOff": "where things stand, at most 80 characters", "next": "the next step, at most 60 characters"}.',
-    prompt: messages.map(m => `${m.role}: ${m.text.slice(0, 600)}`).join('\n'),
+      'Reply with JSON only, no code fence: {"leftOff": "where things stand, at most 80 characters", "next": "the next step, at most 60 characters"}.',
+    // The transcript is material to summarize, not a chat to continue: tagged, instruction last.
+    prompt: [
+      '<transcript>',
+      ...messages.map(m => `[${m.role === 'user' ? 'person' : 'assistant'}] ${m.text.slice(0, 600)}`),
+      '</transcript>',
+      '',
+      'Summarize the transcript above for when they resume. Reply with the JSON object only.',
+    ].join('\n'),
   })
-  const fallback: Parked = { leftOff: 'parked (no summary)', next: '', note, at: Date.now() }
-  if (!r.isAnswered) return fallback
+  if (!r.isAnswered) return { ...fallback, why: r.reason }
   try {
     const o = JSON.parse(r.text.slice(r.text.indexOf('{'), r.text.lastIndexOf('}') + 1)) as { leftOff?: string; next?: string }
-    return { leftOff: oneLine(o.leftOff ?? '', 80) || fallback.leftOff, next: oneLine(o.next ?? '', 60), note, at: Date.now() }
+    const leftOff = oneLine(o.leftOff ?? '', 80)
+    if (!leftOff) return { ...fallback, why: 'empty summary' }
+    return { leftOff, next: oneLine(o.next ?? '', 60), note, at: Date.now() }
   } catch {
-    return fallback
+    return { ...fallback, why: `reply was not JSON: ${oneLine(r.text, 60)}` }
   }
 }
 

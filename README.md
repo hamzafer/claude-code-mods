@@ -1,28 +1,79 @@
 # Claude Code mods
 
-11 mods for Claude Code: live panes, bands above the prompt, guards and games, written as hot-reloading hook plugins.
+11 mods for Claude Code. They draw lines above the prompt, open panes, and hold risky commands until you answer. Each one is a plugin with a hook module that hot-reloads.
 
 Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ ⭐ for Cursor slash commands.
 
 ![reels: Shorts play while Claude works and pause when it's done](docs/reels-demo.gif)
 
-| Mod | What it does |
-| --- | --- |
-| **reels** | YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done. |
-| **snake** | Play Snake in a pane while Claude works; it pauses when Claude is done. |
-| **agent-radar** | `/agents` pane: each subagent's status, time, tool count and live action; toasts when they finish. |
-| **blast-radius** | Holds risky Bash commands and shows what they would change before they run. |
-| **browser-lanes** | One Playwright driver at a time: subagents queue for the browser, and a band shows who has it. |
-| **merge-gate** | CI, Codex review and merge in one view, with a hold on unready merges. `/gate` |
-| **replay-theater** | Step through the last turn's file edits, one diff at a time. |
-| **rulebook-guard** | Enforces your written rules: no em dashes in prose, no `--amend`, formatted before push, no PII without asking. |
-| **session-saver** | Names untitled sessions; `/park` saves where you left off and a resumed session shows it. |
-| **token-weather** | A live forecast of the context window, drawn above the prompt. |
-| **where-am-i** | A live recap above the prompt: goal, doing now, waiting on you, next. `/recap` |
+## Install
+
+Needs Claude Code 2.1.287 or later.
+
+```sh
+claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install token-weather@claude-code-mods
+```
+
+Install the ones you want, then restart Claude Code. To try one without installing:
+
+```sh
+claude --plugin-dir mods/token-weather
+```
+
+## The mods
+
+| Mod | What it does | Command |
+| --- | --- | --- |
+| **token-weather** | Shows how full the context window is, from Clear to Compact soon, with tokens used and the last turn's growth. | |
+| **where-am-i** | Shows the goal, what Claude is doing now, what it waits on from you, and the next step. | `/where` |
+| **agent-radar** | One live line per running subagent with its time, tool count and current action. | `/radar` |
+| **browser-lanes** | Says whether this session has a Playwright browser, and who holds it if not. | `/browser`, `/browser clean` |
+| **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed the PR once. Shows the PR's status above the prompt. | `/gate`, `/gate rerun` |
+| **rulebook-guard** | Swaps em dashes for commas in prose, and asks before `--amend`, an unformatted push, or personal info in notes. | |
+| **blast-radius** | Holds `rm -r`, force pushes and migrations, and shows what they would delete or overwrite. | |
+| **session-saver** | Saves where you left off and shows it when you resume. Names untitled sessions. | `/park [note]` |
+| **replay-theater** | Steps through the last turn's file edits, one diff at a time. | `/replay` |
+| **reels** | YouTube Shorts in a pane. Plays while Claude works, pauses when it's done. | `/reels` |
+| **snake** | Snake in a pane while Claude works. Pauses when Claude is done. | `/snake` |
+
+## How they behave
+
+**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate and session-saver each add a line there. They stack, and each one hides when it has nothing to show.
+
+**Guards ask before they block.** blast-radius, rulebook-guard and merge-gate stop a tool call and ask you. Saying no refuses the call, and Claude gets the reason. Saying yes runs it as written. In auto mode the session waits for your answer.
+
+## Notes per mod
+
+**token-weather.** The levels go by percent of the window. On a 1M window it stays Clear until 250k tokens.
+
+**where-am-i.** Makes one Haiku call after each turn to write the summary. `/where` gives a few bullets instead.
+
+**agent-radar.** A finished agent shows a check for 30 seconds, then its line goes away. A toast says when each one finishes. `/radar` lists every agent this session, and its number opens that agent's messages.
+
+**browser-lanes.** Run the Playwright MCP server with `--isolated`, or every session shares one Chrome profile and the second one gets "Browser is already in use":
+
+```sh
+claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
+```
+
+`/browser clean` lists the browsers other sessions left open and closes the ones you pick. It closes Chrome only, never a Claude session. When a browser call fails with "already in use", it offers to close the blocking browser and retries. The session's own browser closes when the session ends. Screenshots get the name of the agent that took them, like `login-test-03.png`.
+
+**merge-gate.** Needs `gh`. It refuses a `codex review` that doesn't set `-c 'model="gpt-5.6-luna"'`, a second review of the same PR, any `codex exec`, and any review while `~/.codex/config.toml` points at a local Ollama server. A review counts when it starts, so a quota error doesn't buy a retry. `/gate rerun` reruns the failed CI jobs.
+
+**rulebook-guard.** Rewrites em dashes in `.md` and `.txt` writes, commit messages, PR text and Slack posts. Code files are left alone. It asks before `git commit --amend`, before a `git push` with files that `ruff format` or Prettier would change, and before an email address or phone number goes into `~/notes`, memory files or a commit. The rules are plain code in `hooks/register.ts`, so change them to match yours.
+
+**blast-radius.** Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic). It lists the files and size an `rm` would delete, or the remote commits a force push would drop.
+
+**session-saver.** Needs [unpause](https://github.com/hamzafer/unpause). Run `/park` before you close, then `unpause open <name>`, and the note shows until you type. Untitled sessions get a name after their second turn.
+
+**replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
+
+**reels.** Needs Playwright once. `/reels` prints the install command.
 
 ## Screenshots
 
-**browser-lanes, token-weather and where-am-i**, stacked above the prompt
+**browser-lanes, token-weather and where-am-i** stacked above the prompt
 
 ![bands above the prompt](docs/bands.png)
 
@@ -38,16 +89,23 @@ Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![star
 
 ![replay-theater](docs/replay-theater.png)
 
-**where-am-i** recap with token-weather above it
+**where-am-i** with token-weather above it
 
 ![where-am-i](docs/where-am-i.png)
 
-## Try one
+## Build your own
+
+Start from [Getting started with Claude Code mods](https://claude.dev/blog/getting-started-with-claude-code-mods/). Check a mod with:
 
 ```sh
-claude --plugin-dir mods/reels
+claude plugin validate mods/<name>
+claude plugin test mods/<name>
 ```
 
-Then type `/reels`. Reels needs Playwright once: `/reels` prints the install command.
+Things that bit us while building these:
 
-Check a mod: `claude plugin validate mods/<name>` and `claude plugin test mods/<name>`.
+- `claude plugin test` can refuse inside a running session. Run it with `CLAUDE_CONFIG_DIR` set to another config.
+- JSX compiles to `h(...)`, so a variable named `h` breaks every element after it.
+- Claude Code refuses a command name it already has, like `/agents` or `/recap`. Catch the error from `$.command.register`, or the rest of `session.start` never runs.
+- Add `.catch()` to background work you don't await, or the tests fail at teardown.
+- Check what the shell runs, not quoted text. A heredoc that mentions `git commit --amend` is not an amend.

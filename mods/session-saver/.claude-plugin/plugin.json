@@ -1,6 +1,6 @@
 {
   "name": "session-saver",
   "version": "0.1.0",
-  "description": "Pairs with unpause: names untitled sessions, /park saves where you left off, and a resumed session shows it right away.",
+  "description": "Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.",
   "types": "./types/index.d.ts"
 }

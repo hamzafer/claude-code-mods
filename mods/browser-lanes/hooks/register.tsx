@@ -27,7 +27,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'browser', description: "Is this session attached to a Playwright browser? /browser clean closes other sessions' browsers", argumentHint: '[clean]' })
+    await $.command.register({ name: 'browser', description: "Is this session attached to a Playwright browser? /browser clean closes other sessions' browsers", argumentHint: '[clean]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     void inspect($).catch(() => {})
     return r
   })

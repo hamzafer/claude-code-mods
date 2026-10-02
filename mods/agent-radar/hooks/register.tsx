@@ -1,13 +1,15 @@
 // Agent Radar: what are my subagents cooking?
-//   /agents opens a pane: one row per subagent with its status, time, tool count and what
-//   it is doing right now. Press its number for its latest messages. A toast says when
-//   each one finishes or fails.
+//   The band above the prompt has one live line per running subagent: status, time, tool
+//   count and what it is doing right now; a finished one shows a check for 30 s. A toast
+//   says when each finishes. /radar opens a pane with every agent and its messages.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { RadarAgent } from '../types'
 
 const PANE = 'agent-radar'
+const SHOW_DONE_MS = 30_000 // a finished agent stays in the band this long
+const BAND_ROWS = 4
 
 // Held by the host, so the radar survives a hot reload of this file.
 const agents = atom({ plugin: 'agent-radar', key: 'agents' } as const, [] as RadarAgent[])
@@ -17,11 +19,11 @@ const now = atom({ plugin: 'agent-radar', key: 'now' } as const, 0)
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'agents', description: 'What are my subagents doing? Opens the Agent Radar pane' })
+    await $.command.register({ name: 'radar', description: 'What are my subagents doing? Opens the Agent Radar pane' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     // A clock for the elapsed times, ticking only while something runs.
     $.clock.every(1000, () => {
       void (async () => {
-        if ((await read($, agents)).some(a => a.status === 'running')) await update($, now, () => Date.now())
+        if ((await read($, agents)).some(a => isShown(a))) await update($, now, () => Date.now())
       })().catch(() => {})
     })
     return r
@@ -60,13 +62,36 @@ export const register: Register = on => {
     return r
   })
 
-  on('command.run', { command: 'agents' }, async $ => {
+  on('command.run', { command: 'radar' }, async $ => {
     await adopt($)
     await update($, selected, () => null)
     await $.ui.open({ id: PANE, title: 'Agent Radar', focus: true })
     const list = await read($, agents)
     const running = list.filter(a => a.status === 'running').length
     return { text: `${running} running, ${list.length - running} finished` }
+  })
+
+  // The band: one live line per running agent, and a ✓ for 30 s once one finishes.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const rest = await next(e) // what other mods and Claude Code draw here stays
+    await read($, now) // subscribes the band to the clock
+    const shown = (await read($, agents)).filter(a => isShown(a))
+    if (e.props.hasSurvey || shown.length === 0) return rest
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {shown.slice(0, BAND_ROWS).map(a => (
+          <Text wrap="truncate-end">
+            <Text color={color(a)} bold>{` ${icon(a)} ${a.description}`}</Text>
+            <Text dimColor>{`  ${elapsed(a)} · ${a.tools} tools`}</Text>
+            {a.status === 'running' && <Text>{` · ${a.last}`}</Text>}
+            {a.status === 'failed' && <Text color="red">{` · ${a.last}`}</Text>}
+          </Text>
+        ))}
+        {shown.length > BAND_ROWS && <Text dimColor>{`   +${shown.length - BAND_ROWS} more · /radar`}</Text>}
+        {rest}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -113,7 +138,7 @@ export const register: Register = on => {
             plain
             hotkey={String(i + 1)}
             dimColor={a.status !== 'running'}
-            label={`${icon(a)} ${a.description} · ${elapsed(a)} · ${a.tools} tools · ${a.last}`}
+            label={`${icon(a)} ${a.description} · ${elapsed(a)} · ${a.tools} tools${a.status === 'done' ? '' : ` · ${a.last}`}`}
             onPress={() => update($, selected, () => a.id)}
           />
         ))}
@@ -142,6 +167,11 @@ async function adopt($: EngineInterface) {
       last: a.status === 'running' ? 'running (started before the radar)' : a.status,
     }))
   if (fresh.length > 0) await update($, agents, list => [...list, ...fresh])
+}
+
+// Running, or finished in the last 30 s.
+export function isShown(a: RadarAgent, at = Date.now()) {
+  return a.status === 'running' || (a.endedAt !== undefined && at - a.endedAt < SHOW_DONE_MS)
 }
 
 function icon(a: RadarAgent) {
