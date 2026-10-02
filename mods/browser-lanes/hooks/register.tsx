@@ -41,7 +41,7 @@ export const register: Register = on => {
   // Closing the session closes its browser too.
   on('session.end', async ($, e, next) => {
     const a = await read($, attached)
-    if (a?.state === 'attached' && a.chromePid) await $.process.run(['kill', String(a.chromePid)], { timeoutMs: 2_000 }).catch(() => null)
+    if (a?.state === 'attached' && a.chromePid) await closeChrome($, a.chromePid)
     return next(e)
   })
 
@@ -153,6 +153,15 @@ async function inspect($: EngineInterface): Promise<Attachment> {
   return a
 }
 
+// Closes one Playwright Chrome, after checking the pid still is one: between `ps` and
+// `kill` the process may have ended and its pid gone to something else.
+async function closeChrome($: EngineInterface, pid: number) {
+  const now = await $.process.run(['ps', '-p', String(pid), '-o', 'command='], { timeoutMs: 2_000 }).catch(() => null)
+  if (!now || now.exitCode !== 0 || !/--user-data-dir=/.test(now.stdout) || /Helper/.test(now.stdout)) return false
+  const r = await $.process.run(['kill', String(pid)], { timeoutMs: 2_000 }).catch(() => null)
+  return r?.exitCode === 0
+}
+
 // Asks before closing the Chrome another Claude holds; never touches that Claude itself.
 async function closeBlocker($: EngineInterface, a: Attachment) {
   const where = a.holder?.cwd ? ` in ${a.holder.cwd.split('/').slice(-2).join('/')}` : ''
@@ -165,8 +174,7 @@ async function closeBlocker($: EngineInterface, a: Attachment) {
   } catch {
     return false
   }
-  const r = await $.process.run(['kill', String(a.chromePid)], { timeoutMs: 5_000 }).catch(() => null)
-  return r?.exitCode === 0
+  return a.chromePid ? closeChrome($, a.chromePid) : false
 }
 
 // /browser clean: lists every Playwright browser and closes the ones the person picks.
@@ -190,8 +198,7 @@ async function clean($: EngineInterface) {
   if (chosen.length === 0) return `Kept all browsers:\n${list}`
   const closed: number[] = []
   for (const b of chosen) {
-    const r = await $.process.run(['kill', String(b.chromePid)], { timeoutMs: 5_000 }).catch(() => null)
-    if (r?.exitCode === 0) closed.push(b.chromePid)
+    if (await closeChrome($, b.chromePid)) closed.push(b.chromePid)
   }
   void inspect($).catch(() => {})
   return `Closed ${closed.length} of ${chosen.length} browser(s):\n${chosen.map(b => `- Chrome ${b.chromePid} · ${b.claude}${closed.includes(b.chromePid) ? '' : ' (could not close)'}`).join('\n')}`

@@ -23,7 +23,8 @@ export const register: Register = on => {
     // A clock for the elapsed times, ticking only while something runs.
     $.clock.every(1000, () => {
       void (async () => {
-        if ((await read($, agents)).some(a => isShown(a))) await update($, now, () => Date.now())
+        // A few seconds past the 30 s too, so the redraw that drops a finished line happens.
+        if ((await read($, agents)).some(a => isShown(a, Date.now() - 3_000))) await update($, now, () => Date.now())
       })().catch(() => {})
     })
     return r

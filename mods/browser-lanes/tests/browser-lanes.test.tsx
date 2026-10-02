@@ -17,6 +17,14 @@ const ps = (chromeUnder: number, isolated = false) =>
     '301 300 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper (GPU).app/Contents/MacOS/Google Chrome Helper --type=gpu',
   ].join('\n')
 
+// What `ps` prints: the whole list, or with `-p <pid>` that one process's command.
+const psOut = (argv: string[], under: number) => {
+  const i = argv.indexOf('-p')
+  if (i === -1) return ps(under)
+  const line = ps(under).split('\n').find(l => l.startsWith(`${argv[i + 1]} `))
+  return line ? `${line.split(' ').slice(2).join(' ')}\n` : ''
+}
+
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod: records what the browser tools were called with.
@@ -124,7 +132,7 @@ describe('browser-lanes', () => {
     on('process.run', (_$: any, e: any) => {
       const argv = e.argv as string[]
       if (argv[0] === 'kill') kills.push(argv[1] as string)
-      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? ps(chromeUnder) : argv[0] === 'lsof' ? 'p200\nfcwd\nn/work\n' : ''
+      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? psOut(argv, chromeUnder) : argv[0] === 'lsof' ? 'p200\nfcwd\nn/work\n' : ''
       return { value: { exitCode: 0, stdout, stderr: '' } } as any
     })
 
@@ -149,13 +157,35 @@ describe('browser-lanes', () => {
     on('process.run', (_$: any, e: any) => {
       const argv = e.argv as string[]
       if (argv[0] === 'kill') kills.push(argv[1] as string)
-      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? ps(202) : ''
+      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? psOut(argv, 202) : ''
       return { value: { exitCode: 0, stdout, stderr: '' } } as any
     })
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const r = await $.command.run({ command: 'browser', args: 'clean' } as any)
     expect(r.text).toMatch(/^Closed 1 of 1 browser\(s\):\n- Chrome 300 · Claude pid 200/)
     expect(kills).toEqual(['300'])
+  })
+
+  test('a pid that is no longer a Playwright Chrome is not killed', async ($, on) => {
+    const kills: string[] = []
+    on('tool.call', { tool: 'AskUserQuestion' }, (_$: any, e: any) => {
+      const q = e.questions[0]
+      return { result: { questions: e.questions, answers: { [q.question]: 'Close all 1 other browsers' } }, text: '' }
+    })
+    on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
+    on('command.register', () => ({ value: undefined }) as any)
+    on('session.cwd', () => ({ value: '/work' }))
+    on('process.run', (_$: any, e: any) => {
+      const argv = e.argv as string[]
+      if (argv[0] === 'kill') kills.push(argv[1] as string)
+      // The list still shows Chrome 300, but by the re-check its pid belongs to something else.
+      const stdout = argv[0] === 'sh' ? '100\n' : argv[0] === 'ps' ? (argv.includes('-p') ? 'vim notes.md\n' : ps(202)) : ''
+      return { value: { exitCode: 0, stdout, stderr: '' } } as any
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const r = await $.command.run({ command: 'browser', args: 'clean' } as any)
+    expect(kills).toEqual([])
+    expect(r.text).toMatch(/Closed 0 of 1.*could not close/s)
   })
 
   test('other tools pass straight through', async ($, on) => {

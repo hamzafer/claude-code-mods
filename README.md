@@ -29,7 +29,7 @@ claude --plugin-dir mods/token-weather
 | **where-am-i** | Shows the goal, what Claude is doing now, what it waits on from you, and the next step. | `/where` |
 | **agent-radar** | One live line per running subagent with its time, tool count and current action. | `/radar` |
 | **browser-lanes** | Says whether this session has a Playwright browser, and who holds it if not. | `/browser`, `/browser clean` |
-| **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed the PR once. Shows the PR's status above the prompt. | `/gate`, `/gate rerun` |
+| **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed the PR once. Shows the PR's status above the prompt. Opinionated: built around one Codex review on `gpt-5.6-luna`. | `/gate`, `/gate rerun` |
 | **rulebook-guard** | Swaps em dashes for commas in prose, and asks before `--amend`, an unformatted push, or personal info in notes. | |
 | **blast-radius** | Holds `rm -r`, force pushes and migrations, and shows what they would delete or overwrite. | |
 | **session-saver** | Saves where you left off and shows it when you resume. Names untitled sessions. | `/park [note]` |

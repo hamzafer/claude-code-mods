@@ -2,7 +2,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Recap, RunningAgent } from '../types'
+import type { Recap } from '../types'
 
 const MODEL = 'haiku'
 const MAX_LOG = 20
@@ -10,7 +10,6 @@ const MAX_LOG = 20
 // Held by the host, so the recap survives a hot reload of this file.
 const recap = atom({ plugin: 'where-am-i', key: 'recap' } as const, null as Recap | null)
 const live = atom({ plugin: 'where-am-i', key: 'live' } as const, '')
-const agents = atom({ plugin: 'where-am-i', key: 'agents' } as const, [] as RunningAgent[])
 
 export const register: Register = on => {
   let prompt = ''
@@ -35,13 +34,11 @@ export const register: Register = on => {
     log = [...log, e.agentId ? `(agent) ${line}` : line].slice(-MAX_LOG)
     if (!e.agentId) await update($, live, () => line)
     const r = await next(e)
-    if (e.tool === 'Agent') await refreshAgents($)
     return r
   })
 
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
-    await refreshAgents($)
     if (!e.agentId) {
       await update($, live, () => '')
       void summarize($, prompt, log, e.answer).catch(() => {}) // in the background, so the turn ends at once
@@ -95,12 +92,6 @@ export function describe(e: Record<string, unknown>): string {
   if (tool === 'AskUserQuestion') return 'asking you a question'
   if (tool.startsWith('mcp__')) return `using ${tool.split('__').slice(1).join(' ')}`
   return `using ${tool}`
-}
-
-async function refreshAgents($: EngineInterface) {
-  const list = await $.agent.list()
-  const running = list.filter(a => a.status === 'running').map(a => ({ id: a.id, description: a.description }))
-  await update($, agents, () => running)
 }
 
 async function summarize($: EngineInterface, prompt: string, log: string[], answer: string) {
