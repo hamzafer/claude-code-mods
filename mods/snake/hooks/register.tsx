@@ -13,6 +13,7 @@ const best = atom({ plugin: 'snake', key: 'best' } as const, 0)
 const isOn = atom({ plugin: 'snake', key: 'isOn' } as const, false)
 
 export const register: Register = on => {
+  let isWorking = false // a main-loop turn is running, whether or not Snake is on
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     await $.command.register({ name: 'snake', description: 'Snake in a pane while Claude works: /snake, /snake stop', argumentHint: '[stop]' }).catch(() => {})
@@ -22,6 +23,7 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
+    isWorking = true
     if (!(await read($, isOn))) return next(e) // opt-in: nothing until /snake
     await update($, isPlaying, () => true)
     void $.ui.open({ id: PANE, title: 'Snake' }) // seats from 144 columns when opened unasked; /snake opens it at any width
@@ -30,7 +32,10 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
-    if (!e.agentId) await update($, isPlaying, () => false)
+    if (!e.agentId) {
+      isWorking = false
+      await update($, isPlaying, () => false)
+    }
     return r
   })
 
@@ -42,6 +47,7 @@ export const register: Register = on => {
       return { text: 'Snake is off. /snake turns it back on.' }
     }
     await update($, isOn, () => true)
+    await update($, isPlaying, () => isWorking) // turned on mid-turn: play now, not next turn
     await $.ui.open({ id: PANE, title: 'Snake', focus: true })
     return { text: 'Snake is on. It plays while Claude works. /snake stop turns it off.' }
   })

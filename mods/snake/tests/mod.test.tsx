@@ -39,6 +39,26 @@ describe('snake mod', () => {
     expect(opened).toEqual(['snake', 'snake']) // off again: nothing new
   })
 
+  test('turned on mid-turn it plays right away; off, the spinner is untouched', async ($, on) => {
+    engine(on, {}, [])
+    on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: e.props.message ?? e.props.word }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const SPINNER = { component: 'Spinner', props: { word: 'Thinking', message: null, suffix: '…', mode: 'thinking' } }
+
+    await $.turn.start({ text: 'go', turnId: 't1' } as any) // Snake off: the turn runs untouched
+    const pane: any = await $.ui.mount({ plugin: 'snake', surface: 'terminal', ...PANE } as any)
+    await pane.post({ score: 2 })
+    const off = await $.ui.mount({ plugin: 'snake', surface: 'terminal', ...SPINNER } as any)
+    expect(await off.find({ type: 'Text', text: /^Thinking$/ })).toBeDefined()
+    await off.unmount()
+
+    await $.command.run({ command: 'snake', args: '' } as any) // during the same turn
+    const now = await $.ui.mount({ plugin: 'snake', surface: 'terminal', ...SPINNER } as any)
+    expect(await now.find({ type: 'Text', text: /Thinking · 🐍 2/ })).toBeDefined()
+    await now.unmount()
+    await pane.unmount()
+  })
+
   test('plays while Claude works and pauses when it is done', async ($, on) => {
     const opened: string[] = []
     engine(on, {}, opened)
