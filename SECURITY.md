@@ -1,7 +1,10 @@
 # 🔒 Security
 
-Found a vulnerability? Please do not open a public issue.
+Found a vulnerability? Please **don't** open a public issue.
 
-Report it privately: go to the **Security** tab, then **Report a vulnerability**.
+Report it privately:
 
-I will reply as soon as I can.
+1. Open the **Security** tab
+2. Click **Report a vulnerability**
+
+I'll reply as soon as I can.

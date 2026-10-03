@@ -1,32 +1,48 @@
-# Demo
+# 🎥 Demo
 
-Videos and screenshots of the mods. The overview is in the [README](../README.md), setup notes in [mods.md](mods.md).
+Videos and screenshots of the mods.
 
-**mission-control** at 4x: two subagents and a logout feature landing across four files
+- 🏠 Overview: [README](../README.md)
+- 📖 Setup notes: [mods.md](mods.md)
+
+## 🛰️ mission-control
+
+Shown at 4x: two subagents and a logout feature landing across four files.
 
 ![mission-control](../images/mission-control.gif)
 
+## 📱 reels
 
-**reels** plays Shorts while Claude works and pauses when it's done
+Plays Shorts while Claude works and pauses when it's done.
 
 ![reels](../images/reels-demo.gif)
 
-**browser-lanes, token-weather and where-am-i** stacked above the prompt
+## 📚 Bands above the prompt
+
+browser-lanes, token-weather and where-am-i stacked above the prompt.
 
 ![bands above the prompt](../images/bands.png)
 
-**blast-radius** holds an `rm -rf` and shows what it would delete
+## 💥 blast-radius
+
+Holds an `rm -rf` and shows what it would delete.
 
 ![blast-radius](../images/blast-radius.png)
 
-**rulebook-guard** catches a `git commit --amend`
+## 📏 rulebook-guard
+
+Catches a `git commit --amend`.
 
 ![rulebook-guard](../images/rulebook-guard.png)
 
-**replay-theater** steps through the last turn's edits
+## 🎬 replay-theater
+
+Steps through the last turn's edits.
 
 ![replay-theater](../images/replay-theater.png)
 
-**where-am-i** with token-weather above it
+## 📍 where-am-i
+
+Shown with token-weather above it.
 
 ![where-am-i](../images/where-am-i.png)

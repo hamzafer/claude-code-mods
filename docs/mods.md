@@ -1,47 +1,120 @@
-# The mods in detail
+# 📖 The mods in detail
 
-How the mods behave, setup notes for each one, and how to build your own. Videos and screenshots are in [demo.md](demo.md). The overview is in the [README](../README.md).
+How the mods behave, setup notes for each one, and how to build your own.
 
-## How they behave
+- 🎥 Videos and screenshots: [demo.md](demo.md)
+- 🏠 Overview: [README](../README.md)
 
-**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add a line there. They stack, and each one hides when it has nothing to show (oneform-line stays once it's set up).
+## 🧭 How they behave
 
-**Guards ask before they block.** blast-radius, rulebook-guard and merge-gate stop a tool call and ask you. Saying no refuses the call, and Claude gets the reason. Saying yes runs it as written. In auto mode the session waits for your answer.
+### 📏 Lines above the prompt
 
-## Notes per mod
+- token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add one
+- They stack
+- Each hides when it has nothing to show (oneform-line stays once it's set up)
 
+### 🙋 Guards ask before they block
 
-**mission-control.** Press `w` for Who and `c` for Code. The code map is a picture drawn by headless Chrome (`/Applications/Google Chrome.app`) in a throwaway profile of its own, so it needs Chrome and a terminal that shows images, like Ghostty, kitty or iTerm2. A file glows blue while Claude reads it and orange while it edits it, and turns green with a check once changed. One Haiku call after each turn writes the line under each changed file.
+- blast-radius, rulebook-guard and merge-gate stop a tool call and ask you
+- **No** refuses the call, and Claude gets the reason
+- **Yes** runs it as written
+- In auto mode the session waits for your answer
 
-**token-weather.** The levels go by percent of the window. On a 1M window it stays Clear until 250k tokens.
+## 🧩 Notes per mod
 
-**where-am-i.** Makes one Haiku call after each turn to write the summary. `/where` gives a few bullets instead.
+### 🛰️ mission-control
 
-**agent-radar.** A finished agent shows a check for 30 seconds, then its line goes away. A toast says when each one finishes. `/radar` lists every agent this session, and its number opens that agent's messages.
+- Press `w` for Who and `c` for Code
+- The code map is a picture drawn by headless Chrome (`/Applications/Google Chrome.app`) in a throwaway profile of its own
+- **Needs** Chrome and a terminal that shows images, like Ghostty, kitty or iTerm2
+- A file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed
+- One Haiku call after each turn writes the line under each changed file
 
-**browser-lanes.** Run the Playwright MCP server with `--isolated`, or every session shares one Chrome profile and the second one gets "Browser is already in use":
+### 🌦️ token-weather
+
+- Levels go by percent of the window
+- On a 1M window it stays Clear until 250k tokens
+
+### 📍 where-am-i
+
+- Makes one Haiku call after each turn to write the summary
+- `/where` gives a few bullets instead
+
+### 📡 agent-radar
+
+- A finished agent shows a check for 30 seconds, then its line goes away
+- A toast says when each one finishes
+- `/radar` lists every agent this session, and its number opens that agent's messages
+
+### 🌐 browser-lanes
+
+- **Setup:** run the Playwright MCP server with `--isolated`
+- Without it, every session shares one Chrome profile and the second one gets "Browser is already in use"
 
 ```sh
 claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 ```
 
-`/browser clean` lists the browsers other sessions left open and closes the ones you pick. It closes Chrome only, never a Claude session. When a browser call fails with "already in use", it offers to close the blocking browser and retries. The session's own browser closes when the session ends. Screenshots get the name of the agent that took them, like `login-test-03.png`.
+- `/browser clean` lists the browsers other sessions left open and closes the ones you pick
+- It closes Chrome only, never a Claude session
+- When a browser call fails with "already in use", it offers to close the blocking browser and retries
+- The session's own browser closes when the session ends
+- Screenshots get the name of the agent that took them, like `login-test-03.png`
 
-**merge-gate.** Needs `gh`. It refuses a `codex review` that doesn't set `-c 'model="gpt-5.6-luna"'`, a second review of the same PR, any `codex exec`, and any review while `~/.codex/config.toml` points at a local Ollama server. A review counts when it starts, so a quota error doesn't buy a retry. `/gate rerun` reruns the failed CI jobs.
+### 🚦 merge-gate
 
-**rulebook-guard.** Rewrites em dashes in `.md` and `.txt` writes, commit messages, PR text and Slack posts. Code files are left alone. It asks before `git commit --amend`, before a `git push` with files that `ruff format` or Prettier would change, and before an email address or phone number goes into `~/notes`, memory files or a commit. The rules are plain code in `hooks/register.ts`, so change them to match yours.
+- **Needs** `gh`
+- Refuses a `codex review` that doesn't set `-c 'model="gpt-5.6-luna"'`
+- Refuses a second review of the same PR
+- Refuses any `codex exec`
+- Refuses any review while `~/.codex/config.toml` points at a local Ollama server
+- A review counts when it starts, so a quota error doesn't buy a retry
+- `/gate rerun` reruns the failed CI jobs
 
-**blast-radius.** Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic). It lists the files and size an `rm` would delete, or the remote commits a force push would drop.
+### 📏 rulebook-guard
 
-**session-saver.** Needs [unpause](https://github.com/hamzafer/unpause). Run `/park` before you close, then `unpause open <name>`, and the note shows until you type. Untitled sessions get a name after their second turn.
+- Rewrites em dashes in `.md` and `.txt` writes, commit messages, PR text and Slack posts (code files are left alone)
+- Asks before `git commit --amend`
+- Asks before a `git push` with files that `ruff format` or Prettier would change
+- Asks before an email address or phone number goes into `~/notes`, memory files or a commit
+- The rules are plain code in `hooks/register.ts`, so change them to match yours
 
-**oneform-line.** For OneForm, my own fitness coach app, so it's only useful if you run OneForm. Installed from the marketplace, Claude Code asks for `url` and `key` and keeps the key in secure storage. Loaded from a folder, set them in `settings.json` under `pluginConfigs["oneform-line"].options`. It calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes (1 minute after a failure), so it doesn't fill OneForm's tool-call log. The URL has to be `https://`. Once set up the line is always there: what isn't logged yet says so, targets you passed show as "over", and it keeps the last answer with an "as of" time when OneForm can't be reached. `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days.
+### 💥 blast-radius
 
-**replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
+- Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
+- Lists the files and size an `rm` would delete
+- Lists the remote commits a force push would drop
 
-**reels and snake.** Both are opt-in. Installing them changes nothing until you type `/reels` or `/snake`, and `stop` turns them off again. Reels needs Playwright once, and `/reels` prints the install command.
+### 💾 session-saver
 
-## Build your own
+- **Needs** [unpause](https://github.com/hamzafer/unpause)
+- Run `/park` before you close, then `unpause open <name>`
+- The note shows until you type
+- Untitled sessions get a name after their second turn
+
+### 🏋️ oneform-line
+
+- Made for OneForm, my own fitness coach app, so it's only useful if you run OneForm
+- **Marketplace install:** Claude Code asks for `url` and `key` and keeps the key in secure storage
+- **Loaded from a folder:** set them in `settings.json` under `pluginConfigs["oneform-line"].options`
+- The URL has to be `https://`
+- Calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes (1 minute after a failure), so it doesn't fill OneForm's tool-call log
+- Once set up the line is always there: what isn't logged yet says so, targets you passed show as "over"
+- When OneForm can't be reached, it keeps the last answer with an "as of" time
+- `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days
+
+### 🎬 replay-theater
+
+- Run `/replay` after a turn that edited files
+- `n` and `p` step, `q` closes
+
+### 📱🐍 reels and snake
+
+- Both are opt-in: installing them changes nothing until you type `/reels` or `/snake`
+- `stop` turns them off again
+- Reels needs Playwright once, and `/reels` prints the install command
+
+## 🛠️ Build your own
 
 Start from [Getting started with Claude Code mods](https://claude.dev/blog/getting-started-with-claude-code-mods/). Check a mod with:
 
@@ -50,7 +123,7 @@ claude plugin validate mods/<name>
 claude plugin test mods/<name>
 ```
 
-Things that bit us while building these:
+### 🪤 Things that bit us
 
 - `claude plugin test` can refuse inside a running session. Run it with `CLAUDE_CONFIG_DIR` set to another config.
 - JSX compiles to `h(...)`, so a variable named `h` breaks every element after it.
