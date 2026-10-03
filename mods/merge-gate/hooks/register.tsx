@@ -55,7 +55,7 @@ export const register: Register = on => {
       return { deny: 'Merge Gate: `codex exec` can edit the branch. The rule is review only: use `codex review`.' }
     }
     if (CODEX_REVIEW.test(shell)) return codexReview($, e.command, () => next(e))
-    if (GH_MERGE.test(shell)) return merge($, shell, () => next(e))
+    if (GH_MERGE.test(shell)) return merge($, shell, e.command, () => next(e))
     return next(e)
   })
 
@@ -103,7 +103,7 @@ async function codexReview($: EngineInterface, command: string, run: () => Promi
   if (!/\bmodel\s*=\s*\\?["']?gpt-5\.6-luna["'\s]/.test(`${command} `)) {
     return { deny: `Merge Gate: Codex reviews run on ${LUNA} only. Add -c 'model="${LUNA}"' to the command.` }
   }
-  const key = await codexKey($)
+  const key = await codexKey($, await runDir($, command))
   const done = Number((await $.store.get(key)) ?? 0)
   if (done >= 1) {
     return { deny: 'Merge Gate: Codex already reviewed this PR once (rule: one pass per PR). Fix or answer its findings instead of running it again.' }
@@ -113,12 +113,12 @@ async function codexReview($: EngineInterface, command: string, run: () => Promi
   return run()
 }
 
-async function merge($: EngineInterface, command: string, run: () => Promise<ToolCallResult>): Promise<ToolCallResult> {
-  const asked = prNumber(command)
-  const pr = await currentPr($, asked)
+async function merge($: EngineInterface, shell: string, command: string, run: () => Promise<ToolCallResult>): Promise<ToolCallResult> {
+  const dir = await runDir($, command)
+  const pr = await currentPr($, dir, prNumber(shell))
   if (!pr) return run()
-  const checks = await ciChecks($, pr.number)
-  const codex = Number((await $.store.get(await codexKey($, pr))) ?? 0)
+  const checks = await ciChecks($, pr.number, dir)
+  const codex = Number((await $.store.get(await codexKey($, dir, pr))) ?? 0)
   const missing = [
     checks.fail > 0 && `CI has ${checks.fail} failing (${checks.failing.join(', ')})`,
     checks.pending > 0 && `CI has ${checks.pending} still running`,
@@ -240,19 +240,64 @@ export function isOllama(config: string) {
   return /127\.0\.0\.1:11434|localhost:11434/.test(base) || /^(gemma|llama|qwen|mistral|deepseek|phi|gpt-oss)/i.test(model) || /:\d+b\b|:latest$/.test(model)
 }
 
-// One counter per PR (or per branch before it has one), shared across sessions.
-async function codexKey($: EngineInterface, known?: Pr | null) {
-  const pr = known ?? (await currentPr($))
-  const top = await $.process.run(['git', 'rev-parse', '--show-toplevel']).catch(() => null)
-  const repo = top?.exitCode === 0 ? top.stdout.trim() : await $.session.cwd()
-  if (pr) return `codex:${repo}#${pr.number}`
-  const branch = await $.process.run(['git', 'branch', '--show-current']).catch(() => null)
-  return `codex:${repo}@${branch?.stdout.trim() ?? 'unknown'}`
+// The folders a command moves to before it runs the rest: each leading `cd X &&` or `cd X;`
+// (also inside a leading `(` or `{`), quoted or not. Paths are returned as written, in order.
+export function cdTargets(command: string): string[] {
+  const dirs: string[] = []
+  let rest = command
+  for (let n = 0; n < 8; n++) {
+    const m = /^[\s({]*cd[ \t]+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|((?:[^\s;&|()'"`\\]|\\.)+))[ \t]*(?:&&|;|\n)/.exec(rest)
+    if (!m) break
+    dirs.push(m[1] ?? m[2]?.replace(/\\(.)/g, '$1') ?? m[3].replace(/\\(.)/g, '$1'))
+    rest = rest.slice(m[0].length)
+  }
+  return dirs
 }
 
-async function currentPr($: EngineInterface, number?: string): Promise<Pr | null> {
+// `to` resolved against the folder `from` (absolute), with `~` as `home`. Null when it uses a
+// variable or other expansion that only the shell can resolve.
+export function resolveDir(from: string, to: string, home: string): string | null {
+  if (/[$`*?]/.test(to)) return null
+  const path = to === '~' || to.startsWith('~/') ? home + to.slice(1) : to.startsWith('/') ? to : `${from}/${to}`
+  const parts: string[] = []
+  for (const p of path.split('/')) {
+    if (p === '' || p === '.') continue
+    if (p === '..') parts.pop()
+    else parts.push(p)
+  }
+  return `/${parts.join('/')}`
+}
+
+// Where the command really runs: the session's folder, moved by any leading `cd`.
+async function runDir($: EngineInterface, command: string): Promise<string> {
+  let dir = await $.session.cwd()
+  const targets = cdTargets(command)
+  if (targets.length === 0) return dir
+  const home = (await $.env.get('HOME')) ?? ''
+  for (const t of targets) {
+    const next = resolveDir(dir, t, home)
+    if (next === null) break // `cd $X`: keep the last folder we know
+    dir = next
+  }
+  return dir
+}
+
+// One counter per PR (or per branch before it has one), shared across sessions and worktrees.
+// It is read from the folder the command runs in, not the session's, so a review started with
+// `cd <worktree> && codex review` counts for that worktree's PR. The repo is the main checkout
+// (git's common dir), the same for every worktree of it.
+async function codexKey($: EngineInterface, dir: string, known?: Pr | null) {
+  const pr = known ?? (await currentPr($, dir))
+  const common = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: dir }).catch(() => null)
+  const repo = common?.exitCode === 0 && common.stdout.trim() ? common.stdout.trim().replace(/\/\.git\/?$/, '') : dir
+  if (pr) return `codex:${repo}#${pr.number}`
+  const branch = await $.process.run(['git', 'branch', '--show-current'], { cwd: dir }).catch(() => null)
+  return `codex:${repo}@${(branch?.exitCode === 0 && branch.stdout.trim()) || 'unknown'}`
+}
+
+async function currentPr($: EngineInterface, dir?: string, number?: string): Promise<Pr | null> {
   const args = ['gh', 'pr', 'view', ...(number ? [number] : []), '--json', 'number,title,headRefName,state']
-  const r = await $.process.run(args, { timeoutMs: 15_000 }).catch(() => null)
+  const r = await $.process.run(args, { timeoutMs: 15_000, ...(dir ? { cwd: dir } : {}) }).catch(() => null)
   if (!r || r.exitCode !== 0) return null
   try {
     const o = JSON.parse(r.stdout) as { number: number; title: string; headRefName: string; state: string }
@@ -277,8 +322,8 @@ export function countChecks(json: string): Checks {
   }
 }
 
-async function ciChecks($: EngineInterface, pr: number) {
-  const r = await $.process.run(['gh', 'pr', 'checks', String(pr), '--json', 'name,bucket'], { timeoutMs: 15_000 }).catch(() => null)
+async function ciChecks($: EngineInterface, pr: number, dir?: string) {
+  const r = await $.process.run(['gh', 'pr', 'checks', String(pr), '--json', 'name,bucket'], { timeoutMs: 15_000, ...(dir ? { cwd: dir } : {}) }).catch(() => null)
   return countChecks(r?.stdout ?? '[]') // gh exits non-zero while checks fail or run; the JSON is still there
 }
 
@@ -289,7 +334,7 @@ async function refresh($: EngineInterface): Promise<GateStatus | null> {
     return null
   }
   const checks = await ciChecks($, pr.number)
-  const codex = Number((await $.store.get(await codexKey($, pr))) ?? 0)
+  const codex = Number((await $.store.get(await codexKey($, await $.session.cwd(), pr))) ?? 0)
   const s: GateStatus = { pr: pr.number, title: pr.title, branch: pr.branch, ...checks, codex }
   await update($, status, () => s)
   return s
