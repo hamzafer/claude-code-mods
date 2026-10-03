@@ -37,6 +37,15 @@
 - Makes one Haiku call after each turn to write the summary
 - `/where` gives a few bullets instead
 
+### ➡️ next-steps
+
+- After each turn, shows 2 or 3 short prompts you'd likely send next, like `next:  1 run the tests you just wrote  ·  2 open a draft PR  ·  0 dismiss`
+- **Keys** (only while the prompt is empty): `1`, `2` or `3` puts that prompt in the box as a draft. Edit it or press Enter, nothing sends on its own. `0` hides the list
+- Digits typed after other text go in as usual
+- The list clears when you send a prompt or a new turn starts
+- Makes one Haiku call after each turn. Skips it for short replies and while background agents still run
+- With next-steps on, where-am-i leaves out its own "next" part, so you don't see two
+
 ### 📡 agent-radar
 
 - A finished agent shows a check for 30 seconds, then its line goes away
