@@ -13,7 +13,7 @@ claude plugin marketplace add hamzafer/claude-code-mods
 claude plugin install mission-control@claude-code-mods
 ```
 
-Restart Claude Code and type `/mission`. Press `c` for the code map and `w` for the agents.
+Restart Claude Code and type `/mission`. It opens on the agents. Press `c` for the code map and `w` to go back.
 
 A file glows blue while the agent reads it and orange while it writes, then turns green. After each turn, one line under it says what changed.
 
