@@ -14,8 +14,8 @@
 ### 🙋 Guards ask before they block
 
 - blast-radius, rulebook-guard and merge-gate stop a tool call and ask you
-- **No** refuses the call, and Claude gets the reason
-- **Yes** runs it as written
+- **Saying no** (Cancel, Block it, Hold) refuses the call, and Claude gets the reason
+- **Saying yes** (Proceed, Allow once, Merge anyway) runs it as written
 - In auto mode the session waits for your answer
 
 ## 🧩 Notes per mod
@@ -72,10 +72,10 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📏 rulebook-guard
 
-- Rewrites em dashes in `.md` and `.txt` writes, commit messages, PR text and Slack posts (code files are left alone)
+- Rewrites em dashes in `.md`, `.mdx`, `.markdown` and `.txt` writes, commit messages, PR text and Slack posts (code files are left alone)
 - Asks before `git commit --amend`
 - Asks before a `git push` with files that `ruff format` or Prettier would change
-- Asks before an email address or phone number goes into `~/notes`, memory files or a commit
+- Asks before an email address or phone number goes into `~/notes`, memory files, `CLAUDE.md` files or a commit
 - The rules are plain code in `hooks/register.ts`, so change them to match yours
 
 ### 💥 blast-radius

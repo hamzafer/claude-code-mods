@@ -1,6 +1,6 @@
 {
   "name": "where-am-i",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
   "author": {
     "name": "Hamza Zafar",
