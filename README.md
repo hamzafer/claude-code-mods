@@ -45,4 +45,4 @@ Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![star
 | **reels** | YouTube Shorts in a pane. Plays while Claude works, pauses when it's done. Nothing starts until `/reels`. | `/reels`, `/reels stop` |
 | **snake** | Snake in a pane while Claude works. Pauses when Claude is done. Nothing opens until `/snake`. | `/snake`, `/snake stop` |
 
-How they behave, setup notes, screenshots and how to build your own: [docs/mods.md](docs/mods.md).
+How they behave, setup notes and how to build your own: [docs/mods.md](docs/mods.md). Videos and screenshots: [docs/demo.md](docs/demo.md).

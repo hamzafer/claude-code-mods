@@ -1,6 +1,6 @@
 # The mods in detail
 
-How the mods behave, setup notes for each one, screenshots, and how to build your own. The overview is in the [README](../README.md).
+How the mods behave, setup notes for each one, and how to build your own. Videos and screenshots are in [demo.md](demo.md). The overview is in the [README](../README.md).
 
 ## How they behave
 
@@ -40,32 +40,6 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 **replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
 
 **reels and snake.** Both are opt-in. Installing them changes nothing until you type `/reels` or `/snake`, and `stop` turns them off again. Reels needs Playwright once, and `/reels` prints the install command.
-
-## Screenshots
-
-**reels** plays Shorts while Claude works and pauses when it's done
-
-![reels](reels-demo.gif)
-
-**browser-lanes, token-weather and where-am-i** stacked above the prompt
-
-![bands above the prompt](bands.png)
-
-**blast-radius** holds an `rm -rf` and shows what it would delete
-
-![blast-radius](blast-radius.png)
-
-**rulebook-guard** catches a `git commit --amend`
-
-![rulebook-guard](rulebook-guard.png)
-
-**replay-theater** steps through the last turn's edits
-
-![replay-theater](replay-theater.png)
-
-**where-am-i** with token-weather above it
-
-![where-am-i](where-am-i.png)
 
 ## Build your own
 
