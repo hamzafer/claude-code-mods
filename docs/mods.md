@@ -7,7 +7,7 @@
 
 ### 📏 Lines above the prompt
 
-- token-weather, usage-meter, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add one
+- token-weather, usage-meter, where-am-i, agent-radar, browser-lanes, merge-gate, glance, oneform-line and session-saver each add one
 - They stack
 - Each hides when it has nothing to show (oneform-line stays once it's set up)
 
@@ -126,6 +126,21 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Once set up the line is always there: what isn't logged yet says so, targets you passed show as "over"
 - When OneForm can't be reached, it keeps the last answer with an "as of" time
 - `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days
+
+### 👀 glance
+
+- **Needs** `gh`, plus the claude.ai Google Calendar, Linear and Slack connectors. A source that's missing just stays off the line
+- One item per source, the most urgent one, with "+2" for the rest:
+  - 📅 the meeting on now, or the next one (skips all-day events, ones you declined, and blocks over 3 hours already running)
+  - 🔀 a review asked of you, then your PR with failing CI, then one with changes requested
+  - 📋 your Linear issues In Progress or In Review, last touched first
+  - 💬 DMs and channel @mentions from people (no bots) in the last 2 hours. Slack's connector can't see what you've read
+- Slack has no "mentions me" filter, so glance looks up your Slack user id once and searches for it. The id stays in memory, nothing else from your profile is read
+- On a narrow terminal it shrinks Slack first, then Linear and PRs, and the meeting last
+- Fetches at start, then every 5 minutes. Connector calls cost no model tokens
+- The meeting countdown moves each minute without a fetch
+- A source that stops answering keeps its last answer, dimmed
+- `/glance` refreshes and lists everything behind the line
 
 ### 🎬 replay-theater
 
