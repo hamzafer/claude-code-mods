@@ -10,13 +10,21 @@ import type { GateStatus } from '../types'
 
 const LUNA = 'gpt-5.6-luna'
 
-// A command counts only where the shell starts one: at the start, after ; & | ( or a backtick,
-// or on a new line. Before it may come VAR=x, sudo, env, npx, bunx, time, !, then, do or else,
-// and options; between the tool and its subcommand, global options (codex -c k=v exec, gh -R o/r pr merge).
-const START = String.raw`(?:^|[\n;&|(\x60])\s*`
-const PREFIX = String.raw`(?:(?:\w+=\S*|sudo|env|npx|bunx|time|!|then|do|else|-\S+)\s+)*`
+// A command counts only where the shell starts one: at the start, after ; & | ( { or a backtick,
+// or on a new line. Before it may come VAR=x, wrappers (sudo, env, npx, timeout 900, nohup, xargs...),
+// shell keywords (if, then, !...), options and numbers; between the tool and its subcommand,
+// global options (codex -c k=v exec, gh -R o/r pr merge).
+// Words are bounded by [^\s;&|()] and the prefix is capped, so a long command cannot make the match slow.
+const START = String.raw`(?:^|[\n;&|({\x60])[ \t]*`
+const WORD = String.raw`[^\s;&|()\x60]`
+const WRAPPERS = 'sudo|env|npx|bunx|pnpx|time|timeout|nohup|nice|caffeinate|stdbuf|xargs|command|builtin|exec|if|elif|while|until|then|do|else|!'
+const PREFIX = String.raw`(?:(?:\w+=${WORD}*|(?:${WRAPPERS})(?![\w-])|-${WORD}+(?:[ \t]+[^\s;&|()\x60-]${WORD}*)?|\d[\w.]*)[ \t]+){0,8}`
 const OPTS = String.raw`(?:\s+-\S+(?:\s+[^\s;&|)\x60-]\S*)?)*`
-const at = (tool: string, ...sub: string[]) => new RegExp(START + PREFIX + String.raw`(?:\S*/)?` + tool + sub.map(s => OPTS + String.raw`\s+` + s).join('') + String.raw`(?![\w-])`)
+const at = (tool: string, ...sub: string[]) =>
+  new RegExp(START + PREFIX + String.raw`\\?(?:${WORD}*/)?` + tool + sub.map(s => OPTS + String.raw`\s+` + s).join('') + String.raw`(?![\w-])`)
+// A shell that runs the next string (bash -c, sh -lc, eval) or a heredoc (bash <<EOF).
+const RUNNER = /(?:^|[\s;&|({`])(?:(?:(?:ba|z|da|k)?sh)\s+(?:-\S+\s+)*-\w*c|eval)\s+$/
+const SHELL_HEREDOC = /(?:^|[\s;&|({`])(?:ba|z|da|k)?sh(?:\s+-\S+)*\s*$/
 const CODEX_EXEC = at('codex', 'exec')
 const CODEX_REVIEW = at('codex', 'review')
 const GH_MERGE = at('gh', 'pr', 'merge')
@@ -92,7 +100,7 @@ async function codexReview($: EngineInterface, command: string, run: () => Promi
         'Stop and ask Hamza to switch the toggle off. Do not edit the config.',
     }
   }
-  if (!command.includes(LUNA)) {
+  if (!/\bmodel\s*=\s*\\?["']?gpt-5\.6-luna["'\s]/.test(`${command} `)) {
     return { deny: `Merge Gate: Codex reviews run on ${LUNA} only. Add -c 'model="${LUNA}"' to the command.` }
   }
   const key = await codexKey($)
@@ -133,10 +141,17 @@ async function merge($: EngineInterface, command: string, run: () => Promise<Too
 
 // The command as the shell reads it: heredoc bodies, quoted text and # comments blanked, so text
 // that merely mentions a command (a grep pattern, a commit message, a note) is not taken for one.
-// $( ) and backticks inside double quotes still run, so they are kept.
-export function bare(command: string) {
-  const text = command.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, '\n')
+// What the shell does run is kept: $( ) and backticks inside double quotes, the string given to
+// bash -c or eval, a heredoc fed to a shell, and a quoted number ("42").
+export function bare(command: string): string {
+  // The rest of the opener line (cat <<EOF | codex ...) is kept; only the body goes.
+  const text = command.replace(/<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n([\s\S]*?)\n[ \t]*\2[ \t]*(?=\n|$)/g, (_m, _q, _tag, tail: string, body: string, at: number) =>
+    SHELL_HEREDOC.test(command.slice(command.lastIndexOf('\n', at - 1) + 1, at)) ? `${tail}\n${body}\n` : `${tail}\n`,
+  )
   let i = 0
+
+  // A quoted string the shell runs as a command, or a quoted number: what to keep of it, if anything.
+  const keep = (out: string, inner: string) => (RUNNER.test(out) ? `(${bare(inner)})` : /^\d+$/.test(inner) ? inner : null)
 
   // Plain shell, up to `stop` (the ) or backtick that closes a substitution) or the end.
   const plain = (stop?: string): string => {
@@ -148,13 +163,25 @@ export function bare(command: string) {
         i++
         return out
       }
-      if (c === "'") {
-        const end = text.indexOf("'", i + 1)
-        i = end < 0 ? text.length : end + 1
+      if (c === '$' && text[i + 1] === "'") {
+        let end = i + 2 // $'...' takes backslash escapes, \' among them
+        while (end < text.length && text[end] !== "'") end += text[end] === '\\' ? 2 : 1
         out += "''"
+        i = end + 1
+      } else if (c === "'") {
+        const end = text.indexOf("'", i + 1) < 0 ? text.length : text.indexOf("'", i + 1)
+        out += keep(out, text.slice(i + 1, end)) ?? "''"
+        i = end + 1
       } else if (c === '"') {
+        let end = i + 1
+        while (end < text.length && text[end] !== '"') end += text[end] === '\\' ? 2 : 1
+        const kept = keep(out, text.slice(i + 1, end).replace(/\\(.)/g, '$1'))
         i++
-        out += `"${quoted()}"`
+        if (kept === null) out += `"${quoted()}"`
+        else {
+          out += kept
+          i = end + 1
+        }
       } else if (c === '\\') {
         out += text.slice(i, i + 2)
         i += 2

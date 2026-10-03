@@ -66,7 +66,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Refuses a `codex review` that doesn't set `-c 'model="gpt-5.6-luna"'`
 - Refuses a second review of the same PR
 - Refuses any `codex exec`
-- Only commands the shell would run count: a mention in quotes, a heredoc, a grep pattern or a `#` comment passes
+- All three checks look only at commands the shell would run (including `bash -c '...'` and `eval`); text that only mentions one (a quoted argument, a heredoc, a grep pattern, a `#` comment) passes
 - Refuses any review while `~/.codex/config.toml` points at a local Ollama server
 - A review counts when it starts, so a quota error doesn't buy a retry
 - `/gate rerun` reruns the failed CI jobs

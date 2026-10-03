@@ -77,11 +77,22 @@ describe('merge-gate', () => {
   test('bare and prNumber read the command as the shell does', () => {
     expect(bare(`grep -n "codex exec" x && echo 'gh pr merge'`)).toBe(`grep -n "" x && echo ''`)
     expect(bare('ls # codex exec\npwd')).toBe('ls \npwd')
-    expect(bare("cat <<'EOF' > a.md\ncodex exec x\nEOF\nls")).toBe('cat \nls')
+    expect(bare("cat <<'EOF' > a.md\ncodex exec x\nEOF\nls")).toBe('cat  > a.md\n\nls')
     expect(bare('out="$(codex exec x)"')).toBe('out="(codex exec x)"')
     expect(prNumber('gh pr merge 42 --squash')).toBe('42')
     expect(prNumber('gh pr merge --squash 7 && ls')).toBe('7')
     expect(prNumber('gh -R o/r pr merge --squash')).toBeUndefined()
+    expect(prNumber(bare('gh pr merge "42" --squash'))).toBe('42')
+    expect(bare('cat <<EOF && ls\nbody\nEOF')).toBe('cat  && ls\n')
+  })
+
+  test('a long command is still read quickly', async ($, on) => {
+    engine(on)
+    for (const command of ['; x=1'.repeat(20_000), `;${'\n'.repeat(30_000)}`, '-a '.repeat(20_000)]) {
+      const t = Date.now()
+      await $.tool.call({ tool: 'Bash', command } as any)
+      expect(Date.now() - t).toBeLessThan(1000)
+    }
   })
 
   test('codex exec, codex review and gh pr merge are caught where the shell runs them', async ($, on) => {
@@ -100,6 +111,19 @@ describe('merge-gate', () => {
       `out="$(${cmd})"`,
       `echo \`${cmd}\``,
       `/usr/local/bin/${cmd}`,
+      `\\${cmd}`,
+      `timeout 900 ${cmd}`,
+      `nohup ${cmd} &`,
+      `command ${cmd}`,
+      `xargs -n 1 ${cmd}`,
+      `sudo -u bob ${cmd}`,
+      `{ ${cmd}; }`,
+      `if ${cmd}; then :; fi`,
+      `bash -lc '${cmd}'`,
+      `eval '${cmd}'`,
+      `cat <<EOF | ${cmd}\nbody\nEOF`,
+      `bash <<'EOF'\n${cmd}\nEOF`,
+      `echo $'a\\'b'; ${cmd}`,
     ]
     const cases: [string, RegExp][] = [
       ...forms('codex exec "fix it"').map(c => [c, /review only/] as [string, RegExp]),
