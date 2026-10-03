@@ -10,6 +10,17 @@ import type { GateStatus } from '../types'
 
 const LUNA = 'gpt-5.6-luna'
 
+// A command counts only where the shell starts one: at the start, after ; & | ( or a backtick,
+// or on a new line. Before it may come VAR=x, sudo, env, npx, bunx, time, !, then, do or else,
+// and options; between the tool and its subcommand, global options (codex -c k=v exec, gh -R o/r pr merge).
+const START = String.raw`(?:^|[\n;&|(\x60])\s*`
+const PREFIX = String.raw`(?:(?:\w+=\S*|sudo|env|npx|bunx|time|!|then|do|else|-\S+)\s+)*`
+const OPTS = String.raw`(?:\s+-\S+(?:\s+[^\s;&|)\x60-]\S*)?)*`
+const at = (tool: string, ...sub: string[]) => new RegExp(START + PREFIX + String.raw`(?:\S*/)?` + tool + sub.map(s => OPTS + String.raw`\s+` + s).join('') + String.raw`(?![\w-])`)
+const CODEX_EXEC = at('codex', 'exec')
+const CODEX_REVIEW = at('codex', 'review')
+const GH_MERGE = at('gh', 'pr', 'merge')
+
 // Held by the host, so the band survives a hot reload of this file.
 const status = atom({ plugin: 'merge-gate', key: 'status' } as const, null as GateStatus | null)
 
@@ -31,11 +42,12 @@ export const register: Register = on => {
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (/\bcodex\s+exec\b/.test(e.command)) {
+    const shell = bare(e.command) // what the shell runs, without quoted text, heredoc bodies or comments
+    if (CODEX_EXEC.test(shell)) {
       return { deny: 'Merge Gate: `codex exec` can edit the branch. The rule is review only: use `codex review`.' }
     }
-    if (/\bcodex\s+review\b/.test(e.command)) return codexReview($, e.command, () => next(e))
-    if (/\bgh\s+pr\s+merge\b/.test(e.command)) return merge($, e.command, () => next(e))
+    if (CODEX_REVIEW.test(shell)) return codexReview($, e.command, () => next(e))
+    if (GH_MERGE.test(shell)) return merge($, shell, () => next(e))
     return next(e)
   })
 
@@ -94,7 +106,7 @@ async function codexReview($: EngineInterface, command: string, run: () => Promi
 }
 
 async function merge($: EngineInterface, command: string, run: () => Promise<ToolCallResult>): Promise<ToolCallResult> {
-  const asked = /\bgh\s+pr\s+merge\s+(\d+)/.exec(command)?.[1]
+  const asked = prNumber(command)
   const pr = await currentPr($, asked)
   if (!pr) return run()
   const checks = await ciChecks($, pr.number)
@@ -117,6 +129,81 @@ async function merge($: EngineInterface, command: string, run: () => Promise<Too
   }
   if (answer === 'Merge anyway') return run()
   return { deny: `Merge Gate held the merge of PR #${pr.number}: ${missing.join('; ')}. Finish those first${checks.fail > 0 ? ' (failed CI: /gate rerun)' : ''}.` }
+}
+
+// The command as the shell reads it: heredoc bodies, quoted text and # comments blanked, so text
+// that merely mentions a command (a grep pattern, a commit message, a note) is not taken for one.
+// $( ) and backticks inside double quotes still run, so they are kept.
+export function bare(command: string) {
+  const text = command.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, '\n')
+  let i = 0
+
+  // Plain shell, up to `stop` (the ) or backtick that closes a substitution) or the end.
+  const plain = (stop?: string): string => {
+    let out = ''
+    let depth = 0
+    while (i < text.length) {
+      const c = text[i]
+      if (c === stop && (stop !== ')' || depth === 0)) {
+        i++
+        return out
+      }
+      if (c === "'") {
+        const end = text.indexOf("'", i + 1)
+        i = end < 0 ? text.length : end + 1
+        out += "''"
+      } else if (c === '"') {
+        i++
+        out += `"${quoted()}"`
+      } else if (c === '\\') {
+        out += text.slice(i, i + 2)
+        i += 2
+      } else if (c === '#' && (i === 0 || /[\s;&|()`]/.test(text[i - 1]))) {
+        const end = text.indexOf('\n', i)
+        i = end < 0 ? text.length : end
+      } else {
+        if (c === '(') depth++
+        if (c === ')') depth--
+        out += c
+        i++
+      }
+    }
+    return out
+  }
+
+  // Inside double quotes: the text is dropped, the substitutions are kept.
+  const quoted = (): string => {
+    let out = ''
+    while (i < text.length) {
+      const c = text[i]
+      if (c === '"') {
+        i++
+        return out
+      }
+      if (c === '\\') {
+        i += 2
+      } else if (c === '$' && text[i + 1] === '(') {
+        i += 2
+        out += `(${plain(')')})`
+      } else if (c === '`') {
+        i++
+        out += `\`${plain('`')}\``
+      } else {
+        i++
+      }
+    }
+    return out
+  }
+
+  return plain()
+}
+
+// The PR number given to `gh pr merge`, if any (options may come first).
+export function prNumber(shell: string) {
+  const m = GH_MERGE.exec(shell)
+  if (!m) return undefined
+  const rest = shell.slice(m.index + m[0].length)
+  return /^(?:\s+-\S+(?:\s+[^\s;&|)\x60-]\S*)?)*?\s+(\d+)(?![^\s;&|)\x60])/.exec(rest)?.[1]
 }
 
 // Ollama's ChatGPT toggle rewrites the config to a local server or an Ollama model.

@@ -1,6 +1,6 @@
 {
   "name": "merge-gate",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR line above the prompt and /gate.",
   "author": {
     "name": "Hamza Zafar",
