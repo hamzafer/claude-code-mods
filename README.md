@@ -1,5 +1,7 @@
 # 🛰️ Claude Code mods
 
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **See what your agent is reading and writing, live.**
 
 mission-control draws every subagent, every tool call and every file they touch, in a pane next to the chat.
@@ -71,3 +73,4 @@ claude --plugin-dir mods/token-weather
 - 📖 [**docs/mods.md**](docs/mods.md): how they behave, setup notes, build your own
 - 🎥 [**docs/demo.md**](docs/demo.md): videos and screenshots
 - ⭐ Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ stars for Cursor slash commands
+- 🤝 [**CONTRIBUTING.md**](CONTRIBUTING.md): add your own mod
