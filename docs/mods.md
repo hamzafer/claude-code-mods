@@ -1,6 +1,15 @@
-# Notes per mod
+# The mods in detail
 
-Setup, requirements and details for each mod. The overview is in the [README](../README.md).
+How the mods behave, setup notes for each one, screenshots, and how to build your own. The overview is in the [README](../README.md).
+
+## How they behave
+
+**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add a line there. They stack, and each one hides when it has nothing to show.
+
+**Guards ask before they block.** blast-radius, rulebook-guard and merge-gate stop a tool call and ask you. Saying no refuses the call, and Claude gets the reason. Saying yes runs it as written. In auto mode the session waits for your answer.
+
+## Notes per mod
+
 
 **mission-control.** Press `w` for Who and `c` for Code. The code map is a picture drawn by headless Chrome (`/Applications/Google Chrome.app`) in a throwaway profile of its own, so it needs Chrome and a terminal that shows images, like Ghostty, kitty or iTerm2. A file glows blue while Claude reads it and orange while it edits it, and turns green with a check once changed. One Haiku call after each turn writes the line under each changed file.
 
@@ -31,3 +40,46 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 **replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
 
 **reels and snake.** Both are opt-in. Installing them changes nothing until you type `/reels` or `/snake`, and `stop` turns them off again. Reels needs Playwright once, and `/reels` prints the install command.
+
+## Screenshots
+
+**reels** plays Shorts while Claude works and pauses when it's done
+
+![reels](reels-demo.gif)
+
+**browser-lanes, token-weather and where-am-i** stacked above the prompt
+
+![bands above the prompt](bands.png)
+
+**blast-radius** holds an `rm -rf` and shows what it would delete
+
+![blast-radius](blast-radius.png)
+
+**rulebook-guard** catches a `git commit --amend`
+
+![rulebook-guard](rulebook-guard.png)
+
+**replay-theater** steps through the last turn's edits
+
+![replay-theater](replay-theater.png)
+
+**where-am-i** with token-weather above it
+
+![where-am-i](where-am-i.png)
+
+## Build your own
+
+Start from [Getting started with Claude Code mods](https://claude.dev/blog/getting-started-with-claude-code-mods/). Check a mod with:
+
+```sh
+claude plugin validate mods/<name>
+claude plugin test mods/<name>
+```
+
+Things that bit us while building these:
+
+- `claude plugin test` can refuse inside a running session. Run it with `CLAUDE_CONFIG_DIR` set to another config.
+- JSX compiles to `h(...)`, so a variable named `h` breaks every element after it.
+- Claude Code refuses a command name it already has, like `/agents` or `/recap`. Catch the error from `$.command.register`, or the rest of `session.start` never runs.
+- Add `.catch()` to background work you don't await, or the tests fail at teardown.
+- Check what the shell runs, not quoted text. A heredoc that mentions `git commit --amend` is not an amend.
