@@ -4,7 +4,7 @@
 
 ## 🛰️ mission-control
 
-The code map at 4x while a logout feature lands across four files.
+Shown at 4x: two subagents building a logout feature across four files.
 
 ![mission-control](../images/mission-control.gif)
 

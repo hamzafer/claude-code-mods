@@ -8,7 +8,7 @@ Mods are Claude Code plugins that add live UI and hooks to a session (Claude Cod
 
 mission-control draws every subagent, every tool call and every file they touch, in a pane next to the chat.
 
-![mission-control code map at 4x: files glow blue while read, orange while edited, then green as a logout feature lands](images/mission-control.gif)
+![mission-control at 4x: two subagents and a logout feature landing across four files](images/mission-control.gif)
 
 ## 🚀 Try mission-control
 
