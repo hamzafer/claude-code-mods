@@ -109,7 +109,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Lists the remote commits a force push would drop
 - **Nobody there?** If you don't press within 60 s, it cancels the command and tells Claude why, so an auto-mode or unattended session keeps going. The pane counts down (`auto-cancels in 42 s`). It never runs the command on its own
 - Set `timeoutSeconds` to change the wait (`0` waits forever). Change it in `/config`, or in `settings.json` under `pluginConfigs["blast-radius"].options`
-- In a session with no screen (a plain `claude -p` run) it cancels at once, since nobody can answer
+- In a session with no screen attached (a plain `claude -p` run, or an SDK host that draws nothing) it cancels at once, since nobody can answer
+- One command is held at a time. A second one waits its turn, then gets its own full countdown
 
 ### 💾 session-saver
 

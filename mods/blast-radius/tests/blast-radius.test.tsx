@@ -6,7 +6,7 @@ const PANE = { component: 'Pane', requestId: 'blast-radius', props: { title: 'Bl
 
 // Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open, a terminal that draws.
 // Its clock is the test's: pass one from mock.clock to move it, or the engine makes its own.
-function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown } = {}) {
+function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true } = {}) {
   if (!clock) mock.clock(on)
   on('session.surfaces', () => ({ value: surfaces }))
   on('tool.call', (_$: any, e: any) => {
@@ -23,7 +23,7 @@ function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] a
   })
   on('ui.open', (_$: any, e: any) => {
     opened.push(e)
-    return { value: { isPlaced: true } }
+    return { value: { isPlaced } }
   })
   on('ui.close', () => ({ value: undefined }))
 }
@@ -116,6 +116,7 @@ describe('blast-radius', () => {
     expect(timeoutFrom(30)).toBe(30)
     expect(timeoutFrom('120')).toBe(120)
     expect(timeoutFrom(0)).toBe(0)
+    expect(timeoutFrom(0.4)).toBe(1)
     expect(timeoutFrom(-5)).toBe(60)
     expect(timeoutFrom('soon')).toBe(60)
   })
@@ -132,7 +133,7 @@ describe('blast-radius', () => {
     await later.unmount()
     await clock.advance(42_000)
     const r: any = await call
-    expect(r.deny).toMatch(/nobody answered within 60 s, so it was cancelled\. It would have: delete 9 files \(1\.1 MB\)\. Ask the user to run it/)
+    expect(r.deny).toMatch(/nobody answered within 60 s, so it was cancelled\. It would have: delete 9 files \(1\.1 MB\)\. Don't retry it on your own: ask the user to run it/)
     expect(ran).toEqual([])
   })
 
@@ -201,5 +202,46 @@ describe('blast-radius', () => {
     expect(r.deny).toMatch(/no screen, so nobody can answer\. It would have: delete 9 files/)
     expect(ran).toEqual([])
     expect(opened).toEqual([])
+  })
+
+  test('the countdown shows in the band when the pane cannot open', async ($, on) => {
+    const clock = mock.clock(on)
+    const ran: string[] = []
+    engine(on, ran, { clock, isPlaced: false })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    await clock.advance(52_000)
+    let band: any
+    for (let i = 0; i < 50 && !band; i++) {
+      const ui = await $.ui.mount({ plugin: 'blast-radius', surface: 'terminal', component: 'AbovePrompt', props: { bodyColumns: 100 } } as any)
+      if (await ui.find({ type: 'Text', text: /auto-cancels in 8 s/ })) band = ui
+      else {
+        await ui.unmount()
+        await new Promise(done => (globalThis as any).setTimeout(done, 5))
+      }
+    }
+    expect(band).toBeDefined()
+    await clock.advance(8_000)
+    const r: any = await call
+    expect(r.deny).toMatch(/nobody answered within 60 s/)
+    expect(ran).toEqual([])
+    await band.unmount()
+  })
+
+  test('a second held command gets its own full wait', async ($, on) => {
+    const clock = mock.clock(on)
+    const ran: string[] = []
+    engine(on, ran, { clock })
+    const first = $.tool.call({ tool: 'Bash', command: 'rm -rf build', tool_use_id: 'one' } as any)
+    const second = $.tool.call({ tool: 'Bash', command: 'git push --force', tool_use_id: 'two' } as any)
+    const ui = await paneShowing($, /rm -rf build/)
+    await ui.unmount()
+    await clock.advance(60_000)
+    expect(((await first) as any).deny).toMatch(/nobody answered within 60 s/)
+    const next = await paneShowing($, /auto-cancels in 60 s/)
+    expect(await next.find({ type: 'Text', text: /git push --force/ })).toBeDefined()
+    await next.press({ key: 'proceed' })
+    await second
+    expect(ran).toEqual(['git push --force'])
+    await next.unmount()
   })
 })

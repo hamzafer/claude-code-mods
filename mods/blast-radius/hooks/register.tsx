@@ -21,6 +21,8 @@ export const register: Register = (on, options) => {
   const timeoutSeconds = timeoutFrom(options.timeoutSeconds)
   // The press of a Button, by held command id.
   const decisions = new Map<string, 'proceed' | 'cancel'>()
+  // The call holding the pane now. Checked and claimed in one step, so two waiting calls can't both take it.
+  let holder: string | null = null
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const found = classify(e.command)
@@ -36,60 +38,67 @@ export const register: Register = (on, options) => {
       }
     }
 
-    // One command is held at a time; a second waits its turn.
-    while ((await read($, held)) !== null && !next.signal.aborted) {
+    // One command is held at a time; a second waits its turn (the first one's timeout bounds the wait).
+    for (;;) {
+      // The call ended while it waited its turn: leave the held one alone.
+      if (next.signal.aborted) return { deny: 'Blast Radius held this command: the call was stopped before it was shown.' }
+      if (holder === null && (await read($, held)) === null && holder === null) break
       await $.process.run(['sleep', '0.25'])
     }
+    holder = e.tool_use_id
+    try {
+      const measured = await measure($, found)
+      const one: HeldCommand = {
+        id: e.tool_use_id,
+        command: e.command,
+        risk: found.risk,
+        ...measured,
+        where: 'pane',
+        secondsLeft: timeoutSeconds > 0 ? timeoutSeconds : null,
+      }
+      await update($, held, () => one)
 
-    const measured = await measure($, found)
-    const one: HeldCommand = {
-      id: e.tool_use_id,
-      command: e.command,
-      risk: found.risk,
-      ...measured,
-      where: 'pane',
-      secondsLeft: timeoutSeconds > 0 ? timeoutSeconds : null,
-    }
-    await update($, held, () => one)
+      const opened = await $.ui.open({ id: PANE, title: 'Blast Radius', focus: true })
+      if (!opened.isPlaced) {
+        await update($, held, h => (h ? { ...h, where: 'band' as const } : h)) // too narrow for a pane: draw above the prompt
+      }
 
-    const opened = await $.ui.open({ id: PANE, title: 'Blast Radius', focus: true })
-    if (!opened.isPlaced) {
-      await update($, held, h => (h ? { ...h, where: 'band' as const } : h)) // too narrow for a pane: draw above the prompt
-    }
-
-    // Time spent inside $ calls doesn't count against the hook's time limit.
-    // Nobody pressing within the timeout counts as Cancel, so an unattended session never stalls.
-    const deadline = timeoutSeconds > 0 ? (await $.clock.now()) + timeoutSeconds * 1000 : null
-    let isTimedOut = false
-    while (!decisions.has(one.id) && !next.signal.aborted) {
-      if (deadline !== null) {
-        const left = Math.ceil((deadline - (await $.clock.now())) / 1000)
-        if (left <= 0) {
-          isTimedOut = true
-          break
+      // Time spent inside $ calls doesn't count against the hook's time limit.
+      // Nobody pressing within the timeout counts as Cancel, so an unattended session never stalls.
+      const deadline = timeoutSeconds > 0 ? (await $.clock.now()) + timeoutSeconds * 1000 : null
+      let isTimedOut = false
+      while (!decisions.has(one.id) && !next.signal.aborted) {
+        if (deadline !== null) {
+          const left = Math.ceil((deadline - (await $.clock.now())) / 1000)
+          if (left <= 0) {
+            isTimedOut = !decisions.has(one.id) // a press that landed at the deadline still counts
+            break
+          }
+          if (left !== one.secondsLeft) {
+            one.secondsLeft = left
+            await update($, held, h => (h && h.id === one.id ? { ...h, secondsLeft: left } : h))
+          }
         }
-        if (left !== one.secondsLeft) {
-          one.secondsLeft = left
-          await update($, held, h => (h && h.id === one.id ? { ...h, secondsLeft: left } : h))
+        await $.process.run(['sleep', '0.25'])
+      }
+      const decision = isTimedOut ? 'cancel' : (decisions.get(one.id) ?? 'cancel')
+      decisions.delete(one.id)
+      await update($, held, () => null)
+      await $.ui.close({ id: PANE })
+
+      if (decision === 'proceed') return next(e) // runs as written
+      if (isTimedOut) {
+        return {
+          deny:
+            `Blast Radius held this command and nobody answered within ${timeoutSeconds} s, so it was cancelled. ` +
+            `It would have: ${one.summary}. Don't retry it on your own: ask the user to run it, or run it again once they're back.`,
         }
       }
-      await $.process.run(['sleep', '0.25'])
-    }
-    const decision = isTimedOut ? 'cancel' : (decisions.get(one.id) ?? 'cancel')
-    decisions.delete(one.id)
-    await update($, held, () => null)
-    await $.ui.close({ id: PANE })
-
-    if (decision === 'proceed') return next(e) // runs as written
-    if (isTimedOut) {
       return {
-        deny:
-          `Blast Radius held this command and nobody answered within ${timeoutSeconds} s, so it was cancelled. ` +
-          `It would have: ${one.summary}. Ask the user to run it, or run it again when they're here.`,
+        deny: `Blast Radius held this command: the user pressed Cancel. It would have: ${one.summary}.`,
       }
-    }
-    return {
-      deny: `Blast Radius held this command: the user pressed Cancel. It would have: ${one.summary}.`,
+    } finally {
+      holder = null
     }
   })
 
@@ -150,7 +159,7 @@ function report(
 export function timeoutFrom(value: unknown): number {
   const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
   if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) return DEFAULT_TIMEOUT_SECONDS
-  return Math.round(n)
+  return Math.ceil(n) // a positive fraction stays a timeout, never 0 (wait forever)
 }
 
 // Which risky kind a command is, if any, looking at each part of a compound command.
