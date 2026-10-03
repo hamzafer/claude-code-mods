@@ -1,7 +1,11 @@
 {
   "name": "oneform-line",
-  "version": "0.1.0",
-  "description": "Your OneForm day above the prompt: sleep, protein and calories left, today's training and the next planned session.",
+  "version": "0.1.1",
+  "description": "Your OneForm day above the prompt: sleep, protein and calories left, today's training, the next planned session. /oneform shows the whole day.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "url": {

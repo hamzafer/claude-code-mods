@@ -1,13 +1,13 @@
 {
   "name": "claude-code-mods",
-  "description": "Claude Code mods: bands above the prompt, guards, panes and games.",
+  "description": "Claude Code mods: lines above the prompt, guards, panes and games.",
   "owner": {
     "name": "hamzafer"
   },
   "plugins": [
     {
       "name": "agent-radar",
-      "description": "Live band line per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
+      "description": "One live line above the prompt per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
       "version": "0.1.0",
       "source": "./mods/agent-radar"
     },
@@ -25,7 +25,7 @@
     },
     {
       "name": "merge-gate",
-      "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR band and /gate.",
+      "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR line above the prompt and /gate.",
       "version": "0.1.0",
       "source": "./mods/merge-gate"
     },
@@ -38,7 +38,7 @@
     {
       "name": "oneform-line",
       "description": "Your OneForm day above the prompt: sleep, protein and calories left, today's training, the next planned session. /oneform shows the whole day.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./mods/oneform-line"
     },
     {

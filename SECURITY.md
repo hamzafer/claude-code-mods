@@ -7,4 +7,4 @@ Report it privately:
 1. Open the **Security** tab
 2. Click **Report a vulnerability**
 
-I'll reply as soon as I can.
+I'll reply within 7 days.

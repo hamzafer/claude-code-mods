@@ -2,5 +2,9 @@
   "name": "browser-lanes",
   "version": "0.1.0",
   "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. Subagents take turns.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts"
 }

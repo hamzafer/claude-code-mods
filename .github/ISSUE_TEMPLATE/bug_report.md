@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in a mod is not working
+about: A mod is broken
 labels: bug
 ---
 

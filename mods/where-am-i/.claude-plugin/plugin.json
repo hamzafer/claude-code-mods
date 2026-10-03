@@ -2,5 +2,9 @@
   "name": "where-am-i",
   "version": "0.1.0",
   "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts"
 }

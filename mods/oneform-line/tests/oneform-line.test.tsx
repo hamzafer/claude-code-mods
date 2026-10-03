@@ -5,15 +5,15 @@ const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: f
 
 const TODAY = {
   logical_date: '2026-10-01', // a Thursday
-  sleep_hours: 7.1667,
+  sleep_hours: 7,
   energy: 4,
   soreness: 2,
   stress: null,
-  meals: [{ description: 'Skyr and oats', protein_estimate: 62, calories_estimate: 760 }],
-  totals: { calories_estimate: 760, protein_estimate: 62 },
-  targets: { calories_kcal: 2000, protein_g: 140, sleep_hours: 8 },
-  remaining: { calories: 1240, protein: 78 },
-  activities: [{ name: 'Morning Run', strava_sport_type: 'Run', moving_time_s: 1920 }],
+  meals: [{ description: 'Test meal', protein_estimate: 50, calories_estimate: 1500 }],
+  totals: { calories_estimate: 1500, protein_estimate: 50 },
+  targets: { calories_kcal: 2500, protein_g: 150, sleep_hours: 8 },
+  remaining: { calories: 1000, protein: 100 },
+  activities: [{ name: 'Morning Run', strava_sport_type: 'Run', moving_time_s: 1800 }],
   workout: null,
 }
 const PLAN = {
@@ -67,10 +67,10 @@ describe('oneform-line', () => {
 
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await mount($, surface)
-      expect(await ui.find({ type: 'Text', text: /🌙 7h10\/8h/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /78g protein left/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /1,240 kcal left/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /🏃 Run 32m/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /🌙 7h\/8h/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /100g protein left/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /1,000 kcal left/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /🏃 Run 30m/ })).toBeDefined()
       // Today's run is done by outcome, so the next one is tomorrow's strength.
       expect(await ui.find({ type: 'Text', text: /📅 Strength tomorrow/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined() // stacked, not replaced
@@ -82,7 +82,7 @@ describe('oneform-line', () => {
     engine(on, { status: 200 })
     await start($)
     const ui = await mount($, 'terminal', 50)
-    expect(await ui.find({ type: 'Text', text: /78g protein left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /100g protein left/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /kcal/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /🏃/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /📅 Strength tomorrow/ })).toBeDefined()
@@ -90,35 +90,35 @@ describe('oneform-line', () => {
   })
 
   test('says what is not logged, and when targets are passed', OPTIONS, async ($, on) => {
-    const over = { ...TODAY, sleep_hours: null, activities: [], remaining: { calories: -180, protein: -12 } }
+    const over = { ...TODAY, sleep_hours: null, activities: [], remaining: { calories: -200, protein: -10 } }
     engine(on, { status: 200, today: over })
     await start($)
     const ui = await mount($, 'terminal')
     expect(await ui.find({ type: 'Text', text: /🌙 sleep not logged/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /\+12g over/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /180 kcal over/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /\+10g over/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /200 kcal over/ })).toBeDefined()
     await ui.unmount()
   })
 
   test('an empty day still draws the line', OPTIONS, async ($, on) => {
-    const empty = { ...TODAY, sleep_hours: null, meals: [], activities: [], remaining: { calories: 2000, protein: 140 } }
+    const empty = { ...TODAY, sleep_hours: null, meals: [], activities: [], remaining: { calories: 2500, protein: 150 } }
     engine(on, { status: 200, today: empty, plan: { plan_items: [] } })
     await start($)
     const ui = await mount($, 'terminal')
     expect(await ui.find({ type: 'Text', text: /🌙 sleep not logged/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /140g protein left/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /2,000 kcal left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /150g protein left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /2,500 kcal left/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /📅 nothing planned/ })).toBeDefined()
     await ui.unmount()
   })
 
   test('a narrow empty day keeps sleep and protein, and no "nothing planned"', OPTIONS, async ($, on) => {
-    const empty = { ...TODAY, sleep_hours: null, meals: [], activities: [], remaining: { calories: 2000, protein: 140 } }
+    const empty = { ...TODAY, sleep_hours: null, meals: [], activities: [], remaining: { calories: 2500, protein: 150 } }
     engine(on, { status: 200, today: empty, plan: { plan_items: [] } })
     await start($)
     const ui = await mount($, 'terminal', 50)
     expect(await ui.find({ type: 'Text', text: /🌙 sleep not logged/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /140g protein left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /150g protein left/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /nothing planned/ })).toBeUndefined()
     await ui.unmount()
   })
@@ -147,7 +147,7 @@ describe('oneform-line', () => {
     await start($)
     const r: any = await $.command.run({ command: 'oneform', args: '' } as any)
     expect(h.calls.length).toBe(4)
-    expect(r.text).toMatch(/Skyr and oats: 62g protein, 760 kcal/)
+    expect(r.text).toMatch(/Test meal: 50g protein, 1,500 kcal/)
     expect(r.text).toMatch(/✅ today: Run/)
     expect(r.text).toMatch(/⬜ tomorrow: Strength, upper/)
     expect(r.text).toMatch(/⬜ Sun: Long run/)

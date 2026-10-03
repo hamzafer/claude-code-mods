@@ -4,9 +4,11 @@
 
 **See what your agent is reading and writing, live.**
 
+Mods are Claude Code plugins that add live UI and hooks to a session (Claude Code 2.1.287+). [What are mods?](https://claude.dev/blog/getting-started-with-claude-code-mods/)
+
 mission-control draws every subagent, every tool call and every file they touch, in a pane next to the chat.
 
-![mission-control at 4x: two subagents and a logout feature landing across four files](images/mission-control.gif)
+![mission-control code map at 4x: files glow blue while read, orange while edited, then green as a logout feature lands](images/mission-control.gif)
 
 ## 🚀 Try mission-control
 
@@ -17,13 +19,13 @@ claude plugin install mission-control@claude-code-mods
 
 Restart Claude Code and type `/mission`.
 
-- 🤖 **`w` Who:** main agent, its subagents and every tool call, live
-- 🗺️ **`c` Code:** a map of the files they touch, with import arrows
+- 🤖 `w` shows the agents and every tool call, live
+- 🗺️ `c` shows the code map, with import arrows
 - 🔵 **Blue** while the agent reads a file
 - 🟠 **Orange** while it writes
 - 🟢 **Green** when done, with one line on what changed
 
-> **Needs** Claude Code 2.1.287+, Google Chrome, and a terminal that shows images (Ghostty, kitty, iTerm2).
+> **Needs** Claude Code 2.1.287+. The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2). The Who view works everywhere.
 
 ## 🧩 The mods
 
@@ -36,22 +38,24 @@ Restart Claude Code and type `/mission`.
 | 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |
 | 🌐 | **browser-lanes** | Is this session attached to a browser, and who holds it | `/browser` |
-| 🏋️ | **oneform-line** | Your OneForm day: sleep, protein, calories, training | `/oneform` |
+| 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
 
 ### 🛡️ Guard your repo
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 💥 | **blast-radius** | Holds `rm -r`, force pushes and migrations, shows what they'd delete | |
-| 📏 | **rulebook-guard** | Fixes em dashes, asks before `--amend`, unformatted pushes, personal info | |
-| 🚦 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed once | `/gate` |
 
-### 🧠 Pick up where you left off
+### 🔧 My setup (fork and adapt)
+
+These are built around my own tools and rules. Fork them and change the rules to yours.
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
-| 💾 | **session-saver** | Saves where you left off, shows it on resume | `/park` |
-| 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
+| 🏋️ | **oneform-line** | Your OneForm day: sleep, protein, calories, training. Needs a OneForm account | `/oneform` |
+| 🚦 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed once. Needs `gh` and the Codex CLI, built around one review on gpt-5.6-luna | `/gate` |
+| 📏 | **rulebook-guard** | Enforces my writing and git rules: rewrites em dashes, asks before `--amend`, unformatted pushes, emails and phone numbers in notes. Change the rules to yours | |
+| 💾 | **session-saver** | Saves where you left off, shows it on resume. Needs [unpause](https://github.com/hamzafer/unpause) | `/park` |
 
 ### 🎮 For fun (opt-in)
 
@@ -65,12 +69,13 @@ Restart Claude Code and type `/mission`.
 Same two commands, with the mod's name in place of `mission-control`. Or try one without installing:
 
 ```sh
+git clone https://github.com/hamzafer/claude-code-mods && cd claude-code-mods
 claude --plugin-dir mods/token-weather
 ```
 
 ## 📚 More
 
-- 📖 [**docs/mods.md**](docs/mods.md): how they behave, setup notes, build your own
+- 📖 [**docs/mods.md**](docs/mods.md): how they behave, setup notes and build your own
 - 🎥 [**docs/demo.md**](docs/demo.md): videos and screenshots
-- ⭐ Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ stars for Cursor slash commands
+- ⭐ Earlier project: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ stars for Cursor slash commands
 - 🤝 [**CONTRIBUTING.md**](CONTRIBUTING.md): add your own mod

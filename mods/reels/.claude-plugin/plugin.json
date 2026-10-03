@@ -2,6 +2,9 @@
   "name": "reels",
   "version": "0.1.0",
   "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
-  "author": { "name": "Hamza Zafar" },
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts"
 }

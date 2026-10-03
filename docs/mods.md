@@ -1,7 +1,5 @@
 # 📖 The mods in detail
 
-How the mods behave, setup notes for each one, and how to build your own.
-
 - 🎥 Videos and screenshots: [demo.md](demo.md)
 - 🏠 Overview: [README](../README.md)
 
@@ -25,15 +23,14 @@ How the mods behave, setup notes for each one, and how to build your own.
 ### 🛰️ mission-control
 
 - Press `w` for Who and `c` for Code
-- The code map is a picture drawn by headless Chrome (`/Applications/Google Chrome.app`) in a throwaway profile of its own
-- **Needs** Chrome and a terminal that shows images, like Ghostty, kitty or iTerm2
+- Headless Chrome (`/Applications/Google Chrome.app`) draws the code map as an image, in a throwaway profile
+- The Code view is macOS only
 - A file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed
 - One Haiku call after each turn writes the line under each changed file
 
 ### 🌦️ token-weather
 
-- Levels go by percent of the window
-- On a 1M window it stays Clear until 250k tokens
+- Levels go by percent of the window, so a 1M window stays Clear until 250k tokens
 
 ### 📍 where-am-i
 
@@ -63,7 +60,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🚦 merge-gate
 
-- **Needs** `gh`
+- **Needs** `gh` and the Codex CLI
+- Holds `gh pr merge` until CI is green and Codex reviewed the PR once, then asks you: **Hold** or **Merge anyway**
+- With no one to answer, it holds
 - Refuses a `codex review` that doesn't set `-c 'model="gpt-5.6-luna"'`
 - Refuses a second review of the same PR
 - Refuses any `codex exec`
@@ -94,11 +93,12 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🏋️ oneform-line
 
-- Made for OneForm, my own fitness coach app, so it's only useful if you run OneForm
+- Needs a OneForm account
 - **Marketplace install:** Claude Code asks for `url` and `key` and keeps the key in secure storage
 - **Loaded from a folder:** set them in `settings.json` under `pluginConfigs["oneform-line"].options`
 - The URL has to be `https://`
-- Calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes (1 minute after a failure), so it doesn't fill OneForm's tool-call log
+- Calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes
+- After a failure it retries in 1 minute, and the slow pace keeps OneForm's tool-call log short
 - Once set up the line is always there: what isn't logged yet says so, targets you passed show as "over"
 - When OneForm can't be reached, it keeps the last answer with an "as of" time
 - `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days
@@ -110,22 +110,16 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📱🐍 reels and snake
 
-- Both are opt-in: installing them changes nothing until you type `/reels` or `/snake`
+- Installing them changes nothing until you type `/reels` or `/snake`
 - `stop` turns them off again
 - Reels needs Playwright once, and `/reels` prints the install command
 
 ## 🛠️ Build your own
 
-Start from [Getting started with Claude Code mods](https://claude.dev/blog/getting-started-with-claude-code-mods/). Check a mod with:
+Start from [Getting started with Claude Code mods](https://claude.dev/blog/getting-started-with-claude-code-mods/). The validate and test commands and the new-mod checklist are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-```sh
-claude plugin validate mods/<name>
-claude plugin test mods/<name>
-```
+### 🪤 Gotchas
 
-### 🪤 Things that bit us
-
-- `claude plugin test` can refuse inside a running session. Run it with `CLAUDE_CONFIG_DIR` set to another config.
 - JSX compiles to `h(...)`, so a variable named `h` breaks every element after it.
 - Claude Code refuses a command name it already has, like `/agents` or `/recap`. Catch the error from `$.command.register`, or the rest of `session.start` never runs.
 - Add `.catch()` to background work you don't await, or the tests fail at teardown.

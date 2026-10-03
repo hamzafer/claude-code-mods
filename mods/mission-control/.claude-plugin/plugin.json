@@ -2,5 +2,9 @@
   "name": "mission-control",
   "version": "0.1.0",
   "description": "/mission: a live map of the main agent, its subagents and every tool call, and a live code map of the files they touch.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts"
 }

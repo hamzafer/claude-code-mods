@@ -1,6 +1,10 @@
 {
   "name": "merge-gate",
   "version": "0.1.0",
-  "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR band and /gate.",
+  "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR line above the prompt and /gate.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts"
 }

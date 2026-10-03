@@ -1,13 +1,10 @@
 # 🎥 Demo
 
-Videos and screenshots of the mods.
-
-- 🏠 Overview: [README](../README.md)
-- 📖 Setup notes: [mods.md](mods.md)
+🏠 Back to the [README](../README.md), or read the [setup notes](mods.md).
 
 ## 🛰️ mission-control
 
-Shown at 4x: two subagents and a logout feature landing across four files.
+The code map at 4x while a logout feature lands across four files.
 
 ![mission-control](../images/mission-control.gif)
 
@@ -17,11 +14,11 @@ Plays Shorts while Claude works and pauses when it's done.
 
 ![reels](../images/reels-demo.gif)
 
-## 📚 Bands above the prompt
+## 📚 Lines above the prompt
 
 browser-lanes, token-weather and where-am-i stacked above the prompt.
 
-![bands above the prompt](../images/bands.png)
+![lines above the prompt](../images/bands.png)
 
 ## 💥 blast-radius
 

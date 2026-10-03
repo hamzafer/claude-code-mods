@@ -2,5 +2,9 @@
   "name": "replay-theater",
   "version": "0.1.0",
   "description": "Step through the last turn's file edits, one diff at a time.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
   "types": "./types/index.d.ts"
 }
