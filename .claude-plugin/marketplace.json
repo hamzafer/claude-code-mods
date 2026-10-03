@@ -78,6 +78,12 @@
       "source": "./mods/token-weather"
     },
     {
+      "name": "usage-meter",
+      "description": "Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.",
+      "version": "0.1.0",
+      "source": "./mods/usage-meter"
+    },
+    {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
       "version": "0.1.1",
