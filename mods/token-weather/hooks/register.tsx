@@ -16,10 +16,13 @@ const FORECAST = [
 ] as const
 
 // The cache countdown ticks every second only in its last two minutes;
-// before that it moves in 15 s steps, so the band is not redrawn every second.
+// before that it moves in 15 s steps (30 s with over ten minutes left),
+// so the band is not redrawn every second.
 const TTL_MS = { '5m': 5 * 60_000, '1h': 60 * 60_000 } as const
 const FAST_BELOW_MS = 2 * 60_000
 const SLOW_STEP_MS = 15_000
+const SLOWER_ABOVE_MS = 10 * 60_000
+const SLOWER_STEP_MS = 30_000
 const WARN_BELOW_MS = 60_000
 
 // Held by the host, so the history survives a hot reload of this file.
@@ -34,6 +37,15 @@ export const register: Register = (on, options) => {
     const since = await read($, lastRequestAt) // kept across a hot reload: pick the countdown up again
     if (since !== null) restart($, since, await $.clock.now(), ttlMs)
     return result
+  })
+
+  // A /clear or a resume leaves the old conversation, and its cache, behind.
+  on('session.end', async ($, e, next) => {
+    if (e.reason === 'clear' || e.reason === 'resume') {
+      stop()
+      await update($, lastRequestAt, () => null)
+    }
+    return next(e)
   })
 
   // One model request of a turn. The cache's clock restarts when each one on the
@@ -70,12 +82,17 @@ export const register: Register = (on, options) => {
 
     // The cache part goes first when the line runs out of room.
     const since = await read($, lastRequestAt)
-    const cache = since === null ? null : cachePart(since + ttlMs - (await $.clock.now()))
+    let cache: ReturnType<typeof cachePart> | null = null
+    if (since !== null) {
+      const clockNow = await $.clock.now()
+      if (armedFor !== since) restart($, since, clockNow, ttlMs) // its timer was lost (a reload): pick it up
+      cache = cachePart(since + ttlMs - clockNow)
+    }
     const lineWidth =
       2 + // paddingX
       `${f.icon} ${f.word} ${now.percent}% of context ${short(now.tokens)} / ${short(now.window)}`.length +
       (isWide ? `  last turns ${sparkline(history)}${history.length > 1 ? trend(history) : ''}`.length : 0)
-    const showCache = cache !== null && lineWidth + cache.text.length <= e.props.bodyColumns
+    const showCache = isWide && cache !== null && lineWidth + cache.text.length <= e.props.bodyColumns
 
     return (
       <Box flexDirection="column">
@@ -86,7 +103,7 @@ export const register: Register = (on, options) => {
           {isWide && <Text dimColor>{'  last turns '}</Text>}
           {isWide && <Text color={f.color}>{sparkline(history)}</Text>}
           {isWide && history.length > 1 && <Text dimColor>{trend(history)}</Text>}
-          {showCache && <Text color={cache.color} dimColor={cache.isCold}>{cache.text}</Text>}
+          {showCache && cache && <Text color={cache.color} dimColor={cache.isCold}>{cache.text}</Text>}
         </Box>
         {rest}
       </Box>
@@ -97,6 +114,12 @@ export const register: Register = (on, options) => {
 // The countdown's redraw timer, one at a time; a reload of this file starts it over.
 let tick: Timer | undefined
 let armedFor: number | null = null
+
+function stop() {
+  tick?.cancel()
+  tick = undefined
+  armedFor = null
+}
 
 function restart($: EngineInterface, since: number, now: number, ttlMs: number) {
   armedFor = since
@@ -110,8 +133,8 @@ function arm($: EngineInterface, since: number, now: number, ttlMs: number) {
   const left = since + ttlMs - now
   if (left <= 0) return
   const isFast = left <= FAST_BELOW_MS
-  const step = isFast ? 1000 : SLOW_STEP_MS
-  const wait = Math.min(left % step || step, isFast ? step : left - FAST_BELOW_MS)
+  const step = isFast ? 1000 : left > SLOWER_ABOVE_MS ? SLOWER_STEP_MS : SLOW_STEP_MS
+  const wait = Math.min(left % step || step, isFast ? step : left - (left > SLOWER_ABOVE_MS ? SLOWER_ABOVE_MS : FAST_BELOW_MS))
   tick = $.clock.after(wait, () => {
     $.ui.invalidate('ui.render')
     $.clock.now().then(t => arm($, since, t, ttlMs)).catch(() => {})
@@ -133,7 +156,7 @@ function cachePart(leftMs: number) {
   }
   const seconds = Math.ceil(leftMs / 1000)
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-  return { text: `  ❄ cache ${clock}`, color: leftMs < WARN_BELOW_MS ? 'yellow' : undefined, isCold: false }
+  return { text: `  ❄ cache ${clock}`, color: seconds * 1000 < WARN_BELOW_MS ? 'yellow' : undefined, isCold: false }
 }
 
 function sparkline(history: TokenWeatherReading[]) {

@@ -11,7 +11,7 @@
     "cacheTtl": {
       "type": "string",
       "title": "Prompt cache lifetime",
-      "description": "How long the prompt cache lives after each request: 5m (the API default) or 1h (if your plan or setup uses the 1-hour cache).",
+      "description": "How long the prompt cache lives after each request. Leave 5m (the API default) unless you know your setup uses the 1-hour cache.",
       "options": [
         "5m",
         "1h"

@@ -8,16 +8,21 @@ const BAND = {
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
 }
 
+// What the next model request's response stops with; null when none arrived.
+let stopReason: string | null = 'end_turn'
+
 // Stands for the engine: a context reading, one model request per step, and its own band.
 async function start($: Engine, on: On) {
+  stopReason = 'end_turn'
   const clock = mock.clock(on, { now: 1_000_000 })
   on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
   on('session.usage', () => ({
     value: { startedAt: 0, rateLimits: [], context: { tokens: 20_000, window: 200_000, percent: 10 } },
   }) as any)
   on('turn.step', async function* (_$, e) {
-    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason, usage: null } as any
   })
+  on('session.end', (_$, e) => ({ sessionId: e.sessionId }) as any)
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return Text({ children: 'engine band' }) as any
@@ -103,16 +108,54 @@ describe('token-weather cache countdown', () => {
     await ui.unmount()
   })
 
+  test('restarts on a tool-use stop, not on a request that got no response', async ($, on) => {
+    const clock = await start($, on)
+    await request($, 0)
+    const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+    await clock.advance(60_000)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 4:00' })).toBeDefined()
+
+    stopReason = null // failed or interrupted before a response
+    await request($, 1)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 4:00' })).toBeDefined()
+
+    stopReason = 'tool_use'
+    await request($, 2)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 5:00' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('/clear hides the countdown until the next request', async ($, on) => {
+    const clock = await start($, on)
+    await request($, 0)
+    await $.session.end({ reason: 'clear', sessionId: 's' } as any)
+    const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeUndefined()
+    await clock.advance(30_000)
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeUndefined()
+    await request($, 0)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 5:00' })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('respects cacheTtl 1h', { options: { cacheTtl: '1h' } }, async ($, on) => {
     const clock = await start($, on)
     await request($, 0)
     const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
-    await clock.advance(10 * 60_000)
+    await clock.advance(20_000) // 30 s steps far from expiry
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
+    await clock.advance(10_000)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 59:30' })).toBeDefined()
+    await clock.advance(10 * 60_000 - 30_000)
     expect(await ui.find({ type: 'Text', text: '  ❄ cache 50:00' })).toBeDefined()
-    await clock.advance(40 * 60_000)
+    await clock.advance(48 * 60_000 + 1_000) // 1:59 left: every second now
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 1:59' })).toBeDefined()
+    await clock.advance(1_000)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 1:58' })).toBeDefined()
+    await clock.advance(118_000 - 1)
     expect(await ui.find({ type: 'Text', text: /cold/ })).toBeUndefined()
-    await clock.advance(10 * 60_000)
+    await clock.advance(1)
     expect(await ui.find({ type: 'Text', text: '  ❄ cache cold' })).toBeDefined()
     await ui.unmount()
   })
@@ -127,6 +170,13 @@ describe('token-weather cache countdown', () => {
     expect(await ui.find({ type: 'Text', text: /last turns/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /cache/ })).toBeUndefined()
     await ui.unmount()
+
+    // Below 60 columns the sparkline goes, and the cache part with it.
+    const tiny = { ...BAND, props: { ...BAND.props, bodyColumns: 59 } }
+    const small = await $.ui.mount({ surface: 'terminal', ...tiny } as any)
+    expect(await small.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+    expect(await small.find({ type: 'Text', text: /cache/ })).toBeUndefined()
+    await small.unmount()
 
     const desk = await $.ui.mount({ surface: 'desktop', ...BAND } as any)
     expect(await desk.find({ type: 'Text', text: '  ❄ cache 5:00' })).toBeDefined()
