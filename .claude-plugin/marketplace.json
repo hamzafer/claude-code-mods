@@ -79,9 +79,15 @@
     },
     {
       "name": "token-weather",
-      "description": "A live forecast of the context window, drawn above the prompt.",
-      "version": "0.1.1",
+      "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
+      "version": "0.2.0",
       "source": "./mods/token-weather"
+    },
+    {
+      "name": "usage-meter",
+      "description": "Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.",
+      "version": "0.1.0",
+      "source": "./mods/usage-meter"
     },
     {
       "name": "where-am-i",
