@@ -39,6 +39,26 @@ describe('where-am-i', () => {
     await ui.unmount()
   })
 
+  test('leaves out next while the next-steps mod shows it', async ($, on) => {
+    engine(on, '{"goal":"Ship 3 mods","now":"built Where Am I","waiting":"","next":"Rulebook Guard"}')
+    let nextStepsOn = false // stands for the value next-steps sets when it starts
+    on('state.get', { plugin: 'next-steps', key: 'active' }, () => ({ value: { value: nextStepsOn || undefined, version: nextStepsOn ? 1 : 0 } }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+
+    const shown = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await shown.find({ type: 'Text', text: /^Rulebook Guard$/ })).toBeDefined()
+    await shown.unmount()
+
+    nextStepsOn = true
+    const hidden = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await hidden.find({ type: 'Text', text: /^Ship 3 mods$/ })).toBeDefined()
+    expect(await hidden.find({ type: 'Text', text: /next:/ })).toBeUndefined()
+    expect(await hidden.find({ type: 'Text', text: /^Rulebook Guard$/ })).toBeUndefined()
+    await hidden.unmount()
+  })
+
   test('/recap answers with a summary', async ($, on) => {
     engine(on, '- Goal: ship 3 mods')
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)

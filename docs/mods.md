@@ -7,7 +7,7 @@
 
 ### 📏 Lines above the prompt
 
-- token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add one
+- token-weather, usage-meter, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add one
 - They stack
 - Each hides when it has nothing to show (oneform-line stays once it's set up)
 
@@ -31,11 +31,34 @@
 ### 🌦️ token-weather
 
 - Levels go by percent of the window, so a 1M window stays Clear until 250k tokens
+- `❄ cache 4:15` is about how long the prompt cache stays warm. It counts down from the end of the last model request, and every request restarts it, tool steps included
+- Prompt before it runs out and the cached prefix is likely reused, which is cheaper and faster. It is an estimate from timing, not read from the API, so a model switch or /compact can still miss
+- Shows after the first request, hides again after /clear, and is the first part dropped on a narrow terminal
+- Plain while more than a minute is left, yellow under a minute, `cache cold` in dim red at zero (the cache has probably expired)
+- Detects the cache lifetime from Claude's responses: after each turn it reads the last response's usage in the session transcript. 1-hour cache writes mean `1h`, 5-minute writes mean `5m`, and a pure cache hit keeps the last value. Until the first detection it uses the last session's value, or `5m`
+- Set `cacheTtl` to `5m` or `1h` to override (default `auto`). Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
 
 ### 📍 where-am-i
 
 - Makes one Haiku call after each turn to write the summary
 - `/where` gives a few bullets instead
+
+### ➡️ next-steps
+
+- After each turn, shows 2 or 3 short prompts you'd likely send next, like `next:  1 run the tests you just wrote  ·  2 open a draft PR  ·  0 dismiss`
+- **Keys** (only while the prompt is empty): `1`, `2` or `3` puts that prompt in the box as a draft. Edit it or press Enter, nothing sends on its own. `0` hides the list
+- Digits typed after other text, and pasted ones, go in as usual. To start a prompt with a digit while the list shows, press `0` first
+- Hidden while Claude works or a survey is open
+- The list clears when you send a prompt (slash commands too) or a new turn starts
+- Makes one Haiku call after each turn. Skips it for short replies, and for a turn that ends while background agents still run
+- While the list shows, where-am-i leaves out its own "next" part, so you don't see two. When there's no list, where-am-i's "next" is back
+
+### 💰 usage-meter
+
+- One line: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost
+- Reads the same figures as the status line and updates as your usage changes; a window past its reset time hides until the next reading
+- Green under 75%, yellow from 75%, red from 90%, plus one toast per window each time it passes 90%
+- Without a subscription it shows only the cost; narrow terminals drop the 7d part first, then the cost
 
 ### 📡 agent-radar
 

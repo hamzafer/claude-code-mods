@@ -1,10 +1,23 @@
 {
   "name": "token-weather",
-  "version": "0.1.1",
-  "description": "A live forecast of the context window, drawn above the prompt.",
+  "version": "0.2.0",
+  "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "cacheTtl": {
+      "type": "string",
+      "title": "Prompt cache lifetime",
+      "description": "auto (default) detects the cache lifetime from Claude's responses. Set 5m or 1h to override.",
+      "options": [
+        "auto",
+        "5m",
+        "1h"
+      ],
+      "default": "auto"
+    }
+  }
 }

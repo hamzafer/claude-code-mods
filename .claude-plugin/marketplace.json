@@ -42,6 +42,12 @@
       "source": "./mods/mission-control"
     },
     {
+      "name": "next-steps",
+      "description": "After each turn, 2 or 3 likely next prompts above the input. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
+      "version": "0.1.0",
+      "source": "./mods/next-steps"
+    },
+    {
       "name": "oneform-line",
       "description": "Your OneForm day above the prompt: sleep, protein and calories left, today's training, the next planned session. /oneform shows the whole day.",
       "version": "0.1.1",
@@ -79,14 +85,20 @@
     },
     {
       "name": "token-weather",
-      "description": "A live forecast of the context window, drawn above the prompt.",
-      "version": "0.1.1",
+      "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
+      "version": "0.2.0",
       "source": "./mods/token-weather"
+    },
+    {
+      "name": "usage-meter",
+      "description": "Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.",
+      "version": "0.1.0",
+      "source": "./mods/usage-meter"
     },
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/where-am-i"
     }
   ]
