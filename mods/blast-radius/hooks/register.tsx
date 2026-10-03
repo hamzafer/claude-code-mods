@@ -99,6 +99,8 @@ export const register: Register = (on, options) => {
       }
     } finally {
       holder = null
+      // If the hold failed partway, don't leave its command blocking the next call.
+      await update($, held, h => (h && h.id === e.tool_use_id ? null : h)).catch(() => {})
     }
   })
 
