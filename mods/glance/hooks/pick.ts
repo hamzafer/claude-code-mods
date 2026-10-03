@@ -2,6 +2,7 @@
 import type { Dm, Issue, Meeting, Pr } from '../types'
 
 const MIN = 60_000
+const LONG_BLOCK = 3 * 60 * MIN // a block running now that's longer than this doesn't hide the next meeting
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // ---- Calendar ---------------------------------------------------------------
@@ -16,7 +17,11 @@ type CalEvent = {
   htmlLink?: string
 }
 
-/** Timed events that haven't ended and that you haven't declined, soonest first. */
+/**
+ * Timed events that haven't ended and that you haven't declined, soonest
+ * first. A long block already running (a workshop, "busy") is left out, so it
+ * can't hide the next meeting.
+ */
 export function meetingsFrom(answer: { events?: CalEvent[] }, now: number): Meeting[] {
   return (answer.events ?? [])
     .filter(e => e.status !== 'cancelled' && e.start?.dateTime && e.end?.dateTime) // all-day events have only a date
@@ -29,6 +34,7 @@ export function meetingsFrom(answer: { events?: CalEvent[] }, now: number): Meet
       url: e.htmlLink ?? '',
     }))
     .filter(m => m.end > now)
+    .filter(m => !(m.start <= now && m.end - m.start > LONG_BLOCK))
     .sort((a, b) => a.start - b.start)
 }
 
@@ -108,11 +114,38 @@ export function dmsFrom(answer: { results?: string }): Dm[] {
     const body = at < 0 ? '' : block.slice(at).replace(/^Text: */, '').split(/\n---/)[0] ?? ''
     const text = body
       .split('\n')
-      .map(line => line.replace(/:[a-z0-9_+-]+:/gi, '').replace(/\s+/g, ' ').trim())
+      .map(line => plain(line).replace(/:[a-z0-9_+-]+:/gi, '').replace(/\s+/g, ' ').trim())
       .find(line => line !== '') ?? ''
     out.push({ from, text, at: Math.round(ts * 1000), url })
   }
   return out.sort((a, b) => b.at - a.at)
+}
+
+/** Slack markup as read: <@U1|name> is @name, <url|label> is label. */
+function plain(line: string) {
+  return line
+    .replace(/<@[A-Z0-9]+\|([^>]+)>/g, '@$1')
+    .replace(/<@[A-Z0-9]+>/g, '@someone')
+    .replace(/<#[A-Z0-9]+\|([^>]*)>/g, '#$1')
+    .replace(/<(?:https?:|mailto:)[^|>]*\|([^>]+)>/g, '$1')
+    .replace(/<((?:https?:|mailto:)[^>]+)>/g, '$1')
+}
+
+/** DMs and mentions together, newest first, each message once. */
+export function mergeDms(...lists: Dm[][]): Dm[] {
+  const seen = new Set<string>()
+  return lists
+    .flat()
+    .sort((a, b) => b.at - a.at)
+    .filter(d => {
+      const key = d.url || `${d.from}@${d.at}`
+      return !seen.has(key) && !!seen.add(key)
+    })
+}
+
+/** The signed-in user's id from Slack's detailed profile answer. */
+export function slackIdFrom(answer: { result?: string }) {
+  return /^User ID: ([A-Z0-9]+)$/m.exec(answer.result ?? '')?.[1]
 }
 
 // ---- The line ---------------------------------------------------------------
@@ -214,15 +247,30 @@ export function fit(parts: (Part | undefined)[], columns: number): (string | und
   return text()
 }
 
-/** Terminal cells a string takes: wide emoji count two, variation selectors none. */
+/** Terminal cells a string takes: wide characters count two, variation selectors none. */
 export function cells(s: string) {
   let n = 0
   for (const ch of s) {
     const c = ch.codePointAt(0)!
     if (c === 0xfe0f || c === 0x200d) continue
-    n += c >= 0x1f000 || (c >= 0x2600 && c <= 0x27bf) ? 2 : 1
+    n += isWide(c) ? 2 : 1
   }
   return n
+}
+
+// Emoji, and East Asian wide and fullwidth letters (Hangul, CJK, kana, fullwidth forms).
+function isWide(c: number) {
+  return (
+    c >= 0x1f000 ||
+    (c >= 0x2600 && c <= 0x27bf) ||
+    (c >= 0x1100 && c <= 0x115f) ||
+    (c >= 0x2e80 && c <= 0xa4cf) ||
+    (c >= 0xac00 && c <= 0xd7a3) ||
+    (c >= 0xf900 && c <= 0xfaff) ||
+    (c >= 0xfe30 && c <= 0xfe4f) ||
+    (c >= 0xff00 && c <= 0xff60) ||
+    (c >= 0xffe0 && c <= 0xffe6)
+  )
 }
 
 export function cut(s: string, max: number) {

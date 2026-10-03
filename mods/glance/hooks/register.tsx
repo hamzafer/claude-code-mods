@@ -5,7 +5,7 @@ import type { EngineInterface, McpToolResult, Register } from 'claude-code'
 import type { Dm, Issue, Meeting, Pr, Source } from '../types'
 import type { Part } from './pick'
 import {
-  PR_QUERY, SEPARATOR, clock, dmPart, dmsFrom, fit, issuePart, issuesFrom, meetingPart, meetingsFrom, prPart, prsFrom, when,
+  PR_QUERY, SEPARATOR, clock, dmPart, dmsFrom, fit, issuePart, issuesFrom, meetingPart, meetingsFrom, mergeDms, prPart, prsFrom, slackIdFrom, when,
 } from './pick'
 
 const EVERY_MS = 5 * 60 * 1000
@@ -86,7 +86,7 @@ async function refresh($: EngineInterface, isForced: boolean) {
   await update($, triedAt, () => now)
 
   const [m, p, i, d] = await Promise.all([
-    attempt(async () => meetingsFrom(await mcp($, 'claude.ai Google Calendar', 'list_events', { pageSize: 15, orderBy: 'startTime' }), now)),
+    attempt(async () => meetingsFrom(await mcp($, 'claude.ai Google Calendar', 'list_events', { pageSize: 30, orderBy: 'startTime' }), now)),
     attempt(async () => {
       const { exitCode, stdout } = await $.process.run(['gh', 'api', 'graphql', '-f', `query=${PR_QUERY}`], { timeoutMs: 20_000 })
       if (exitCode !== 0) throw new Error('gh failed')
@@ -96,21 +96,28 @@ async function refresh($: EngineInterface, isForced: boolean) {
       issuesFrom(await mcp($, 'claude.ai Linear', 'list_issues', {
         assignee: 'me', state: 'started', limit: 25, fields: ['title', 'status', 'url', 'updatedAt'],
       }))),
-    attempt(async () =>
-      dmsFrom(await mcp($, 'claude.ai Slack', 'slack_search_public_and_private', {
-        filters: 'to:me',
-        after: String(Math.floor(now / 1000) - SLACK_WINDOW_S),
-        sort: 'timestamp',
-        limit: 10,
-        include_bots: false,
-        include_context: false,
-        natural_language_query: '',
-      }))),
+    attempt(() => slack($, now)),
   ])
   await update($, meetings, s => settle(s, m, now))
   await update($, prs, s => settle(s, p, now))
   await update($, issues, s => settle(s, i, now))
   await update($, dms, s => settle(s, d, now))
+}
+
+// Slack's search has no "mentions me" filter: to:me finds DMs, and a second
+// search for <@your-id> finds channel mentions. The id is looked up once and
+// kept in memory only. Without it, DMs alone still show.
+let slackId: string | undefined
+async function slack($: EngineInterface, now: number) {
+  const search = { after: String(Math.floor(now / 1000) - SLACK_WINDOW_S), sort: 'timestamp', limit: 10, include_bots: false, include_context: false, natural_language_query: '' }
+  slackId ??= await mcp($, 'claude.ai Slack', 'slack_read_user_profile', { response_format: 'detailed' }).then(slackIdFrom, () => undefined)
+  const [direct, mentions] = await Promise.all([
+    mcp($, 'claude.ai Slack', 'slack_search_public_and_private', { ...search, filters: 'to:me' }).then(dmsFrom),
+    slackId
+      ? mcp($, 'claude.ai Slack', 'slack_search_public_and_private', { ...search, keywords: [`<@${slackId}>`], channel_types: 'public_channel,private_channel' }).then(dmsFrom, () => [])
+      : [],
+  ])
+  return mergeDms(direct, mentions)
 }
 
 // The items, or undefined when the source failed.
@@ -156,7 +163,7 @@ async function details($: EngineInterface) {
   if (i.items.length === 0) lines.push('- none')
   for (const x of i.items) lines.push(`- [${x.id}](${x.url}) ${x.status}: ${x.title}`)
 
-  lines.push('', `**💬 Slack, last 2 hours**${stale(d)}`)
+  lines.push('', `**💬 Slack DMs and mentions, last 2 hours**${stale(d)}`)
   if (d.items.length === 0) lines.push('- nothing new')
   for (const x of d.items) lines.push(`- ${clock(x.at)} ${x.from}: ${x.text || '(no text)'}${x.url ? ` ([open](${x.url}))` : ''}`)
 

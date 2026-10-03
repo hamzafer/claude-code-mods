@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { cells, dmsFrom, fit, meetingPart, meetingsFrom, prsFrom } from '../hooks/pick'
+import { cells, dmsFrom, fit, meetingPart, meetingsFrom, mergeDms, prsFrom, slackIdFrom } from '../hooks/pick'
 
 const MIN = 60_000
 const NOW = Date.parse('2026-10-05T07:42:00Z')
@@ -54,6 +54,11 @@ const SLACK = {
   results: `# Search Results for: \n\n## Messages (2 results)\n${slackResult(1, 'Alex Doe', NOW / 1000 - 600, 'are you joining? :wave:')}${slackResult(2, 'Sam Roe', NOW / 1000 - 3000, 'thanks')}`,
 }
 
+const MENTIONS = {
+  results: `## Messages (1 result)\n${slackResult(1, 'Kim Poe', NOW / 1000 - 300, 'can <@U1|me> look at <https://x.test/doc|the doc>?')}`,
+}
+const PROFILE = { result: 'User ID: U1\nUsername: me\n' }
+
 const text = (value: object) => ({ value: { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false } })
 
 // Stands for the engine, the connectors and gh beneath the mod.
@@ -72,7 +77,8 @@ function engine(on: any, fail: string[] = []) {
     if (fail.includes(e.server)) return { value: { content: [{ type: 'text', text: 'unauthorized' }], isError: true } }
     if (e.server === 'claude.ai Google Calendar') return text(CALENDAR)
     if (e.server === 'claude.ai Linear') return text(LINEAR)
-    if (e.server === 'claude.ai Slack') return text(SLACK)
+    if (e.server === 'claude.ai Slack' && e.tool === 'slack_read_user_profile') return text(PROFILE)
+    if (e.server === 'claude.ai Slack') return text(e.args.keywords ? MENTIONS : SLACK)
     return { value: { content: [], isError: true } }
   })
   on('process.run', (_$: any, e: any) => {
@@ -100,12 +106,14 @@ describe('glance', () => {
     // A review would come first; here it's the non-draft PR with failing CI, then 2 more.
     expect(await ui.find({ type: 'Text', text: /🔀 mods#19: CI failing \+2/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /📋 ENG-1 In Review: Ship the thing \+1/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /💬 Alex: "are you joining\?" \+1/ })).toBeDefined()
+    // A channel mention (newest) merges with the DMs.
+    expect(await ui.find({ type: 'Text', text: /💬 Kim: "can @me look at the doc\?" \+2/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined() // stacked, not replaced
     await ui.unmount()
 
-    const slack = h.calls.find(c => c.server === 'claude.ai Slack')!
-    expect(slack.args).toMatchObject({ filters: 'to:me', include_bots: false, after: String(NOW / 1000 - 7200) })
+    const searches = h.calls.filter(c => c.tool === 'slack_search_public_and_private')
+    expect(searches.map(c => c.args.filters ?? c.args.keywords)).toEqual(['to:me', ['<@U1>']])
+    expect(searches[0]!.args).toMatchObject({ include_bots: false, after: String(NOW / 1000 - 7200) })
     expect(h.calls.find(c => c.server === 'claude.ai Linear')!.args).toMatchObject({ assignee: 'me', state: 'started' })
   })
 
@@ -114,8 +122,8 @@ describe('glance', () => {
     await start($)
     const ui = await mount($, 70)
     expect(await ui.find({ type: 'Text', text: /📅 Team standup in 18 min/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /💬 2 new/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Alex/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /💬 3 new/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Kim/ })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -187,12 +195,18 @@ describe('glance', () => {
     expect(r.text).toMatch(/api#3.*changes requested/)
     expect(r.text).toMatch(/ENG-2.*Older work/)
     expect(r.text).toMatch(/Sam Roe: thanks/)
+    expect(r.text).toMatch(/Kim Poe: can @me look at the doc\?/)
   })
 })
 
 describe('glance picking', () => {
   test('meetings skip all-day, finished and declined events', () => {
     expect(meetingsFrom(CALENDAR, NOW).map(m => m.title)).toEqual(['Team standup', 'Lunch'])
+  })
+
+  test('a long block running now does not hide the next meeting', () => {
+    const titles = meetingsFrom({ events: [event('Workshop', -60, 300), event('Call', 30, 60)] }, NOW).map(m => m.title)
+    expect(titles).toEqual(['Call'])
   })
 
   test('a meeting in progress says until when', () => {
@@ -213,6 +227,17 @@ describe('glance picking', () => {
     expect(first).toMatchObject({ from: 'Alex Doe', text: 'are you joining?', url: `https://slack.test/p${NOW / 1000 - 600}` })
   })
 
+  test('Slack markup reads as text, and the user id comes from the profile', () => {
+    expect(dmsFrom(MENTIONS)[0]!.text).toBe('can @me look at the doc?')
+    expect(slackIdFrom(PROFILE)).toBe('U1')
+    expect(slackIdFrom({ result: 'nothing here' })).toBeUndefined()
+  })
+
+  test('DMs and mentions merge newest first, each once', () => {
+    const dm = (url: string, at: number) => ({ from: 'A', text: '', at, url })
+    expect(mergeDms([dm('a', 1), dm('b', 3)], [dm('b', 3), dm('c', 2)]).map(d => d.url)).toEqual(['b', 'c', 'a'])
+  })
+
   test('fit shrinks in order: Slack, then Linear and PRs, then the meeting', () => {
     const parts = [
       { levels: ['MMMMMMMMMM', 'MMMMM', 'M'] },
@@ -226,7 +251,8 @@ describe('glance picking', () => {
     expect(fit(parts, 5)).toEqual(['M', 'P', 'L', 'S'])
   })
 
-  test('emoji take two cells', () => {
+  test('emoji and CJK take two cells', () => {
     expect(cells('📅 a')).toBe(4)
+    expect(cells('会議 x')).toBe(6)
   })
 })

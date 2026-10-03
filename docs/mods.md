@@ -121,10 +121,11 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 - **Needs** `gh`, plus the claude.ai Google Calendar, Linear and Slack connectors. A source that's missing just stays off the line
 - One item per source, the most urgent one, with "+2" for the rest:
-  - 📅 the meeting on now, or the next one (skips all-day events and ones you declined)
+  - 📅 the meeting on now, or the next one (skips all-day events, ones you declined, and blocks over 3 hours already running)
   - 🔀 a review asked of you, then your PR with failing CI, then one with changes requested
   - 📋 your Linear issues In Progress or In Review, last touched first
-  - 💬 DMs and @mentions from people (no bots) in the last 2 hours. Slack's connector can't see what you've read
+  - 💬 DMs and channel @mentions from people (no bots) in the last 2 hours. Slack's connector can't see what you've read
+- Slack has no "mentions me" filter, so glance looks up your Slack user id once and searches for it. The id stays in memory, nothing else from your profile is read
 - On a narrow terminal it shrinks Slack first, then Linear and PRs, and the meeting last
 - Fetches at start, then every 5 minutes. Connector calls cost no model tokens
 - The meeting countdown moves each minute without a fetch
