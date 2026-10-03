@@ -1,4 +1,4 @@
-// Rulebook Guard: enforces rules Hamza already wrote down (CLAUDE.md and memory).
+// rulebook-guard: enforces writing and git rules kept in CLAUDE.md and memory.
 //   1. No em dashes in prose: notes, docs, commit messages, PR text, Slack posts.
 //   2. New commits, not `git commit --amend`.
 //   3. Changed files formatted (ruff format, Prettier) before `git push`.
@@ -22,11 +22,11 @@ export const register: Register = on => {
     if (await isPrivatePath($, e.file_path)) {
       const found = pii(e.content)
       if (found && !(await allow($, `This write to ${short(e.file_path)} contains what looks like ${found}.`))) {
-        return { deny: `Rulebook Guard: the user blocked writing ${found} to ${e.file_path} (rule: no personal info without asking). Write the outcome instead of the details.` }
+        return { deny: `rulebook-guard: the user blocked writing ${found} to ${e.file_path}. Personal info needs the user's approval first. Write the outcome instead of the details.` }
       }
     }
     if (PROSE_FILE.test(e.file_path) && e.content.includes('—')) {
-      $.ui.toast(`Rulebook: replaced ${count(e.content)} em dash(es) in ${short(e.file_path)}`)
+      $.ui.toast(`rulebook-guard: replaced ${count(e.content)} em dash(es) in ${short(e.file_path)}`)
       return next({ ...e, content: undash(e.content) })
     }
     return next(e)
@@ -36,11 +36,11 @@ export const register: Register = on => {
     if (await isPrivatePath($, e.file_path)) {
       const found = pii(e.new_string)
       if (found && !(await allow($, `This edit to ${short(e.file_path)} adds what looks like ${found}.`))) {
-        return { deny: `Rulebook Guard: the user blocked writing ${found} to ${e.file_path} (rule: no personal info without asking). Write the outcome instead of the details.` }
+        return { deny: `rulebook-guard: the user blocked writing ${found} to ${e.file_path}. Personal info needs the user's approval first. Write the outcome instead of the details.` }
       }
     }
     if (PROSE_FILE.test(e.file_path) && e.new_string.includes('—')) {
-      $.ui.toast(`Rulebook: replaced ${count(e.new_string)} em dash(es) in ${short(e.file_path)}`)
+      $.ui.toast(`rulebook-guard: replaced ${count(e.new_string)} em dash(es) in ${short(e.file_path)}`)
       return next({ ...e, new_string: undash(e.new_string) })
     }
     return next(e)
@@ -52,26 +52,26 @@ export const register: Register = on => {
 
     if (GIT_AMEND.test(shell)) {
       if (!(await allow($, 'This is `git commit --amend`. Your rule: make a new commit instead.'))) {
-        return { deny: 'Rulebook Guard: the user blocked `git commit --amend`. Their rule is new commits, not amend. Make a new commit instead.' }
+        return { deny: 'rulebook-guard: the user blocked `git commit --amend`. Their rule is new commits, not amend. Make a new commit instead.' }
       }
     }
 
     if (GIT_COMMIT.test(shell)) {
       const found = pii(command)
       if (found && !(await allow($, `This commit message contains what looks like ${found}.`))) {
-        return { deny: `Rulebook Guard: the user blocked a commit message with ${found} (rule: no personal info without asking).` }
+        return { deny: `rulebook-guard: the user blocked a commit message with ${found}. Personal info needs the user's approval first.` }
       }
     }
 
     if (GIT_PUSH.test(shell)) {
       const problems = await unformatted($, cdOf(command))
       if (problems.length > 0 && !(await allow($, `Not formatted yet: ${problems.join('; ')}. Your rule: format before push.`))) {
-        return { deny: `Rulebook Guard: the user blocked the push because these are not formatted: ${problems.join('; ')}. Run the formatter(s), commit, then push.` }
+        return { deny: `rulebook-guard: the user blocked the push because these are not formatted: ${problems.join('; ')}. Run the formatter(s), commit, then push.` }
       }
     }
 
     if ((GIT_COMMIT.test(shell) || PROSE_COMMAND.test(shell)) && command.includes('—')) {
-      $.ui.toast(`Rulebook: replaced ${count(command)} em dash(es) in the ${GIT_COMMIT.test(shell) ? 'commit message' : 'PR text'}`)
+      $.ui.toast(`rulebook-guard: replaced ${count(command)} em dash(es) in the ${GIT_COMMIT.test(shell) ? 'commit message' : 'PR text'}`)
       command = undash(command)
     }
 
@@ -83,7 +83,7 @@ export const register: Register = on => {
     if (!SLACK_POST.test(e.tool)) return next(e)
     const args = e as unknown as { message?: unknown }
     if (typeof args.message !== 'string' || !args.message.includes('—')) return next(e)
-    $.ui.toast(`Rulebook: replaced ${count(args.message)} em dash(es) in the Slack message`)
+    $.ui.toast(`rulebook-guard: replaced ${count(args.message)} em dash(es) in the Slack message`)
     return next({ ...e, message: undash(args.message) } as typeof e)
   })
 }
@@ -126,7 +126,7 @@ async function isPrivatePath($: EngineInterface, path: string) {
 // Asks the person; anything but "Allow once" (or no one to ask) blocks.
 async function allow($: EngineInterface, why: string) {
   try {
-    const answer = await $.ui.ask(`Rulebook Guard: ${why} Allow it anyway?`, {
+    const answer = await $.ui.ask(`rulebook-guard: ${why} Allow it anyway?`, {
       options: ['Block it', 'Allow once'],
       header: 'Rulebook',
     })

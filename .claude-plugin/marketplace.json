@@ -8,19 +8,19 @@
     {
       "name": "agent-radar",
       "description": "One live line above the prompt per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/agent-radar"
     },
     {
       "name": "blast-radius",
       "description": "Holds risky Bash commands and shows what they would change before they run.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "source": "./mods/blast-radius"
     },
     {
       "name": "browser-lanes",
-      "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. Subagents take turns.",
-      "version": "0.1.1",
+      "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. A subagent that wants the browser waits until the one using it is done.",
+      "version": "0.1.2",
       "source": "./mods/browser-lanes"
     },
     {
@@ -37,44 +37,38 @@
     },
     {
       "name": "merge-gate",
-      "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR line above the prompt and /gate.",
-      "version": "0.1.3",
+      "description": "Holds `gh pr merge` until CI passes and one Codex review (OpenAI's luna model) has run. A PR line above the prompt, and /gate shows the PR's status.",
+      "version": "0.1.4",
       "source": "./mods/merge-gate"
     },
     {
       "name": "mission-control",
-      "description": "/mission: a live map of the main agent, its subagents and every tool call, and a live code map of the files they touch.",
-      "version": "0.1.1",
+      "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
+      "version": "0.1.2",
       "source": "./mods/mission-control"
     },
     {
       "name": "next-steps",
-      "description": "After each turn, 2 or 3 likely next prompts above the input. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
-      "version": "0.1.0",
-      "source": "./mods/next-steps"
-    },
-    {
-      "name": "oneform-line",
-      "description": "Your OneForm day above the prompt: sleep, protein and calories left, today's training, the next planned session. /oneform shows the whole day.",
+      "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
       "version": "0.1.1",
-      "source": "./mods/oneform-line"
+      "source": "./mods/next-steps"
     },
     {
       "name": "reels",
       "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/reels"
     },
     {
       "name": "replay-theater",
       "description": "Step through the last turn's file edits, one diff at a time.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/replay-theater"
     },
     {
       "name": "rulebook-guard",
-      "description": "Enforces written rules: no em dashes in prose, asks before --amend, before an unformatted push, and before PII in notes or commits.",
-      "version": "0.1.1",
+      "description": "Writing and git rules: replaces em dashes in prose, and asks before git commit --amend, an unformatted push, or personal info in notes and commits.",
+      "version": "0.1.2",
       "source": "./mods/rulebook-guard"
     },
     {
@@ -85,8 +79,8 @@
     },
     {
       "name": "snake",
-      "description": "Snake in a pane while Claude works, paused when it's done. Opt-in: nothing opens until /snake.",
-      "version": "0.2.1",
+      "description": "Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing opens until /snake.",
+      "version": "0.2.2",
       "source": "./mods/snake"
     },
     {
@@ -104,7 +98,7 @@
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/where-am-i"
     }
   ]

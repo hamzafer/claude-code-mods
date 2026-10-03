@@ -1,6 +1,6 @@
 {
   "name": "agent-radar",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "One live line above the prompt per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
   "author": {
     "name": "Hamza Zafar",

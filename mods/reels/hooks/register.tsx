@@ -22,7 +22,7 @@ const live: { frame: { file: string; n: number } | null; size: { columns: number
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'reels', description: 'Shorts in a pane while Claude works: /reels, /reels login, /reels stop' })
+    await $.command.register({ name: 'reels', description: 'Play Shorts in a pane while Claude works; /reels login signs in, /reels stop ends it' })
     return r
   })
 

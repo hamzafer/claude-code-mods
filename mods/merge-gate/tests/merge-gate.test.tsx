@@ -128,7 +128,7 @@ describe('merge-gate', () => {
     const { ran } = engine(on, { cwd: '/code/other', dirs })
     await start($)
     const held: any = await $.tool.call({ tool: 'Bash', command: 'cd /code/mods/wt/a && gh pr merge --squash' } as any)
-    expect(held.deny).toMatch(/held the merge of PR #7: Codex has not reviewed it/)
+    expect(held.deny).toMatch(/^merge-gate: held the merge of PR #7: Codex has not reviewed it/)
     await $.tool.call({ tool: 'Bash', command: `cd /code/mods/wt/a && ${LUNA_REVIEW}` } as any)
     await $.tool.call({ tool: 'Bash', command: 'cd /code/mods/wt/a && gh pr merge --squash' } as any)
     expect(ran).toEqual([`cd /code/mods/wt/a && ${LUNA_REVIEW}`, 'cd /code/mods/wt/a && gh pr merge --squash'])

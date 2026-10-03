@@ -1,7 +1,7 @@
 {
   "name": "rulebook-guard",
-  "version": "0.1.1",
-  "description": "Enforces written rules: no em dashes in prose, asks before --amend, before an unformatted push, and before PII in notes or commits.",
+  "version": "0.1.2",
+  "description": "Writing and git rules: replaces em dashes in prose, and asks before git commit --amend, an unformatted push, or personal info in notes and commits.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"

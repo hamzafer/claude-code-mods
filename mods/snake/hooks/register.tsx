@@ -16,7 +16,7 @@ export const register: Register = on => {
   let isWorking = false // a main-loop turn is running, whether or not Snake is on
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'snake', description: 'Snake in a pane while Claude works: /snake, /snake stop', argumentHint: '[stop]' }).catch(() => {})
+    await $.command.register({ name: 'snake', description: 'Play Snake in a pane while Claude works; /snake stop ends it', argumentHint: '[stop]' }).catch(() => {})
     const saved = Number(await $.store.get(BEST_KEY).catch(() => 0)) || 0
     await update($, best, b => Math.max(b, saved))
     return r

@@ -27,7 +27,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'browser', description: "Is this session attached to a Playwright browser? /browser clean closes other sessions' browsers", argumentHint: '[clean]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
+    await $.command.register({ name: 'browser', description: "Show if this session has a Playwright browser; /browser clean closes other sessions' browsers", argumentHint: '[clean]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     void inspect($).catch(() => {})
     return r
   })
@@ -70,7 +70,7 @@ export const register: Register = on => {
       }
       if (Date.now() - started > MAX_WAIT_MS) {
         await update($, waiting, w => drop(w, label))
-        return { deny: `Browser Lanes: the browser has been busy with "${lane.label}" for over 5 minutes. Try again later, or ask the user.` }
+        return { deny: `browser-lanes: the browser has been busy with "${lane.label}" for over 5 minutes. Try again later, or ask the user.` }
       }
       await $.process.run(['sleep', '0.5'])
     }
@@ -97,7 +97,7 @@ export const register: Register = on => {
         r = await next(call)
         void inspect($).catch(() => {})
       } else {
-        $.ui.toast(`Browser Lanes: ${describeAttachment(a)}. Run /browser clean.`, { timeoutMs: 8000 })
+        $.ui.toast(`browser-lanes: ${describeAttachment(a)}. Run /browser clean.`, { timeoutMs: 8000 })
       }
     } else void inspect($).catch(() => {})
     if (e.tool.endsWith('browser_close')) await release($, owner)
@@ -167,7 +167,7 @@ async function closeBlocker($: EngineInterface, a: Attachment) {
   const where = a.holder?.cwd ? ` in ${a.holder.cwd.split('/').slice(-2).join('/')}` : ''
   try {
     const answer = await $.ui.ask(
-      `Browser Lanes: another Claude (pid ${a.holder?.claudePid}${where}) holds the browser this session needs. Close that browser and retry? Its Claude session stays open.`,
+      `browser-lanes: another Claude (pid ${a.holder?.claudePid}${where}) holds the browser this session needs. Close that browser and retry? Its Claude session stays open.`,
       { options: ['Close it and retry', 'Leave it'], header: 'Browser' },
     )
     if (answer !== 'Close it and retry') return false
@@ -190,7 +190,7 @@ async function clean($: EngineInterface) {
   const options = [`Close all ${others.length} other browsers`, ...(orphans.length > 0 && orphans.length < others.length ? [`Close only the ${orphans.length} orphans`] : []), 'Keep them']
   let answer = 'Keep them'
   try {
-    answer = await $.ui.ask(`Browser Lanes: ${others.length} Playwright browser(s) belong to other Claude sessions. Close which? (The Claude sessions stay open.)`, { options, header: 'Browser' })
+    answer = await $.ui.ask(`browser-lanes: ${others.length} Playwright browser(s) belong to other Claude sessions. Close which? (The Claude sessions stay open.)`, { options, header: 'Browser' })
   } catch {
     // no one to ask: keep them
   }
@@ -228,7 +228,7 @@ async function warnOtherSession($: EngineInterface) {
   const d = (await $.store.get('driver')) as { session?: string; label?: string; at?: number } | undefined
   if (!d?.session || !d.at || Date.now() - d.at > IDLE_MS) return
   if (d.session === (await $.session.id())) return
-  $.ui.toast(`Browser Lanes: another Claude session (${d.session.slice(0, 8)}, ${d.label}) used the browser ${Math.round((Date.now() - d.at) / 1000)}s ago`)
+  $.ui.toast(`browser-lanes: another Claude session (${d.session.slice(0, 8)}, ${d.label}) used the browser ${Math.round((Date.now() - d.at) / 1000)}s ago`)
 }
 
 // `login-test-03.png`, or the asked-for name with the driver in front.

@@ -1,7 +1,7 @@
 {
   "name": "snake",
-  "version": "0.2.1",
-  "description": "Snake in a pane while Claude works, paused when it's done. Opt-in: nothing opens until /snake.",
+  "version": "0.2.2",
+  "description": "Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing opens until /snake.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"

@@ -19,7 +19,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'where', description: 'Where are we? A short recap of the session so far' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
+    await $.command.register({ name: 'where', description: 'Recap the session so far in a few bullets' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     return r
   })
 

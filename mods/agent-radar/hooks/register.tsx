@@ -19,7 +19,7 @@ const now = atom({ plugin: 'agent-radar', key: 'now' } as const, 0)
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'radar', description: 'What are my subagents doing? Opens the Agent Radar pane' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
+    await $.command.register({ name: 'radar', description: 'Show what each subagent is doing, in the Agent Radar pane' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     // A clock for the elapsed times, ticking only while something runs.
     $.clock.every(1000, () => {
       void (async () => {

@@ -61,7 +61,7 @@ describe('rulebook-guard', () => {
   test('--amend is blocked unless allowed', async ($, on) => {
     const { ran } = engine(on, { answer: 'Block it' })
     const r: any = await $.tool.call({ tool: 'Bash', command: 'git commit --amend --no-edit' } as any)
-    expect(r.deny).toMatch(/new commits, not amend/)
+    expect(r.deny).toMatch(/^rulebook-guard: .*new commits, not amend/)
     expect(ran.filter(e => e.tool === 'Bash')).toEqual([])
   })
 
@@ -100,7 +100,7 @@ describe('rulebook-guard', () => {
     const r: any = await $.tool.call({ tool: 'Write', file_path: '/Users/me/notes/setup.md', content: 'login: a.b@example.com' } as any)
     expect(asked[0]).toMatch(/an email address/)
     expect(asked[0]).not.toMatch(/a\.b@example\.com/) // the value itself is never shown
-    expect(r.deny).toMatch(/blocked writing an email address/)
+    expect(r.deny).toMatch(/^rulebook-guard: the user blocked writing an email address .*Personal info needs the user's approval first\./)
     expect(ran.filter(e => e.tool === 'Write')).toEqual([])
   })
 })

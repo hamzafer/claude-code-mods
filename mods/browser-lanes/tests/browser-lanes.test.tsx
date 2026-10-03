@@ -86,7 +86,7 @@ describe('browser-lanes', () => {
   test('another session that just used the browser gets a warning', async ($, on) => {
     const { toasts } = engine(on, { session: 'other-session-xyz', label: 'main', at: Date.now() - 5_000 })
     await $.tool.call({ tool: `${PW}navigate`, url: 'https://example.com' } as any)
-    expect(toasts[0]).toMatch(/another Claude session \(other-se, main\) used the browser 5s ago/)
+    expect(toasts[0]).toMatch(/^browser-lanes: another Claude session \(other-se, main\) used the browser 5s ago/)
   })
 
   test('attachment: ours, blocked by another Claude, ready, none', () => {

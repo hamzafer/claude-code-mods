@@ -38,7 +38,7 @@ type Checks = { pass: number; fail: number; pending: number; failing: string[] }
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'gate', description: 'PR status: CI, Codex review, ready to merge? (/gate rerun retries failed CI)', argumentHint: '[rerun]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
+    await $.command.register({ name: 'gate', description: "Show the PR's CI, Codex review and merge status; /gate rerun retries failed CI", argumentHint: '[rerun]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     void refresh($).catch(() => {}) // background; a failed refresh just keeps the last band
     return r
   })
@@ -52,7 +52,7 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const shell = bare(e.command) // what the shell runs, without quoted text, heredoc bodies or comments
     if (CODEX_EXEC.test(shell)) {
-      return { deny: 'Merge Gate: `codex exec` can edit the branch. The rule is review only: use `codex review`.' }
+      return { deny: 'merge-gate: `codex exec` can edit the branch. The rule is review only: use `codex review`.' }
     }
     if (CODEX_REVIEW.test(shell)) return codexReview($, e.command, () => next(e))
     if (GH_MERGE.test(shell)) return merge($, shell, e.command, () => next(e))
@@ -96,17 +96,17 @@ async function codexReview($: EngineInterface, command: string, run: () => Promi
   if (isOllama(config)) {
     return {
       deny:
-        "Merge Gate: ~/.codex/config.toml points at Ollama (the Ollama app's ChatGPT toggle is on), so the review would go to a local model. " +
-        'Stop and ask Hamza to switch the toggle off. Do not edit the config.',
+        "merge-gate: ~/.codex/config.toml points at Ollama (the Ollama app's ChatGPT toggle is on), so the review would go to a local model. " +
+        'Stop and ask the user to switch the toggle off. Do not edit the config.',
     }
   }
   if (!/\bmodel\s*=\s*\\?["']?gpt-5\.6-luna["'\s]/.test(`${command} `)) {
-    return { deny: `Merge Gate: Codex reviews run on ${LUNA} only. Add -c 'model="${LUNA}"' to the command.` }
+    return { deny: `merge-gate: Codex reviews run on ${LUNA} only. Add -c 'model="${LUNA}"' to the command.` }
   }
   const key = await codexKey($, await runDir($, command))
   const done = Number((await $.store.get(key)) ?? 0)
   if (done >= 1) {
-    return { deny: 'Merge Gate: Codex already reviewed this PR once (rule: one pass per PR). Fix or answer its findings instead of running it again.' }
+    return { deny: 'merge-gate: Codex already reviewed this PR once (rule: one pass per PR). Fix or answer its findings instead of running it again.' }
   }
   await $.store.set(key, done + 1) // counted when it starts: a quota error is not a reason to retry
   void refresh($).catch(() => {}) // background; a failed refresh just keeps the last band
@@ -128,7 +128,7 @@ async function merge($: EngineInterface, shell: string, command: string, run: ()
 
   let answer = 'Hold'
   try {
-    answer = await $.ui.ask(`Merge Gate: PR #${pr.number} is not ready: ${missing.join('; ')}. Merge anyway?`, {
+    answer = await $.ui.ask(`merge-gate: PR #${pr.number} is not ready: ${missing.join('; ')}. Merge anyway?`, {
       options: ['Hold', 'Merge anyway'],
       header: 'Merge Gate',
     })
@@ -136,7 +136,7 @@ async function merge($: EngineInterface, shell: string, command: string, run: ()
     // no one to ask: hold
   }
   if (answer === 'Merge anyway') return run()
-  return { deny: `Merge Gate held the merge of PR #${pr.number}: ${missing.join('; ')}. Finish those first${checks.fail > 0 ? ' (failed CI: /gate rerun)' : ''}.` }
+  return { deny: `merge-gate: held the merge of PR #${pr.number}: ${missing.join('; ')}. Finish those first${checks.fail > 0 ? ' (failed CI: /gate rerun)' : ''}.` }
 }
 
 // The command as the shell reads it: heredoc bodies, quoted text and # comments blanked, so text
