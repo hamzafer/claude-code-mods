@@ -241,23 +241,28 @@ export function isOllama(config: string) {
 }
 
 // The folders a command moves to before it runs the rest: each leading `cd X &&` or `cd X;`
-// (also inside a leading `(` or `{`), quoted or not. Paths are returned as written, in order.
+// (also inside a leading `(` or `{`), quoted or not, then the same inside a leading
+// `bash -c '...'` or `eval '...'`. Paths are returned as written, in order.
+const LEAD_CD = /^[\s({]*cd[ \t]+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|((?:[^\s;&|()'"`\\]|\\.)+))[ \t]*(?:&&|;|\n)/
+const LEAD_RUNNER = /^[\s({]*(?:(?:ba|z|da|k)?sh\s+(?:-\S+\s+)*-\w*c|eval)\s+(?:'([^']*)'|"((?:[^"\\]|\\.)*)")/
 export function cdTargets(command: string): string[] {
   const dirs: string[] = []
   let rest = command
-  for (let n = 0; n < 8; n++) {
-    const m = /^[\s({]*cd[ \t]+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|((?:[^\s;&|()'"`\\]|\\.)+))[ \t]*(?:&&|;|\n)/.exec(rest)
+  for (;;) {
+    const m = LEAD_CD.exec(rest)
     if (!m) break
     dirs.push(m[1] ?? m[2]?.replace(/\\(.)/g, '$1') ?? m[3].replace(/\\(.)/g, '$1'))
     rest = rest.slice(m[0].length)
   }
+  const inner = LEAD_RUNNER.exec(rest)
+  if (inner) dirs.push(...cdTargets(inner[1] ?? inner[2].replace(/\\(.)/g, '$1')))
   return dirs
 }
 
-// `to` resolved against the folder `from` (absolute), with `~` as `home`. Null when it uses a
-// variable or other expansion that only the shell can resolve.
+// `to` resolved against the folder `from` (absolute), with `~` as `home`. Null when only the
+// shell knows: a variable or glob, `cd -` or another option, `~user`.
 export function resolveDir(from: string, to: string, home: string): string | null {
-  if (/[$`*?]/.test(to)) return null
+  if (/[$`*?]/.test(to) || to.startsWith('-') || /^~[^/]/.test(to)) return null
   const path = to === '~' || to.startsWith('~/') ? home + to.slice(1) : to.startsWith('/') ? to : `${from}/${to}`
   const parts: string[] = []
   for (const p of path.split('/')) {
@@ -276,7 +281,7 @@ async function runDir($: EngineInterface, command: string): Promise<string> {
   const home = (await $.env.get('HOME')) ?? ''
   for (const t of targets) {
     const next = resolveDir(dir, t, home)
-    if (next === null) break // `cd $X`: keep the last folder we know
+    if (next === null) break // `cd $X`, `cd -`: keep the last folder we know
     dir = next
   }
   return dir
@@ -289,10 +294,11 @@ async function runDir($: EngineInterface, command: string): Promise<string> {
 async function codexKey($: EngineInterface, dir: string, known?: Pr | null) {
   const pr = known ?? (await currentPr($, dir))
   const common = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: dir }).catch(() => null)
-  const repo = common?.exitCode === 0 && common.stdout.trim() ? common.stdout.trim().replace(/\/\.git\/?$/, '') : dir
+  const path = common?.exitCode === 0 ? common.stdout.trim() : ''
+  const repo = /^\/[^\n]*$/.test(path) ? path.replace(/\/\.git\/?$/, '') : dir // old git prints a relative path
   if (pr) return `codex:${repo}#${pr.number}`
   const branch = await $.process.run(['git', 'branch', '--show-current'], { cwd: dir }).catch(() => null)
-  return `codex:${repo}@${(branch?.exitCode === 0 && branch.stdout.trim()) || 'unknown'}`
+  return `codex:${repo}@${(branch?.exitCode === 0 && branch.stdout.trim()) || dir}` // detached HEAD: per folder
 }
 
 async function currentPr($: EngineInterface, dir?: string, number?: string): Promise<Pr | null> {

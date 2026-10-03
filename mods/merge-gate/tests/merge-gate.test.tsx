@@ -87,6 +87,8 @@ describe('merge-gate', () => {
       '/code/mods/wt/a': { repo: '/code/mods', branch: 'fix-a', pr: 7 },
       '/code/mods/wt/b': { repo: '/code/mods', branch: 'fix-b', pr: 8 },
       '/code/mods/wt/c': { repo: '/code/mods', branch: 'fix-c' },
+      '/code/mods/wt/d': { repo: '/code/mods', branch: '' },
+      '/code/mods/wt/e': { repo: '/code/mods', branch: '' },
       '/code/other': { repo: '/code/other', branch: 'main' },
     }
     const { ran, store } = engine(on, { cwd: '/code/mods', dirs })
@@ -102,8 +104,34 @@ describe('merge-gate', () => {
     // No PR yet: counted for the branch
     expect((await review('cd wt/c && ')).deny).toBeUndefined()
     expect((await review('cd /code/mods/wt/c && ')).deny).toMatch(/one pass per PR/)
-    expect([...store.keys()].filter(k => k.startsWith('codex:')).sort()).toEqual(['codex:/code/mods#7', 'codex:/code/mods#8', 'codex:/code/mods@fix-c'])
-    expect(ran.length).toBe(3)
+    // Detached HEAD, no PR: counted per folder, so two such worktrees do not share a count
+    expect((await review('cd wt/d && ')).deny).toBeUndefined()
+    expect((await review('cd wt/e && ')).deny).toBeUndefined()
+    // Inside bash -c, and after many cds
+    expect((await review(`bash -lc 'cd wt/a && ${LUNA_REVIEW.replace(/'/g, '')}' #`)).deny).toMatch(/one pass per PR/)
+    expect((await review(`${'cd wt && cd .. && '.repeat(10)}cd wt/b && `)).deny).toMatch(/one pass per PR/)
+    expect([...store.keys()].filter(k => k.startsWith('codex:')).sort()).toEqual([
+      'codex:/code/mods#7',
+      'codex:/code/mods#8',
+      'codex:/code/mods@/code/mods/wt/d',
+      'codex:/code/mods@/code/mods/wt/e',
+      'codex:/code/mods@fix-c',
+    ])
+    expect(ran.length).toBe(5)
+  })
+
+  test('merge: a leading cd checks the PR, CI and Codex count of that folder', async ($, on) => {
+    const dirs: Record<string, Dir> = {
+      '/code/other': { repo: '/code/other', branch: 'main' },
+      '/code/mods/wt/a': { repo: '/code/mods', branch: 'fix-a', pr: 7 },
+    }
+    const { ran } = engine(on, { cwd: '/code/other', dirs })
+    await start($)
+    const held: any = await $.tool.call({ tool: 'Bash', command: 'cd /code/mods/wt/a && gh pr merge --squash' } as any)
+    expect(held.deny).toMatch(/held the merge of PR #7: Codex has not reviewed it/)
+    await $.tool.call({ tool: 'Bash', command: `cd /code/mods/wt/a && ${LUNA_REVIEW}` } as any)
+    await $.tool.call({ tool: 'Bash', command: 'cd /code/mods/wt/a && gh pr merge --squash' } as any)
+    expect(ran).toEqual([`cd /code/mods/wt/a && ${LUNA_REVIEW}`, 'cd /code/mods/wt/a && gh pr merge --squash'])
   })
 
   test('Codex: a session started in another repo counts the review for the repo it cds into', async ($, on) => {
@@ -128,10 +156,14 @@ describe('merge-gate', () => {
     expect(cdTargets('(cd x\\ y && codex review)')).toEqual(['x y'])
     expect(cdTargets('ls && cd a && codex review')).toEqual([])
     expect(cdTargets('cd a || codex review')).toEqual([])
+    expect(cdTargets(`cd a && bash -lc 'cd b && codex review'`)).toEqual(['a', 'b'])
+    expect(cdTargets('eval "cd \\"x y\\"; codex review"')).toEqual(['x y'])
     expect(resolveDir('/r', 'a/../b/./c', '/h')).toBe('/r/b/c')
     expect(resolveDir('/r/x', '/abs', '/h')).toBe('/abs')
     expect(resolveDir('/r', '~/w', '/h')).toBe('/h/w')
     expect(resolveDir('/r', '$WT', '/h')).toBeNull()
+    expect(resolveDir('/r', '-', '/h')).toBeNull()
+    expect(resolveDir('/r', '~bob/x', '/h')).toBeNull()
   })
 
   test('codex exec is never run', async ($, on) => {
