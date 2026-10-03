@@ -1,25 +1,31 @@
 # Claude Code mods
 
-13 mods for Claude Code. They draw lines above the prompt, open panes, and hold risky commands until you answer. Each one is a plugin with a hook module that hot-reloads.
+See what your agent is reading and writing, live. mission-control draws every subagent, every tool call and every file they touch, in a pane next to the chat.
 
-Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ ⭐ for Cursor slash commands.
+![mission-control at 4x: two subagents and a logout feature landing across four files](docs/mission-control.gif)
 
-![reels: Shorts play while Claude works and pause when it's done](docs/reels-demo.gif)
+## Try mission-control
 
-## Install
-
-Needs Claude Code 2.1.287 or later.
+You need Claude Code 2.1.287 or later, Google Chrome, and a terminal that shows images, like Ghostty, kitty or iTerm2.
 
 ```sh
 claude plugin marketplace add hamzafer/claude-code-mods
-claude plugin install token-weather@claude-code-mods
+claude plugin install mission-control@claude-code-mods
 ```
 
-Install the ones you want, then restart Claude Code. To try one without installing:
+Restart Claude Code and type `/mission`. Press `c` for the code map and `w` for the agents.
+
+A file glows blue while the agent reads it and orange while it writes, then turns green. After each turn, one line under it says what changed.
+
+## Install the others
+
+Same two commands, with the mod's name in place of `mission-control`. To try one without installing:
 
 ```sh
 claude --plugin-dir mods/token-weather
 ```
+
+Prev: [**cursor-commands**](https://github.com/hamzafer/cursor-commands) [![stars](https://img.shields.io/github/stars/hamzafer/cursor-commands?style=social)](https://github.com/hamzafer/cursor-commands), 600+ ⭐ for Cursor slash commands.
 
 ## The mods
 
@@ -79,9 +85,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ## Screenshots
 
-**mission-control** at 4x: two subagents and a logout feature landing across four files, live on the code map
+**reels** plays Shorts while Claude works and pauses when it's done
 
-![mission-control](docs/mission-control.gif)
+![reels](docs/reels-demo.gif)
 
 **browser-lanes, token-weather and where-am-i** stacked above the prompt
 
