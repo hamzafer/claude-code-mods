@@ -147,6 +147,23 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Run `/replay` after a turn that edited files
 - `n` and `p` step, `q` closes
 
+### 📝 md-preview
+
+- When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn)
+- `/md` opens a pane on the latest one, `/md <path>` on any file
+- `/md compare <a> <b>` shows two files side by side under their names, for picking between option A and option B
+- `/md open` (or `o` in the pane) opens the rendered page full size in your browser, from a temp file with working links
+- Keys: `n`/`p` next and previous file, `b` before and after side by side (stacked when the pane is narrow), `o` browser, `r` render again, `t` page or text view, `q` close. The arrow keys scroll
+- It draws again when the file you're looking at changes
+- A green bar marks the blocks the last edit changed
+- **Renderer, best first:**
+  1. GitHub's own renderer through `gh api /markdown`, when the file is in a repo with a GitHub remote and `gh` is signed in
+  2. A small built-in renderer, when `gh` is missing, signed out or offline
+  3. A text view, without Chrome or a terminal that shows images
+- The rendered view needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm; not through tmux). Built and tested on macOS. Headless Chrome draws it in a throwaway profile
+- Scripts in the Markdown never run: the page allows only its own script, and the built-in renderer drops script tags, event handlers and `javascript:` links
+- **Privacy:** with the GitHub renderer, the file's text goes to GitHub's API under your own `gh` login. Nothing else is sent anywhere. Images the file links to on the web load in that Chrome, the same as on GitHub
+
 ### 📱🐍 reels and snake
 
 - Installing them changes nothing until you type `/reels` or `/snake`
