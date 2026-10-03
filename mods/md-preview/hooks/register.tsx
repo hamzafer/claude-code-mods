@@ -76,6 +76,8 @@ const draw = { pending: false, dirty: false, n: 0, columns: 100, failed: '', dra
 const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
+const snapshot = new Map<string, string>() // Markdown files at turn start, to catch writes that skip Write/Edit (shell, scripts)
+const SNAPSHOT_FILES = 200
 
 const base = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 const folder = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/'
@@ -136,10 +138,18 @@ export const register: Register = on => {
     return r
   })
 
-  on('turn.start', async (_$, e, next) => {
+  on('turn.start', async ($, e, next) => {
     toasted.clear()
     turnBefore.clear()
+    if (!e.agentId) await takeSnapshot($).catch(() => {})
     return next(e)
+  })
+
+  // Catches Markdown changes made outside Write/Edit, e.g. `cat > README.md` in a shell.
+  on('turn.complete', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.agentId) await compareSnapshot($).catch(() => {})
+    return r
   })
 
   // Reads what the main agent wrote; never blocks or changes the call.
@@ -334,6 +344,44 @@ async function command($: EngineInterface, args: string) {
 }
 
 // A Markdown file changed: remember its text before and which blocks, redraw or say so.
+async function listMarkdown($: EngineInterface): Promise<string[]> {
+  if (!session.cwd) return []
+  const git = await $.process
+    .run(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '--', '*.md', '*.mdx', '*.markdown'], { cwd: session.cwd })
+    .catch(() => null)
+  const out = git && git.exitCode === 0 ? git.stdout : ''
+  return out
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l !== '' && MD_FILE.test(l))
+    .slice(0, SNAPSHOT_FILES)
+    .map(l => `${session.cwd.replace(/\/$/, '')}/${l}`)
+}
+
+async function takeSnapshot($: EngineInterface) {
+  snapshot.clear()
+  for (const path of await listMarkdown($)) {
+    const text = await $.fs.read(path).catch(() => null)
+    if (typeof text === 'string' && text.length <= BEFORE_MAX) snapshot.set(path, text)
+  }
+}
+
+async function compareSnapshot($: EngineInterface) {
+  const seen = new Set<string>()
+  for (const path of await listMarkdown($)) {
+    seen.add(path)
+    if (turnBefore.has(path)) continue // Write/Edit already reported it
+    const now = await $.fs.read(path).catch(() => null)
+    if (typeof now !== 'string') continue
+    const was = snapshot.get(path)
+    if (was === undefined) {
+      if (snapshot.size > 0) await changed($, path, null) // new file this turn
+    } else if (was !== now) {
+      await changed($, path, was)
+    }
+  }
+}
+
 async function changed($: EngineInterface, path: string, before: string | null) {
   const after = await $.fs.read(path).catch(() => null)
   if (typeof after !== 'string') return
