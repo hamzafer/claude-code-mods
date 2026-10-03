@@ -37,6 +37,13 @@
 - Makes one Haiku call after each turn to write the summary
 - `/where` gives a few bullets instead
 
+### 💰 usage-meter
+
+- One line: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost
+- Reads the same figures as the status line, and updates after each turn and when a window moves
+- Green under 75%, yellow from 75%, red from 90%, plus one toast per window each time it passes 90%
+- Without a subscription it shows only the cost; narrow terminals drop the 7d part first, then the cost
+
 ### 📡 agent-radar
 
 - A finished agent shows a check for 30 seconds, then its line goes away
