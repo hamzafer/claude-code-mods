@@ -7,7 +7,7 @@
 
 ### 📏 Lines above the prompt
 
-- token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add one
+- token-weather, usage-meter, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add one
 - They stack
 - Each hides when it has nothing to show (oneform-line stays once it's set up)
 
@@ -40,7 +40,7 @@
 ### 💰 usage-meter
 
 - One line: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost
-- Reads the same figures as the status line, and updates after each turn and when a window moves
+- Reads the same figures as the status line and updates as your usage changes; a window past its reset time hides until the next reading
 - Green under 75%, yellow from 75%, red from 90%, plus one toast per window each time it passes 90%
 - Without a subscription it shows only the cost; narrow terminals drop the 7d part first, then the cost
 

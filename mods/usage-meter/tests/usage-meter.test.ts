@@ -108,6 +108,50 @@ describe('usage-meter', () => {
     expect(toasts[2]).toBe('7d usage limit at 90%, resets in 2d2h')
   })
 
+  test('a window with no reset time warns again only after it drops under 90%', async ($, on) => {
+    const { toasts } = engine(on, { rateLimits: [] })
+    await start($)
+    await measure($, [{ kind: 'spend_limit', percentUsed: 120 }])
+    await measure($, [{ kind: 'spend_limit', percentUsed: 125 }])
+    expect(toasts).toEqual(['Spend limit at 120%'])
+    await measure($, [{ kind: 'spend_limit', percentUsed: 10 }])
+    await measure($, [{ kind: 'spend_limit', percentUsed: 95 }])
+    expect(toasts).toEqual(['Spend limit at 120%', 'Spend limit at 95%'])
+  })
+
+  test('a window past its reset time hides until a fresh reading; spend over 100% stays red', async ($, on) => {
+    const { clock } = engine(on, {
+      rateLimits: [
+        { kind: 'five_hour', percentUsed: 96, resetsAt: at(10 * MIN) },
+        { kind: 'spend_limit', percentUsed: 120 },
+      ],
+      cost: { usd: 2 },
+    })
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'usage-meter', surface: 'terminal', ...band() } as any)
+    expect(await line(ui)).toContain('5h ████▇ 96% · resets 10m')
+    expect(await line(ui)).toContain('spend █████ 120%')
+    expect((await ui.find({ type: 'Text', text: /^ 120%$/ }))?.props?.color).toBe('red')
+
+    await clock.advance(11 * MIN)
+    expect(await line(ui)).toBe('⏱ spend █████ 120% · $2.00 session')
+    await ui.unmount()
+  })
+
+  test('yields the band to a survey', async ($, on) => {
+    engine(on, { rateLimits: [{ kind: 'five_hour', percentUsed: 42 }], cost: { usd: 1 } })
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'usage-meter',
+      surface: 'terminal',
+      component: 'AbovePrompt',
+      props: { hasSurvey: true, isWorking: false, maxRows: 10, bodyColumns: 120 },
+    } as any)
+    expect(await line(ui)).toBe('')
+    expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('no subscription: only the cost', async ($, on) => {
     engine(on, { rateLimits: [], cost: { usd: 1.5 } })
     await start($)

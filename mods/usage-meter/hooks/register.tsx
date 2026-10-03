@@ -1,6 +1,6 @@
 // Usage Meter: the plan's rate-limit windows and the session's cost, above the prompt.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { UsageMeterSnapshot, UsageMeterWindow } from '../types'
 
@@ -20,23 +20,26 @@ type Segment = { text: string; color?: string; dim?: boolean }
 type Part = { kind: 'window' | 'cost'; isPrimary: boolean; segments: Segment[] }
 
 export const register: Register = on => {
+  let timer: Timer | undefined // one countdown timer, even if session.start fires again
+
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    const usage = await $.session.usage().catch(() => null)
-    if (usage) await take($, usage.rateLimits, usage.cost?.usd)
     // Moves the reset countdown on while a window has a reset time.
-    $.clock.every(TICK_MS, () => {
+    timer?.cancel()
+    timer = $.clock.every(TICK_MS, () => {
       void (async () => {
         const snap = await read($, snapshot)
         if (snap?.rateLimits.some(w => w.resetsAt)) await update($, tick, n => n + 1)
       })().catch(() => {})
     })
+    const usage = await $.session.usage().catch(() => null)
+    if (usage) await take($, usage.rateLimits, usage.cost?.usd).catch(() => {})
     return result
   })
 
   on('session.measure', async ($, e, next) => {
     const result = await next(e)
-    await take($, e.rateLimits, e.cost?.usd)
+    await take($, e.rateLimits, e.cost?.usd).catch(() => {})
     return result
   })
 
@@ -72,7 +75,9 @@ export const register: Register = on => {
 }
 
 async function take($: EngineInterface, rateLimits: readonly UsageMeterWindow[], costUsd: number | undefined) {
-  const windows = rateLimits.map(w => ({ kind: w.kind, percentUsed: w.percentUsed, resetsAt: w.resetsAt }))
+  const windows = rateLimits
+    .filter(w => Number.isFinite(w.percentUsed))
+    .map(w => ({ kind: w.kind, percentUsed: w.percentUsed, resetsAt: w.resetsAt }))
   await update($, snapshot, () => ({ rateLimits: windows, costUsd }))
   await warn($, windows)
 }
@@ -82,21 +87,35 @@ async function warn($: EngineInterface, windows: UsageMeterWindow[]) {
   const done = await read($, warned)
   const now = await $.clock.now()
   const fresh: Record<string, number> = {}
+  const rearm: string[] = []
   for (const w of windows) {
-    if (w.percentUsed < WARN_AT) continue
     const resetMs = resetTime(w)
+    if (w.percentUsed < WARN_AT) {
+      // With no reset time, dropping back under the line is the only sign of a new period.
+      if (resetMs === 0 && done[w.kind] !== undefined) rearm.push(w.kind)
+      continue
+    }
     const last = done[w.kind]
     // A reset time that moved on by more than half an hour is a new period.
     if (last !== undefined && resetMs <= last + 30 * 60_000) continue
     fresh[w.kind] = resetMs
     const when = resetMs > 0 ? `, resets in ${countdown(resetMs - now)}` : ''
-    $.ui.toast(`${label(w.kind)} usage limit at ${Math.round(w.percentUsed)}%${when}`)
+    const what = w.kind === 'spend_limit' ? 'Spend limit' : `${label(w.kind)} usage limit`
+    $.ui.toast(`${what} at ${Math.round(w.percentUsed)}%${when}`)
   }
-  if (Object.keys(fresh).length > 0) await update($, warned, old => ({ ...old, ...fresh }))
+  if (Object.keys(fresh).length > 0 || rearm.length > 0) {
+    await update($, warned, old => {
+      const next = { ...old, ...fresh }
+      for (const kind of rearm) delete next[kind]
+      return next
+    })
+  }
 }
 
 export function build(snap: UsageMeterSnapshot, now: number): Part[] {
-  const windows = [...snap.rateLimits].sort((a, b) => rank(a.kind) - rank(b.kind))
+  const windows = snap.rateLimits
+    .filter(w => !isStale(w, now)) // a window past its reset waits for a fresh reading
+    .sort((a, b) => rank(a.kind) - rank(b.kind))
   const parts: Part[] = windows.map((w, i) => {
     const color = colorFor(w.percentUsed)
     const segments: Segment[] = [
@@ -168,6 +187,11 @@ export function countdown(ms: number) {
 function resetTime(w: UsageMeterWindow) {
   const ms = w.resetsAt ? Date.parse(w.resetsAt) : NaN
   return Number.isFinite(ms) ? ms : 0
+}
+
+function isStale(w: UsageMeterWindow, now: number) {
+  const resetMs = resetTime(w)
+  return resetMs > 0 && resetMs <= now
 }
 
 function label(kind: string) {
