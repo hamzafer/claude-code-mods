@@ -1,0 +1,10 @@
+{
+  "name": "md-preview",
+  "version": "0.1.0",
+  "description": "Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. /md opens it.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts"
+}

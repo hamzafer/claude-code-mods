@@ -24,6 +24,12 @@
       "source": "./mods/browser-lanes"
     },
     {
+      "name": "md-preview",
+      "description": "Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. /md opens it.",
+      "version": "0.1.0",
+      "source": "./mods/md-preview"
+    },
+    {
       "name": "merge-gate",
       "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR line above the prompt and /gate.",
       "version": "0.1.2",
