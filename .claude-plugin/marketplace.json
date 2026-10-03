@@ -30,6 +30,12 @@
       "source": "./mods/md-preview"
     },
     {
+      "name": "glance",
+      "description": "One line above the prompt with what needs you: next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.",
+      "version": "0.1.0",
+      "source": "./mods/glance"
+    },
+    {
       "name": "merge-gate",
       "description": "Holds a merge until CI is green and Codex reviewed once (luna model, Ollama check). PR line above the prompt and /gate.",
       "version": "0.1.2",
