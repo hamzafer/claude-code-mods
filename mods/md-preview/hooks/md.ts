@@ -21,7 +21,8 @@ const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
 const HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/
 const QUOTE = /^ {0,3}> ?/
 const ITEM = /^( {0,3})([-*+]|\d{1,9}[.)])([ \t]+|$)(.*)$/
-const HTML_START = /^ {0,3}<(\/?[a-zA-Z][\w-]*|!--)/
+const BLOCK_TAGS = 'address|article|aside|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|nav|ol|optgroup|option|p|picture|pre|script|section|source|style|summary|table|tbody|td|textarea|tfoot|th|thead|title|tr|ul|video|audio|img|a'
+const HTML_START = new RegExp(`^ {0,3}(?:<!--|<\\/?(?:${BLOCK_TAGS})(?:[\\s/>]|$))`, 'i')
 const DELIM = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
 
 const isBlank = (l: string) => l.trim() === ''
@@ -38,8 +39,29 @@ function cells(row: string) {
   return r.split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'))
 }
 
+// Reference definitions ([id]: url), used by [text][id] and [id][] links.
+let refs = new Map<string, string>()
+const DEF = /^ {0,3}\[([^\]]+)\]:[ \t]*<?([^\s>]+)>?(?:[ \t]+["'(].*["')])?[ \t]*$/
+
 export function parse(md: string): Block[] {
-  return blocks(md.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'))
+  const lines = md
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(l => l.replace(/^\t+/, t => '    '.repeat(t.length)))
+  refs = new Map()
+  let fence = ''
+  const kept = lines.filter(l => {
+    const f = l.match(FENCE)
+    if (fence) {
+      if (new RegExp(`^ {0,3}${fence[0] === '`' ? '`' : '~'}{${fence.length},}\\s*$`).test(l)) fence = ''
+      return true
+    }
+    if (f) fence = f[1] as string
+    const d = !fence && l.match(DEF)
+    if (d) refs.set((d[1] as string).toLowerCase(), d[2] as string)
+    return !d
+  })
+  return blocks(kept)
 }
 
 function blocks(lines: string[]): Block[] {
@@ -49,6 +71,16 @@ function blocks(lines: string[]): Block[] {
     const l = lines[i] as string
     if (isBlank(l)) {
       i++
+      continue
+    }
+    if (indentOf(l) >= 4) {
+      const body: string[] = []
+      while (i < lines.length && (indentOf(lines[i] as string) >= 4 || isBlank(lines[i] as string))) {
+        body.push((lines[i] as string).slice(4))
+        i++
+      }
+      while (body.length && isBlank(body[body.length - 1] as string)) body.pop()
+      out.push({ t: 'code', lang: '', text: body.join('\n') })
       continue
     }
     const fence = l.match(FENCE)
@@ -92,7 +124,7 @@ function blocks(lines: string[]): Block[] {
       i = r.next
       continue
     }
-    if (l.includes('|') && i + 1 < lines.length && DELIM.test(lines[i + 1] as string) && (lines[i + 1] as string).includes('-')) {
+    if (l.includes('|') && i + 1 < lines.length && DELIM.test(lines[i + 1] as string) && (lines[i + 1] as string).includes('-') && cells(lines[i + 1] as string).length === cells(l).length) {
       const head = cells(l)
       const align = cells(lines[i + 1] as string).map(c => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : ''))
       const rows: string[][] = []
@@ -106,6 +138,15 @@ function blocks(lines: string[]): Block[] {
     }
     if (HTML_START.test(l)) {
       const body: string[] = []
+      if (/^ {0,3}<!--/.test(l)) {
+        while (i < lines.length) {
+          body.push(lines[i] as string)
+          i++
+          if ((body[body.length - 1] as string).includes('-->')) break
+        }
+        out.push({ t: 'html', text: body.join('\n') })
+        continue
+      }
       while (i < lines.length && !isBlank(lines[i] as string)) {
         body.push(lines[i] as string)
         i++
@@ -205,17 +246,46 @@ export function inline(text: string): string {
   const keep: string[] = []
   const hold = (html: string) => `\u0000${keep.push(html) - 1}\u0000`
   let s = text
-  s = s.replace(/\\([\\`*_{}[\]()#+\-.!|~<>])/g, (_m, c: string) => hold(esc(c)))
   s = s.replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, (_m, _t, code: string) => hold(`<code>${esc(code.replace(/\n/g, ' ').trim())}</code>`))
+  s = s.replace(/\\([\\`*_{}[\]()#+\-.!|~<>])/g, (_m, c: string) => hold(esc(c)))
+  s = s.replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, m => hold(m)) // an entity stays one
   s = s.replace(/<(https?:\/\/[^\s>]+)>/g, (_m, url: string) => hold(`<a href="${esc(url)}">${esc(url)}</a>`))
   s = s.replace(/<\/?[a-zA-Z][\w-]*(?:\s[^<>]*)?\/?>|<!--[\s\S]*?-->/g, tag => hold(tag)) // inline HTML passes through
   s = esc(s)
-  s = s.replace(/!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+&quot;([^&]*)&quot;)?\s*\)/g, (_m, alt: string, src: string, title?: string) => hold(`<img src="${src}" alt="${alt}"${title ? ` title="${title}"` : ''}>`))
-  s = s.replace(/\[((?:[^\]\\]|\\.)*)\]\(\s*([^)\s]*)(?:\s+&quot;([^&]*)&quot;)?\s*\)/g, (_m, label: string, href: string, title?: string) => hold(`<a href="${href}"${title ? ` title="${title}"` : ''}>${emphasis(label)}</a>`))
+  const URL_ = '((?:[^()\\s]|\\([^()\\s]*\\))*)' // one level of balanced parentheses
+  const TITLE = '(?:\\s+&quot;([^&]*)&quot;)?'
+  const ref = (label: string, id: string) => refs.get((id || label).replace(/\u0000\d+\u0000/g, '').toLowerCase())
+  s = s.replace(new RegExp(`!\\[([^\\]]*)\\]\\(\\s*${URL_}${TITLE}\\s*\\)`, 'g'), (_m, alt: string, src: string, title?: string) => hold(`<img src="${safeUrl(src)}" alt="${alt}"${title ? ` title="${title}"` : ''}>`))
+  s = s.replace(new RegExp(`\\[((?:[^\\]\\\\]|\\\\.)*)\\]\\(\\s*${URL_}${TITLE}\\s*\\)`, 'g'), (_m, label: string, href: string, title?: string) => hold(`<a href="${safeUrl(href)}"${title ? ` title="${title}"` : ''}>${emphasis(label)}</a>`))
+  s = s.replace(/!\[([^\]]*)\]\[([^\]]*)\]/g, (m, alt: string, id: string) => {
+    const url = ref(alt, id)
+    return url ? hold(`<img src="${safeUrl(esc(url))}" alt="${alt}">`) : m
+  })
+  s = s.replace(/\[((?:[^\]\\]|\\.)*)\]\[([^\]]*)\]/g, (m, label: string, id: string) => {
+    const url = ref(label, id)
+    return url ? hold(`<a href="${safeUrl(esc(url))}">${emphasis(label)}</a>`) : m
+  })
   s = s.replace(/(^|[\s(])(https?:\/\/[^\s<]*[^\s<.,;:!?)'"\u0000])/g, (_m, pre: string, url: string) => `${pre}${hold(`<a href="${url}">${url}</a>`)}`)
   s = emphasis(s)
   s = s.replace(/(?: {2,}|\\)\n/g, '<br>\n')
   return s.replace(/\u0000(\d+)\u0000/g, (_m, n: string) => keep[Number(n)] ?? '').replace(/\u0000(\d+)\u0000/g, (_m, n: string) => keep[Number(n)] ?? '')
+}
+
+// Only web, mail, relative and in-page links; never javascript: and the like.
+function safeUrl(url: string) {
+  return /^\s*(?:javascript|vbscript|data|file):/i.test(url.replace(/&#?\w+;|[\u0000-\u001f]/g, '')) ? '#' : url
+}
+
+/** Drops what can run: script-like elements and on* handlers, javascript: URLs. */
+export function sanitize(html: string) {
+  return html
+    .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
+    .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form)\b[^>]*>/gi, '')
+    .replace(/<[a-z][^>]*>/gi, tag =>
+      tag
+        .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .replace(/\b(href|src|action|formaction|srcset)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (m, attr: string, v: string) => (safeUrl(v.replace(/^["']|["']$/g, '')) === '#' ? `${attr}="#"` : m)),
+    )
 }
 
 function emphasis(s: string) {
@@ -226,8 +296,9 @@ function emphasis(s: string) {
     .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
 }
 
+// The built-in renderer's HTML: the Markdown's own HTML passes through, made safe.
 export function toHtml(list: Block[]): string {
-  return list.map(blockHtml).join('\n')
+  return sanitize(list.map(blockHtml).join('\n'))
 }
 
 function blockHtml(b: Block): string {
@@ -313,10 +384,15 @@ export function changedChunks(before: string | null, after: string): number[] {
 // The Markdown again, a MARK paragraph before each changed chunk that starts a block.
 export function withMarks(md: string, marks: readonly number[]): string {
   if (marks.length === 0) return md
-  const set = new Set(marks)
-  return chunks(md)
-    .map((c, i) => (set.has(i) && indentOf(c) < 4 ? `${MARK}\n\n${c}` : c))
-    .join('\n\n')
+  const list = chunks(md)
+  const at = new Set<number>()
+  let start = -1 // the first chunk of the list run this chunk belongs to
+  list.forEach((c, i) => {
+    const isListish = ITEM.test(c) || indentOf(c) > 0
+    start = isListish && i > 0 && start >= 0 && (ITEM.test(list[i - 1] as string) || indentOf(list[i - 1] as string) > 0) ? start : i
+    if (marks.includes(i)) at.add(isListish ? start : i)
+  })
+  return list.map((c, i) => (at.has(i) && indentOf(c) < 4 ? `${MARK}\n\n${c}` : c)).join('\n\n')
 }
 
 // --- Text view ---

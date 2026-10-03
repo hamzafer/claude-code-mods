@@ -1,13 +1,13 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { changedChunks, chunks, inline, parse, toHtml, toLines, withMarks, MARK } from '../hooks/md'
-import { markers, page } from '../hooks/page'
+import { changedChunks, chunks, inline, parse, sanitize, toHtml, toLines, withMarks, MARK } from '../hooks/md'
+import { absolute, fileUrl, markers, page } from '../hooks/page'
 import { githubRepo, MD_FILE } from '../hooks/register'
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const PANE = { component: 'Pane', requestId: 'md-preview', props: { title: 'Markdown', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } }
 
-type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string }
+type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean }
 
 // Stands for the engine beneath the mod: a small disk, gh, git and Chrome.
 function engine(on: any, opts: Opts = {}) {
@@ -47,6 +47,7 @@ function engine(on: any, opts: Opts = {}) {
       const ok = (opts.gh ?? 'ok') === 'ok'
       return { value: { exitCode: ok ? 0 : 1, stdout: ok ? '<h1 dir="auto">From GitHub</h1>' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     }
+    if (cmd === 'sh' && opts.shFails) throw new Error('timed out')
     return { value: { exitCode: 0, stdout: '300 2\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
@@ -105,7 +106,7 @@ describe('md-preview', () => {
     expect(runs.some(x => x.argv[0] === 'sh' && x.argv.includes(CHROME))).toBe(true)
     const html = Object.entries(writes).find(([p]) => p.endsWith('.html'))?.[1] ?? ''
     expect(html).toContain('From GitHub')
-    expect(html).not.toContain('<base')
+    expect(html).toContain('Content-Security-Policy')
     await pane.unmount()
     const drawn = await mount($)
     const images = await drawn.findAll({ type: 'Image' })
@@ -271,6 +272,89 @@ describe('md-preview', () => {
     await pane.unmount()
   })
 
+  test('review fixes: one Chrome at a time, no retry loop, the first text of the turn, big files', async ($, on) => {
+    const { runs, clock, disk } = engine(on, { gh: 'missing' })
+    await start($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any) // asks again while the first waits
+    await clock.advance(400)
+    await clock.advance(400)
+    expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1) // one draw for one state
+    const sh = runs.find(x => x.argv[0] === 'sh')
+    expect(sh?.argv[5]).toMatch(/^file:\/\/\/tmp\/md-preview\/page-\d\.html$/) // a URL, not a bare path
+    // Two edits in one turn: b compares with the text before the first.
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'Step one.' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Step one.', new_string: 'Step two.' } as any)
+    await clock.advance(400)
+    await pane.press({ key: 'view' })
+    await pane.press({ key: 'before' })
+    expect(await pane.find({ type: 'Text', text: /Old paragraph\./ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /Step two\./ })).toBeDefined()
+    await pane.unmount()
+    // Over GitHub's size limit: the built-in renderer, and gh is not asked.
+    disk['/repo/big.md'] = `# Big\n\n${'word '.repeat(90_000)}\n`
+    const ghBefore = runs.filter(x => x.argv[0] === 'gh').length
+    await $.command.run({ command: 'md', args: 'big.md' } as any)
+    const big = await mount($)
+    await big.press({ key: 'view' })
+    await clock.advance(400)
+    expect(runs.filter(x => x.argv[0] === 'gh').length).toBe(ghBefore)
+    await big.unmount()
+  })
+
+  test('a draw that throws is not retried on every redraw', async ($, on) => {
+    const { runs, clock } = engine(on, { gh: 'missing', shFails: true })
+    await start($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    for (let k = 0; k < 4; k++) await clock.advance(400)
+    await pane.unmount()
+    const again = await mount($)
+    await clock.advance(400)
+    expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1)
+    expect(await again.find({ type: 'Text', text: /Could not draw the page/ })).toBeDefined()
+    await again.press({ key: 'again' }) // r tries once more
+    await clock.advance(400)
+    expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(2)
+    await again.unmount()
+  })
+
+  test('the built-in renderer is safe and handles real READMEs', () => {
+    const bad = toHtml(parse('a <b>x</b> <script>alert(1)</script> [x](javascript:alert(1)) <img src=x onerror="alert(1)">\n\n<iframe src="https://e.com"></iframe>'))
+    expect(bad).not.toMatch(/<script|onerror|javascript:|<iframe/i)
+    expect(bad).toContain('<b>x</b>')
+    expect(sanitize('<a href="JaVaScRiPt:x" onclick=go()>y</a>')).toBe('<a href="#">y</a>')
+    const p0 = page([{ html: '<p>x</p>', dir: '/r' }], { title: 't', width: 900 })
+    const nonce = p0.match(/'nonce-([0-9a-f]+)'/)?.[1] ?? ''
+    expect(nonce).toHaveLength(24)
+    expect(p0).toContain(`<script nonce="${nonce}">`) // only the page's own script runs
+    expect(p0).toContain("default-src 'none'")
+    expect(toHtml(parse('[wiki](https://en.wikipedia.org/wiki/Foo_(bar))'))).toContain('<a href="https://en.wikipedia.org/wiki/Foo_(bar)">wiki</a>')
+    expect(toHtml(parse('AT&amp;T &copy; 1 & 2'))).toContain('AT&amp;T &copy; 1 &amp; 2')
+    expect(toHtml(parse('`\\d+\\.` and `a\\*b`'))).toContain('<code>\\d+\\.</code> and <code>a\\*b</code>')
+    const refs = toHtml(parse('See [docs][1] and [Home][].\n\n[1]: https://x.dev/docs\n[home]: https://x.dev'))
+    expect(refs).toContain('<a href="https://x.dev/docs">docs</a>')
+    expect(refs).toContain('<a href="https://x.dev">Home</a>')
+    expect(refs).not.toContain('[1]:')
+    expect(toHtml(parse('para\n\n    indented code\n    more'))).toContain('<pre><code>indented code\nmore</code></pre>')
+    expect(toHtml(parse('<kbd>Ctrl</kbd> is **bold**'))).toContain('<strong>bold</strong>')
+    expect(toHtml(parse('<!-- a\n\nb -->\n\ntext'))).toContain('<p>text</p>')
+    expect(toHtml(parse('<!-- a\n\nb -->\n\ntext'))).not.toContain('<p>b')
+    // A changed item in a loose list marks the list, and the list stays one.
+    const marked = toHtml(parse(withMarks('- a\n\n- b changed\n\n- c\n', [1])))
+    expect(marked.match(/<ul>/g)).toHaveLength(1)
+    expect(marked.startsWith('<div class="md-mark"></div>')).toBe(true)
+  })
+
+  test('relative paths change inside tags only', () => {
+    const out = absolute(`<p><img src='a.png'> <img srcset="x.png 1x, https://c.dev/y.png 2x"></p><pre>&lt;a href="foo.html"&gt; href="bar.html"</pre>`, '/r/my #1 docs')
+    expect(out).toContain('src="file:///r/my%20%231%20docs/a.png"')
+    expect(out).toContain('srcset="file:///r/my%20%231%20docs/x.png 1x, https://c.dev/y.png 2x"')
+    expect(out).toContain('href="bar.html"') // text, not an attribute
+    expect(fileUrl('/tmp/a b#c.html')).toBe('file:///tmp/a%20b%23c.html')
+  })
+
   test('the built-in renderer', () => {
     const html = toHtml(
       parse(
@@ -359,6 +443,8 @@ describe('md-preview', () => {
     expect(githubRepo('origin\tgit@github.com:hamzafer/claude-code-mods.git (fetch)')).toBe('hamzafer/claude-code-mods')
     expect(githubRepo('origin\thttps://github.com/a/b (fetch)')).toBe('a/b')
     expect(githubRepo('origin\tgit@gitlab.com:a/b.git (fetch)')).toBeNull()
+    expect(githubRepo('origin\thttps://evil.com/github.com/x/y (fetch)')).toBeNull()
+    expect(githubRepo('mirror\tgit@gitlab.com:a/b.git (fetch)\norigin\tssh://git@github.com/c/d.git (fetch)')).toBe('c/d')
     expect(MD_FILE.test('README.md') && MD_FILE.test('x.MDX') && MD_FILE.test('a.markdown')).toBe(true)
     expect(MD_FILE.test('a.ts')).toBe(false)
   })

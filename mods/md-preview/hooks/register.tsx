@@ -11,11 +11,24 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { MdFile, MdFrame, MdPair } from '../types'
 import { changedChunks, parse, toHtml, toLines, withMarks } from './md'
 import type { Line } from './md'
-import { page } from './page'
+import { fileUrl, page } from './page'
 import type { Side } from './page'
 
 const PANE = 'md-preview'
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+// Chrome or a Chromium, first found; macOS first, then the usual Linux names.
+export const CHROMES = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+]
+const GH_MAX_BYTES = 390_000 // GitHub's API takes up to about 400 KB
+const BEFORE_MAX = 400_000 // longer earlier texts are not kept for b
+const BEFORE_FILES = 5 // only the latest files keep their earlier text
 export const MD_FILE = /\.(md|mdx|markdown)$/i
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
 const CELL_PX = 9 // page pixels per terminal column
@@ -28,12 +41,13 @@ const GH_TIMEOUT_MS = 10_000
 // Draws page.html into part-N.png, PART_ROWS rows each; prints "<rows> <parts>".
 // Headless Chrome writes its output but does not always exit: wait for the file, then
 // close that Chrome (its own throwaway profile, never the person's browser).
-// $1 chrome  $2 page  $3 out dir  $4 profile  $5 width (css px)  $6 scale
-export const SCRIPT = `c="$1"; pg="$2"; out="$3"; prof="$4"; w="$5"; sc="$6"
+// $1 chrome  $2 page URL  $3 out dir  $4 profile  $5 width (css px)  $6 scale
+export const SCRIPT = `c="$1"; pg="$2"; out="$3"; prof="$4"; w="$5"; sc="$6"; pid=""
 mkdir -p "$out"; rm -f "$out"/part-*.png "$out"/dom.html
 stop() { sleep 0.2; pkill -P "$1" 2>/dev/null; kill "$1" 2>/dev/null; }
-"$c" --headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --user-data-dir="$prof" --window-size="$w,800" --dump-dom "file://$pg" >"$out/dom.html" 2>/dev/null & pid=$!
-i=0; while ! grep -q '</html>' "$out/dom.html" 2>/dev/null && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; stop $pid
+trap '[ -n "$pid" ] && { pkill -P $pid 2>/dev/null; kill $pid 2>/dev/null; }' EXIT INT TERM
+"$c" --headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --user-data-dir="$prof" --window-size="$w,800" --dump-dom "$pg" >"$out/dom.html" 2>/dev/null & pid=$!
+i=0; while ! grep -q '</html>' "$out/dom.html" 2>/dev/null && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; stop $pid
 hgt=$(sed -n 's/.*data-height="\\([0-9]*\\)".*/\\1/p' "$out/dom.html" | head -1)
 [ -n "$hgt" ] || exit 2
 rows=$(( (hgt + ${ROW_PX - 1}) / ${ROW_PX} )); [ $rows -gt 1500 ] && rows=1500
@@ -41,8 +55,8 @@ n=0; at=0
 while [ $at -lt $rows ]; do
   r=$((rows - at)); [ $r -gt ${PART_ROWS} ] && r=${PART_ROWS}
   f="$out/part-$n.png"
-  "$c" --headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --user-data-dir="$prof" --force-device-scale-factor="$sc" --window-size="$w,$((r * ${ROW_PX}))" --screenshot="$f" "file://$pg#$((at * ${ROW_PX}))" >/dev/null 2>&1 & pid=$!
-  i=0; while [ ! -s "$f" ] && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; stop $pid
+  "$c" --headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --user-data-dir="$prof" --force-device-scale-factor="$sc" --window-size="$w,$((r * ${ROW_PX}))" --screenshot="$f" "$pg#$((at * ${ROW_PX}))" >/dev/null 2>&1 & pid=$!
+  i=0; while [ ! -s "$f" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; stop $pid
   [ -s "$f" ] || exit 3
   n=$((n+1)); at=$((at + r))
 done
@@ -58,9 +72,10 @@ const view = atom({ plugin: 'md-preview', key: 'view' } as const, 'page' as 'pag
 const note = atom({ plugin: 'md-preview', key: 'note' } as const, '')
 
 // The module's own bookkeeping; a reload starts it over.
-const draw = { pending: false, dirty: false, n: 0, columns: 100, failed: '' }
-const session = { cwd: '', home: '', command: 'md', canImage: false, noChrome: false, ghDownUntil: 0 }
+const draw = { pending: false, dirty: false, n: 0, columns: 100, failed: '', drawing: '', opened: 0, force: false }
+const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
 const toasted = new Set<string>() // files toasted this turn
+const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
 
 const base = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 const folder = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/'
@@ -72,7 +87,7 @@ type Loaded = { label?: string; path: string; text: string; marks: number[] }
 
 // owner/repo from `git remote -v`, the first GitHub remote.
 export function githubRepo(remotes: string): string | null {
-  const m = remotes.match(/github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\s|$)/)
+  const m = remotes.match(/(?:^|\s)(?:[\w.-]+@github\.com:|(?:https?|ssh|git):\/\/(?:[^@\s/]+@)?github\.com\/)([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:\s|$)/m)
   return m ? `${m[1]}/${m[2]}` : null
 }
 
@@ -123,6 +138,7 @@ export const register: Register = on => {
 
   on('turn.start', async (_$, e, next) => {
     toasted.clear()
+    turnBefore.clear()
     return next(e)
   })
 
@@ -191,16 +207,19 @@ export const register: Register = on => {
     if (isPage) {
       const key = `${p.key}@${columns}`
       const isCurrent = f !== null && f.key === p.key && f.columns === columns
-      if (!isCurrent && !draw.pending && draw.failed !== key) void renderSoon($).catch(() => {})
-      // The last drawing of the same view stays up while a newer one draws.
-      const same = f !== null && f.columns === columns && sameView(f.key, p.key)
+      if (!isCurrent && draw.failed !== key) {
+        if (draw.pending) draw.dirty = true // draw again once this one is done
+        else void renderSoon($).catch(() => {})
+      }
+      // The last drawing of the same view stays up while a newer one draws, scaled to the width.
+      const same = f !== null && sameView(f.key, p.key)
       if (f && same) {
         const { Image } = $.ui.resolve(e)
         return (
           <Box flexDirection="column">
             {head}
             {f.parts.map((part, k) => (
-              <Image key={`part-${k}`} source={{ file: part.file, format: 'png', generation: f.n }} columns={columns} rows={part.rows} alt={k === 0 ? `${where}, rendered` : ' '} />
+              <Image key={`part-${k}`} source={{ file: part.file, format: 'png', generation: f.n }} columns={columns} rows={Math.max(1, Math.min(255, Math.round((part.rows * columns) / f.columns)))} alt={k === 0 ? `${where}, rendered` : ' '} />
             ))}
           </Box>
         )
@@ -228,7 +247,7 @@ export const register: Register = on => {
             <Text dimColor>{l.prefix}</Text>
             {l.segs.length === 0 ? <Text> </Text> : l.segs.map((s, j) => (
               <Text key={`s${j}`} bold={s.bold} italic={s.italic} dimColor={s.dim} color={s.color} underline={s.underline} strikethrough={s.strike}>
-                {s.text}
+                {s.text.length > 4000 ? `${s.text.slice(0, 4000)}…` : s.text /* a Text child holds at most 10,000 characters */}
               </Text>
             ))}
           </Text>
@@ -240,7 +259,7 @@ export const register: Register = on => {
 
 // Two keys name the same view when only the versions differ.
 function sameView(a: string, b: string) {
-  return a.replace(/#\d+/g, '') === b.replace(/#\d+/g, '')
+  return a.replace(/\u0001\d+/g, '') === b.replace(/\u0001\d+/g, '')
 }
 
 // What to show now, without reading any file.
@@ -248,14 +267,14 @@ async function plan($: EngineInterface): Promise<Plan | null> {
   const list = await read($, files)
   const at = (p: string) => list.find(f => f.path === p)?.at ?? 0
   const two = await read($, pair)
-  if (two) return { key: `pair:${two.a}#${at(two.a)}|${two.b}#${at(two.b)}`, title: `${base(two.a)} | ${base(two.b)}`, parts: [{ label: base(two.a), path: two.a }, { label: base(two.b), path: two.b }] }
+  if (two) return { key: `pair:${two.a}\u0001${at(two.a)}|${two.b}\u0001${at(two.b)}`, title: `${base(two.a)} | ${base(two.b)}`, parts: [{ label: base(two.a), path: two.a }, { label: base(two.b), path: two.b }] }
   const path = await read($, shown)
   if (!path) return null
   const file = list.find(f => f.path === path)
   if ((await read($, compare)) && file?.before !== undefined) {
-    return { key: `cmp:${path}#${at(path)}`, title: `${base(path)}: before | after`, parts: [{ label: 'Before', path, isBefore: true }, { label: 'After', path }] }
+    return { key: `cmp:${path}\u0001${at(path)}`, title: `${base(path)}: before | after`, parts: [{ label: 'Before', path, isBefore: true }, { label: 'After', path }] }
   }
-  return { key: `one:${path}#${at(path)}`, title: base(path), parts: [{ path }] }
+  return { key: `one:${path}\u0001${at(path)}`, title: base(path), parts: [{ path }] }
 }
 
 // The texts a plan shows, with the blocks to mark green.
@@ -289,6 +308,7 @@ async function command($: EngineInterface, args: string) {
       if (!(await $.fs.exists(f).catch(() => false))) return { text: `md-preview: no file at ${f}` }
     }
     await update($, pair, () => ({ a, b }))
+    await update($, files, list => list.map(f => (f.path === a || f.path === b ? { ...f, at: Date.now() } : f)))
     await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
     void renderSoon($).catch(() => {})
     return { text: `md-preview: ${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
@@ -303,6 +323,8 @@ async function command($: EngineInterface, args: string) {
   } else {
     target = (await read($, files))[0]?.path ?? null
   }
+  // Read again now: it may have changed outside Claude since it was last drawn.
+  if (target) await update($, files, list => list.map(f => (f.path === target ? { ...f, at: Date.now() } : f)))
   if (!target) return { text: `md-preview: no Markdown edits yet this session. /${session.command} <path> opens a file.` }
   await update($, shown, () => target)
   await update($, pair, () => null)
@@ -315,9 +337,17 @@ async function command($: EngineInterface, args: string) {
 async function changed($: EngineInterface, path: string, before: string | null) {
   const after = await $.fs.read(path).catch(() => null)
   if (typeof after !== 'string') return
-  const marks = changedChunks(before, after)
-  const entry: MdFile = before === null ? { path, at: Date.now(), marks } : { path, at: Date.now(), marks, before }
-  await update($, files, list => [entry, ...list.filter(f => f.path !== path)].slice(0, MAX_FILES))
+  if (!turnBefore.has(path)) turnBefore.set(path, before)
+  const first = turnBefore.get(path) ?? null // several edits in a turn compare with the turn's start
+  const marks = changedChunks(first, after)
+  const entry: MdFile = first === null || first.length > BEFORE_MAX ? { path, at: Date.now(), marks } : { path, at: Date.now(), marks, before: first }
+  await update($, files, list =>
+    [entry, ...list.filter(f => f.path !== path)].slice(0, MAX_FILES).map((f, i) => {
+      if (i < BEFORE_FILES || f.before === undefined) return f
+      const { before: _drop, ...rest } = f
+      return rest
+    }),
+  )
   const two = await read($, pair)
   const isShown = ((await read($, shown)) === path || two?.a === path || two?.b === path) && (await paneUp($))
   if (isShown) {
@@ -343,9 +373,10 @@ async function step($: EngineInterface, by: number) {
 async function again($: EngineInterface) {
   draw.failed = ''
   session.noChrome = false
+  session.chrome = ''
   session.ghDownUntil = 0
-  await update($, frame, () => null)
-  await renderSoon($)
+  draw.force = true
+  await renderSoon($) // the current picture stays up until the new one is ready
 }
 
 async function toggleView($: EngineInterface) {
@@ -367,23 +398,37 @@ async function renderSoon($: EngineInterface) {
   }
   if (!(await plan($)) || (await read($, view)) !== 'page' || !session.canImage || session.noChrome) return
   if (!(await paneUp($))) return
+  if (draw.pending) {
+    draw.dirty = true // another call claimed the slot while this one checked
+    return
+  }
   draw.pending = true
   draw.dirty = false
   $.clock.after(300, () => {
     void renderFile($)
       .catch(async () => {
+        draw.failed = draw.drawing // no retry loop: r tries again
         await update($, note, () => 'Could not draw the page. Showing text; r tries again.')
       })
       .finally(() => {
         draw.pending = false // only now: two Chromes must never share the profile
-        if (draw.dirty) void renderSoon($).catch(() => {})
+        if (draw.dirty) void drawAgainIfStale($).catch(() => {})
       })
   })
+}
+
+// After a drawing: once more only if what is on screen is no longer what to show.
+async function drawAgainIfStale($: EngineInterface) {
+  const p = await plan($)
+  const f = await read($, frame)
+  const isStale = p !== null && (f === null || f.key !== p.key || f.columns !== draw.columns) && draw.failed !== `${p.key}@${draw.columns}`
+  if (draw.force || isStale) await renderSoon($)
 }
 
 // GitHub's own renderer, through the person's gh; null when it cannot be used.
 async function github($: EngineInterface, md: string, dir: string): Promise<string | null> {
   if (Date.now() < session.ghDownUntil) return null
+  if (new TextEncoder().encode(md).length > GH_MAX_BYTES) return null // too large for the API: built-in, no penalty
   const remotes = await $.process.run(['git', '-C', dir, 'remote', '-v'], { timeoutMs: 5000 }).catch(() => null)
   const repo = remotes && remotes.exitCode === 0 ? githubRepo(remotes.stdout) : null
   if (!repo) return null // not in a GitHub repo: the Markdown stays on this machine
@@ -399,14 +444,15 @@ async function github($: EngineInterface, md: string, dir: string): Promise<stri
 
 // Each side's HTML, from GitHub where it can.
 async function html($: EngineInterface, sides: Loaded[]): Promise<{ sides: Side[]; via: 'GitHub' | 'built-in' }> {
-  let isGithub = true
-  const out: Side[] = []
-  for (const s of sides) {
-    const md = withMarks(s.text, s.marks)
-    const fromGithub = await github($, md, folder(s.path))
-    if (fromGithub === null) isGithub = false
-    out.push({ label: s.label, dir: folder(s.path), html: fromGithub ?? toHtml(parse(md)) })
+  const mds = sides.map(s => withMarks(s.text, s.marks))
+  const fromGithub: string[] = []
+  for (const [k, md] of mds.entries()) {
+    const h1 = await github($, md, folder((sides[k] as Loaded).path))
+    if (h1 === null) break // one side cannot: all sides use the built-in renderer, so they match
+    fromGithub.push(h1)
   }
+  const isGithub = fromGithub.length === sides.length
+  const out = sides.map((s, k) => ({ label: s.label, dir: folder(s.path), html: isGithub ? (fromGithub[k] as string) : toHtml(parse(mds[k] as string)) }))
   return { sides: out, via: isGithub ? 'GitHub' : 'built-in' }
 }
 
@@ -420,21 +466,32 @@ async function renderFile($: EngineInterface) {
   if (!p) return
   const columns = draw.columns
   const key = `${p.key}@${columns}`
-  if (!(await $.fs.exists(CHROME).catch(() => false))) {
+  draw.drawing = key
+  draw.force = false
+  const chrome = await findChrome($)
+  if (!chrome) {
     session.noChrome = true
-    await update($, note, () => `The rendered view needs Google Chrome at ${CHROME}. Showing text.`)
+    await update($, note, () => 'The rendered view needs Google Chrome (or Chromium). Showing text.')
     return
   }
   const loaded = await load($, p)
-  if (loaded.length === 0) return
+  if (loaded.length === 0) {
+    draw.failed = key
+    await update($, note, () => `Cannot read ${p.title}. r tries again.`)
+    return
+  }
   const { sides, via } = await html($, loaded)
   const root = await tmpRoot($)
-  const n = ++draw.n
+  // Never the folder on screen: the script empties its folder first.
+  const shownN = (await read($, frame))?.n ?? -1
+  let n = Math.max(draw.n, shownN) + 1
+  if (n % 2 === ((shownN % 2) + 2) % 2) n++
+  draw.n = n
   const pagePath = `${root}/page-${n % 2}.html`
-  const out = `${root}/frame-${n % 2}` // two in turn, so the shown one is never half written
+  const out = `${root}/frame-${n % 2}`
   const width = columns * CELL_PX
   await $.fs.write(pagePath, page(sides, { title: p.title, width, stacked: columns < SIDE_BY_SIDE_COLUMNS }))
-  const r = await $.process.run(['sh', '-c', SCRIPT, 'md-preview', CHROME, pagePath, out, `${root}/chrome`, String(width), '2'], { timeoutMs: 60_000 })
+  const r = await $.process.run(['sh', '-c', SCRIPT, 'md-preview', chrome, fileUrl(pagePath), out, `${root}/chrome`, String(width), '2'], { timeoutMs: 120_000 })
   const m = r.stdout.match(/(\d+) (\d+)/)
   if (r.exitCode !== 0 || !m) {
     draw.failed = key
@@ -445,6 +502,17 @@ async function renderFile($: EngineInterface) {
   const parts = Array.from({ length: Number(m[2]) }, (_, k) => ({ file: `${out}/part-${k}.png`, rows: Math.min(PART_ROWS, rows - k * PART_ROWS) }))
   await update($, note, () => '')
   await update($, frame, () => ({ key: p.key, columns, parts, n, via }))
+}
+
+async function findChrome($: EngineInterface) {
+  if (session.chrome) return session.chrome
+  for (const c of CHROMES) {
+    if (await $.fs.exists(c).catch(() => false)) {
+      session.chrome = c
+      return c
+    }
+  }
+  return ''
 }
 
 // The same page, full size in the person's own browser: self-contained HTML in a temp file.
@@ -458,7 +526,7 @@ async function openInBrowser($: EngineInterface): Promise<string> {
   const loaded = await load($, p)
   if (loaded.length === 0) return `md-preview: cannot read ${p.title}`
   const { sides } = await html($, loaded)
-  const file = `${await tmpRoot($)}/open-${Date.now()}.html`
+  const file = `${await tmpRoot($)}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
   await $.fs.write(file, page(sides, { title: p.title, width: 0 }))
   const opener = (await $.fs.exists('/usr/bin/open').catch(() => false)) ? 'open' : 'xdg-open'
   const r = await $.process.run([opener, file], { timeoutMs: 10_000 }).catch(() => null)

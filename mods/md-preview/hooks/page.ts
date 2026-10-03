@@ -55,13 +55,26 @@ export function markers(html: string) {
   return html.replace(new RegExp(`<p[^>]*>\\s*${MARK}\\s*</p>`, 'g'), '<div class="md-mark"></div>')
 }
 
+// A path as a file:// URL, each segment encoded (# and ? included).
+export function fileUrl(path: string) {
+  return `file://${path.split('/').map(encodeURIComponent).join('/')}`
+}
+
 // Relative links and images point at the Markdown file's folder, as file:// URLs.
+// Only attributes inside tags change: code that shows `href="x"` stays as written.
 export function absolute(html: string, dir: string) {
-  const root = `file://${encodeURI(dir.replace(/\/?$/, '/'))}`
-  return html.replace(/\b(src|href)="(?![a-z][a-z0-9+.-]*:|#|\/\/)([^"]*)"/gi, (_m, attr: string, url: string) => {
-    if (url.startsWith('/')) return `${attr}="file://${url}"`
-    return `${attr}="${root}${url.replace(/^\.\//, '')}"`
-  })
+  const root = fileUrl(dir.replace(/\/?$/, '/'))
+  const fix = (url: string) => {
+    if (/^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(url) || url === '') return url
+    if (url.startsWith('/')) return `file://${url}`
+    return `${root}${url.replace(/^\.\//, '')}`
+  }
+  return html.replace(/<[a-z][^>]*>/gi, tag =>
+    tag
+      .replace(/(\s(?:src|href)\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi, (_m, pre: string, dq?: string, sq?: string) => `${pre}"${fix(dq ?? sq ?? '')}"`)
+      .replace(/(\ssrcset\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi, (_m, pre: string, dq?: string, sq?: string) =>
+        `${pre}"${(dq ?? sq ?? '').split(',').map(c => c.trim().replace(/^\S+/, u => fix(u))).join(', ')}"`),
+  )
 }
 
 export type Side = { label?: string; html: string; dir: string }
@@ -79,13 +92,16 @@ export function page(sides: readonly Side[], opts: { title: string; width: numbe
     .join('\n')
   const size = opts.width > 0 ? `body{width:${opts.width}px}` : `body{max-width:${many && !opts.stacked ? 2000 : 1012}px;margin:0 auto}`
   const grid = many && !opts.stacked ? `.cols{display:grid;grid-template-columns:repeat(${sides.length},minmax(0,1fr))}.col+.col{border-left:1px solid #3d444d}` : '.col+.col{border-top:1px solid #3d444d}'
+  // Nothing in the Markdown may run: the page's own script alone, by its nonce.
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('')
+  const csp = `default-src 'none'; img-src * data: file:; media-src * file:; style-src 'unsafe-inline'; font-src * data: file:; script-src 'nonce-${nonce}'`
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>${esc(opts.title)}</title>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>${esc(opts.title)}</title>
 <style>${CSS}${size}${grid}</style></head>
 <body><main class="page"><div class="cols">
 ${cols}
 </div></main>
-<script>if(location.hash.length>1){document.querySelector('.page').style.transform='translateY(-'+parseInt(location.hash.slice(1),10)+'px)'}
+<script nonce="${nonce}">if(location.hash.length>1){document.querySelector('.page').style.transform='translateY(-'+parseInt(location.hash.slice(1),10)+'px)'}
 addEventListener('load',function(){document.body.setAttribute('data-height',String(Math.ceil(document.querySelector('.page').getBoundingClientRect().height)))})</script>
 </body></html>
 `

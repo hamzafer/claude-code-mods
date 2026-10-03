@@ -122,7 +122,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
   1. GitHub's own renderer through `gh api /markdown`, when the file is in a repo with a GitHub remote and `gh` is signed in
   2. A small built-in renderer, when `gh` is missing, signed out or offline
   3. A text view, without Chrome or a terminal that shows images
-- The rendered view needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm; not through tmux). Headless Chrome draws it in a throwaway profile
+- The rendered view needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm; not through tmux). Built and tested on macOS. Headless Chrome draws it in a throwaway profile
+- Scripts in the Markdown never run: the page allows only its own script, and the built-in renderer drops script tags, event handlers and `javascript:` links
 - **Privacy:** with the GitHub renderer, the file's text goes to GitHub's API under your own `gh` login. Nothing else is sent anywhere. Images the file links to on the web load in that Chrome, the same as on GitHub
 
 ### 📱🐍 reels and snake
