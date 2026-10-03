@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { clip, fitsOnOneLine, parseSteps } from '../hooks/register'
+import { fitsOnOneLine, parseSteps } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160 } }
 const ANSWER = 'I wrote tests for the login form and they pass locally.'
@@ -50,6 +50,7 @@ const key = (text: string, inputText: string) => ({
   start: text.length,
   end: text.length,
   inputText,
+  key: { key: inputText },
 })
 
 describe('next-steps', () => {
@@ -101,6 +102,34 @@ describe('next-steps', () => {
     expect(r.text).toBe('fix bug 1')
   })
 
+  test('a pasted digit lands as text', async ($, on) => {
+    engine(on, () => REPLY)
+    await finishTurn($)
+    const { key: _key, ...paste } = key('', '1')
+    expect((await $.prompt.edit(paste as any)).text).toBe('1')
+  })
+
+  test('ignores a result that arrives after a prompt was sent', async ($, on) => {
+    let release: (s: string) => void = () => {}
+    const held = new Promise<string>(done => (release = done))
+    engine(on, () => held)
+    await finishTurn($, 't1')
+    await $.prompt.submit({ text: 'go on', wait: false, origin: { kind: 'user' } } as any)
+    release(REPLY)
+    await wait()
+    const ui = await band($)
+    expect(await ui.find({ type: 'Text', text: /Run the tests/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('skips subagent turns', async ($, on) => {
+    const eng = engine(on, () => REPLY)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.turn.complete({ reason: 'answer', answer: ANSWER, durationMs: 1, isAborted: false, turnId: 'x', agentId: 'a1' } as any)
+    await wait()
+    expect(eng.calls()).toBe(0)
+  })
+
   test('a digit with no suggestion for it types as usual', async ($, on) => {
     engine(on, () => REPLY)
     await finishTurn($)
@@ -145,6 +174,20 @@ describe('next-steps', () => {
     await ui.unmount()
   })
 
+  test('tells where-am-i only while the list shows', async ($, on) => {
+    engine(on, () => REPLY)
+    const written: unknown[] = [] // what next-steps tells where-am-i, in order
+    on('state.set', { plugin: 'next-steps', key: 'active' }, (_$: any, e: any) => {
+      written.push(e.value)
+      return { value: { isSet: true, version: written.length } }
+    })
+    on('state.get', { plugin: 'next-steps', key: 'active' }, () => ({ value: { value: written.at(-1), version: written.length } }))
+    await finishTurn($)
+    expect(written.at(-1)).toBe(true)
+    await $.prompt.edit(key('', '0') as any)
+    expect(written.at(-1)).toBe(false)
+  })
+
   test('waits while background agents still run', async ($, on) => {
     const eng = engine(on, () => REPLY, [{ id: 'a1', description: 'tests', type: 'general-purpose', status: 'running' }])
     await finishTurn($)
@@ -154,8 +197,16 @@ describe('next-steps', () => {
   test('cleans the model lines', () => {
     expect(parseSteps('1. Run the tests.\n- Open a PR \u2014 draft\n\n* "Ship it"\nfour')).toEqual(['Run the tests', 'Open a PR, draft', 'Ship it'])
     expect(parseSteps('["a", "b"]')).toEqual(['a', 'b'])
+    expect(parseSteps('```json\n["Run the tests", "Ship it"]\n```')).toEqual(['Run the tests', 'Ship it'])
+    expect(parseSteps('{"prompts": ["Run it"]}')).toEqual(['Run it'])
+    expect(parseSteps('Here are three follow-ups\n**Fix the 3 failing tests**\n3 failing tests need a look')).toEqual([
+      'Fix the 3 failing tests',
+      '3 failing tests need a look',
+    ])
+    expect(parseSteps('NONE')).toEqual([])
+    expect(parseSteps('No follow-up needed')).toEqual([])
     expect(parseSteps('Here are some ideas:\nrun it\nRun it')).toEqual(['run it'])
-    expect(clip('word '.repeat(20).trim()).length).toBeLessThanOrEqual(60)
+    expect(parseSteps(`${'word '.repeat(30)}\nshort one`)).toEqual(['short one']) // too long: dropped, not cut
     expect(fitsOnOneLine(['a', 'b'], 40)).toBe(true)
     expect(fitsOnOneLine(['a'.repeat(40), 'b'.repeat(40)], 80)).toBe(false)
   })

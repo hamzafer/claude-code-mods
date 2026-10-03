@@ -10,7 +10,7 @@ const MAX_LOG = 20
 // Held by the host, so the recap survives a hot reload of this file.
 const recap = atom({ plugin: 'where-am-i', key: 'recap' } as const, null as Recap | null)
 const live = atom({ plugin: 'where-am-i', key: 'live' } as const, '')
-// Set by the next-steps mod while it runs: it shows the next steps, so this band leaves them out.
+// True while the next-steps mod shows its list of next prompts: this band leaves out its own next meanwhile.
 const nextStepsActive = { plugin: 'next-steps', key: 'active' } as const
 
 export const register: Register = on => {
