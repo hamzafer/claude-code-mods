@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { TokenWeatherReading } from '../types'
+import type { CacheTtl, TokenWeatherReading } from '../types'
 
 const HISTORY = 12
 const BARS = '▁▂▃▄▅▆▇█'
@@ -24,20 +24,31 @@ const SLOW_STEP_MS = 15_000
 const SLOWER_ABOVE_MS = 10 * 60_000
 const SLOWER_STEP_MS = 30_000
 const WARN_BELOW_MS = 60_000
+// How much of the transcript's end to read for the last response's usage.
+const TAIL_BYTES = 1024 * 1024
 
 // Held by the host, so the history survives a hot reload of this file.
 const readings = atom({ plugin: 'token-weather', key: 'readings' } as const, [] as TokenWeatherReading[])
 const lastRequestAt = atom({ plugin: 'token-weather', key: 'lastRequestAt' } as const, null as number | null)
+// The cache lifetime Claude's responses last showed; null until one wrote to the cache.
+const detectedTtl = atom({ plugin: 'token-weather', key: 'detectedTtl' } as const, null as CacheTtl | null)
 
 export const register: Register = (on, options) => {
-  const ttlMs = options.cacheTtl === '1h' ? TTL_MS['1h'] : TTL_MS['5m']
+  // `5m` or `1h` set by hand wins; `auto` (the default) goes by what was detected.
+  const override: CacheTtl | null = options.cacheTtl === '5m' || options.cacheTtl === '1h' ? options.cacheTtl : null
+
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await takeReading($)
+    if ((await read($, detectedTtl)) === null) {
+      const known = await $.store.get('detectedTtl').catch(() => undefined) // the last session's, until this one's first response says
+      if (known === '5m' || known === '1h') await update($, detectedTtl, () => known)
+    }
     const since = await read($, lastRequestAt) // kept across a hot reload: pick the countdown up again
-    if (since !== null) restart($, since, await $.clock.now(), ttlMs)
+    if (since !== null) restart($, since, await $.clock.now(), await ttlMsFor($, override))
     return result
   })
+
 
   // A /clear or a resume leaves the old conversation, and its cache, behind.
   on('session.end', async ($, e, next) => {
@@ -55,7 +66,7 @@ export const register: Register = (on, options) => {
     if (!e.agentId && result.stopReason !== null) {
       const now = await $.clock.now()
       await update($, lastRequestAt, () => now)
-      restart($, now, now, ttlMs)
+      restart($, now, now, await ttlMsFor($, override))
     }
     return result
   })
@@ -64,6 +75,11 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (!e.agentId) {
       await takeReading($) // main-loop turns only, not subagents
+      if (override === null) {
+        // The last response's usage in the transcript says which lifetime it wrote to the cache with.
+        const found = ttlFromTranscript(await readTail($))
+        if (found !== null) await detect($, found, override)
+      }
     }
     return result
   })
@@ -82,6 +98,7 @@ export const register: Register = (on, options) => {
 
     // The cache part goes first when the line runs out of room.
     const since = await read($, lastRequestAt)
+    const ttlMs = await ttlMsFor($, override)
     let cache: ReturnType<typeof cachePart> | null = null
     if (since !== null) {
       const clockNow = await $.clock.now()
@@ -109,6 +126,63 @@ export const register: Register = (on, options) => {
       </Box>
     )
   })
+}
+
+async function ttlMsFor($: EngineInterface, override: CacheTtl | null) {
+  return TTL_MS[override ?? (await read($, detectedTtl)) ?? '5m']
+}
+
+// Keeps a newly detected lifetime, here and for the next session, and moves the countdown onto it.
+async function detect($: EngineInterface, ttl: CacheTtl, override: CacheTtl | null) {
+  if ((await read($, detectedTtl)) === ttl) return
+  await update($, detectedTtl, () => ttl)
+  await $.store.set('detectedTtl', ttl).catch(() => {}) // remembered for the next session when the store allows
+  const since = await read($, lastRequestAt)
+  if (since !== null) restart($, since, await $.clock.now(), await ttlMsFor($, override))
+}
+
+// The end of this session's transcript, where the last response is: whole if small,
+// else its last bytes. '' when it cannot be found or read.
+async function readTail($: EngineInterface) {
+  try {
+    const path = await transcriptPath($)
+    if (path === null) return ''
+    const { size } = await $.fs.stat(path)
+    if (size <= TAIL_BYTES) return await $.fs.read(path)
+    const { exitCode, stdout } = await $.process.run(['tail', '-c', String(TAIL_BYTES), path])
+    return exitCode === 0 ? stdout : ''
+  } catch {
+    return '' // unreadable: keep the last detected value
+  }
+}
+
+// <config dir>/projects/<project root, each other character a dash>/<session id>.jsonl
+async function transcriptPath($: EngineInterface) {
+  const home = await $.env.get('HOME')
+  const configDir = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? (home ? `${home}/.claude` : undefined)
+  if (!configDir) return null
+  const project = (await $.session.root()).replace(/[^a-zA-Z0-9]/g, '-')
+  return `${configDir}/projects/${project}/${await $.session.id()}.jsonl`
+}
+
+// The lifetime the latest main-thread response wrote to the cache with; null when it
+// wrote nothing (a pure cache hit) or no response was found.
+function ttlFromTranscript(text: string): CacheTtl | null {
+  const lines = text.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let entry: any
+    try {
+      entry = JSON.parse(lines[i] ?? '')
+    } catch {
+      continue // blank, or cut by the tail
+    }
+    if (entry?.type !== 'assistant' || entry.isSidechain || !entry.message?.usage) continue
+    const written = entry.message.usage.cache_creation
+    if (Number(written?.ephemeral_1h_input_tokens) > 0) return '1h'
+    if (Number(written?.ephemeral_5m_input_tokens) > 0) return '5m'
+    return null
+  }
+  return null
 }
 
 // The countdown's redraw timer, one at a time; a reload of this file starts it over.

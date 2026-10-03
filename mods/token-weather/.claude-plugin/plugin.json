@@ -11,12 +11,13 @@
     "cacheTtl": {
       "type": "string",
       "title": "Prompt cache lifetime",
-      "description": "How long the prompt cache lives after each request. Leave 5m (the API default) unless you know your setup uses the 1-hour cache.",
+      "description": "auto (default) detects the cache lifetime from Claude's responses. Set 5m or 1h to override.",
       "options": [
+        "auto",
         "5m",
         "1h"
       ],
-      "default": "5m"
+      "default": "auto"
     }
   }
 }

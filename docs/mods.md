@@ -35,7 +35,8 @@
 - Prompt before it runs out and the cached prefix is likely reused, which is cheaper and faster. It is an estimate from timing, not read from the API, so a model switch or /compact can still miss
 - Shows after the first request, hides again after /clear, and is the first part dropped on a narrow terminal
 - Plain while more than a minute is left, yellow under a minute, `cache cold` in dim red at zero (the cache has probably expired)
-- `cacheTtl` setting: leave it at `5m` (the API default) unless you know your setup uses the 1-hour cache, then pick `1h`. Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
+- Detects the cache lifetime from Claude's responses: after each turn it reads the last response's usage in the session transcript. 1-hour cache writes mean `1h`, 5-minute writes mean `5m`, and a pure cache hit keeps the last value. Until the first detection it uses the last session's value, or `5m`
+- Set `cacheTtl` to `5m` or `1h` to override (default `auto`). Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
 
 ### 📍 where-am-i
 
