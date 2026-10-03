@@ -1,10 +1,19 @@
 {
   "name": "blast-radius",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Holds risky Bash commands and shows what they would change before they run.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "timeoutSeconds": {
+      "type": "number",
+      "title": "Auto-cancel after (seconds)",
+      "description": "How long a held command waits for Cancel or Proceed before it is cancelled. 0 waits forever.",
+      "default": 60,
+      "min": 0
+    }
+  }
 }

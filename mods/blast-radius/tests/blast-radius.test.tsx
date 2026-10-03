@@ -1,11 +1,14 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { classify } from '../hooks/register'
+import { classify, timeoutFrom } from '../hooks/register'
 
 const PANE = { component: 'Pane', requestId: 'blast-radius', props: { title: 'Blast Radius', isFocused: true, bodyColumns: 100, placement: 'dock' } }
 
-// Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open.
-function engine(on: any, ran: string[]) {
+// Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open, a terminal that draws.
+// Its clock is the test's: pass one from mock.clock to move it, or the engine makes its own.
+function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown } = {}) {
+  if (!clock) mock.clock(on)
+  on('session.surfaces', () => ({ value: surfaces }))
   on('tool.call', (_$: any, e: any) => {
     ran.push(e.command)
     return { result: {}, text: 'ok' }
@@ -18,8 +21,22 @@ function engine(on: any, ran: string[]) {
       : ''
     return { value: { exitCode: 0, stdout, stderr: '' } }
   })
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', (_$: any, e: any) => {
+    opened.push(e)
+    return { value: { isPlaced: true } }
+  })
   on('ui.close', () => ({ value: undefined }))
+}
+
+// Mounts the pane until it shows text matching `text` (the hold loop runs on its own).
+async function paneShowing($: any, text: RegExp) {
+  for (let i = 0; i < 50; i++) {
+    const ui = await $.ui.mount({ plugin: 'blast-radius', surface: 'terminal', ...PANE })
+    if (await ui.find({ type: 'Text', text })) return ui
+    await ui.unmount()
+    await new Promise(done => (globalThis as any).setTimeout(done, 5))
+  }
+  throw new Error(`the pane never showed ${text}`)
 }
 
 async function heldPane($: any) {
@@ -77,6 +94,8 @@ describe('blast-radius', () => {
     })
     on('ui.open', () => ({ value: { isPlaced: true } }) as any)
     on('ui.close', () => ({ value: undefined }) as any)
+    on('session.surfaces', () => ({ value: ['terminal'] }) as any)
+    mock.clock(on)
     const call = $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/deep/demo/build' } as any)
     const ui = await heldPane($)
     expect(await ui.find({ type: 'Text', text: /^  build\/chunk-1\.js$/ })).toBeDefined()
@@ -90,5 +109,97 @@ describe('blast-radius', () => {
     engine(on, ran)
     await $.tool.call({ tool: 'Bash', command: 'ls -la' } as any)
     expect(ran).toEqual(['ls -la'])
+  })
+
+  test('reads timeoutSeconds as whole seconds, 60 when unset or wrong', () => {
+    expect(timeoutFrom(undefined)).toBe(60)
+    expect(timeoutFrom(30)).toBe(30)
+    expect(timeoutFrom('120')).toBe(120)
+    expect(timeoutFrom(0)).toBe(0)
+    expect(timeoutFrom(-5)).toBe(60)
+    expect(timeoutFrom('soon')).toBe(60)
+  })
+
+  test('nobody pressing within 60 s cancels with the reason', async ($, on) => {
+    const clock = mock.clock(on, { now: 1_000_000 })
+    const ran: string[] = []
+    engine(on, ran, { clock })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    const ui = await paneShowing($, /auto-cancels in 60 s/)
+    await ui.unmount()
+    await clock.advance(18_000)
+    const later = await paneShowing($, /auto-cancels in 42 s/)
+    await later.unmount()
+    await clock.advance(42_000)
+    const r: any = await call
+    expect(r.deny).toMatch(/nobody answered within 60 s, so it was cancelled\. It would have: delete 9 files \(1\.1 MB\)\. Ask the user to run it/)
+    expect(ran).toEqual([])
+  })
+
+  test('a shorter timeoutSeconds cancels sooner', { options: { timeoutSeconds: 30 } }, async ($, on) => {
+    const clock = mock.clock(on)
+    const ran: string[] = []
+    engine(on, ran, { clock })
+    const call = $.tool.call({ tool: 'Bash', command: 'git push --force' } as any)
+    const ui = await paneShowing($, /auto-cancels in 30 s/)
+    await ui.unmount()
+    await clock.advance(30_000)
+    const r: any = await call
+    expect(r.deny).toMatch(/nobody answered within 30 s/)
+    expect(ran).toEqual([])
+  })
+
+  for (const key of ['cancel', 'proceed'] as const) {
+    test(`pressing ${key} before the timeout still decides`, async ($, on) => {
+      const clock = mock.clock(on)
+      const ran: string[] = []
+      engine(on, ran, { clock })
+      const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+      const first = await paneShowing($, /auto-cancels in 60 s/)
+      await first.unmount()
+      await clock.advance(50_000)
+      const ui = await paneShowing($, /auto-cancels in 10 s/)
+      await ui.press({ key })
+      const r: any = await call
+      if (key === 'cancel') {
+        expect(r.deny).toMatch(/the user pressed Cancel/)
+        expect(ran).toEqual([])
+      } else {
+        expect(ran).toEqual(['rm -rf build'])
+      }
+      await ui.unmount()
+    })
+  }
+
+  test('timeoutSeconds 0 waits for a press, with no countdown', { options: { timeoutSeconds: 0 } }, async ($, on) => {
+    const clock = mock.clock(on)
+    const ran: string[] = []
+    engine(on, ran, { clock })
+    let isSettled = false
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any).then((r: any) => {
+      isSettled = true
+      return r
+    })
+    const ui = await heldPane($)
+    expect(await ui.find({ type: 'Text', text: /auto-cancels/ })).toBeUndefined()
+    await ui.unmount()
+    await clock.advance(10 * 60_000)
+    await new Promise(done => (globalThis as any).setTimeout(done, 50))
+    expect(isSettled).toBe(false)
+    const again = await heldPane($)
+    await again.press({ key: 'proceed' })
+    await call
+    expect(ran).toEqual(['rm -rf build'])
+    await again.unmount()
+  })
+
+  test('a session with no screen cancels at once', async ($, on) => {
+    const ran: string[] = []
+    const opened: unknown[] = []
+    engine(on, ran, { surfaces: [], opened })
+    const r: any = await $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    expect(r.deny).toMatch(/no screen, so nobody can answer\. It would have: delete 9 files/)
+    expect(ran).toEqual([])
+    expect(opened).toEqual([])
   })
 })

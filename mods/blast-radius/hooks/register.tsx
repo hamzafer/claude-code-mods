@@ -6,6 +6,7 @@ import type { HeldCommand } from '../types'
 
 const PANE = 'blast-radius'
 const MAX_LISTED = 200
+const DEFAULT_TIMEOUT_SECONDS = 60
 
 // Held by the host, so the drawing redraws when a command is held or released.
 const held = atom({ plugin: 'blast-radius', key: 'held' } as const, null as HeldCommand | null)
@@ -15,7 +16,9 @@ const MIGRATION =
 
 type Risk = { risk: HeldCommand['risk']; cwd?: string; targets?: string[] }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // How long a held command waits for a press before it is cancelled; 0 waits forever.
+  const timeoutSeconds = timeoutFrom(options.timeoutSeconds)
   // The press of a Button, by held command id.
   const decisions = new Map<string, 'proceed' | 'cancel'>()
 
@@ -23,13 +26,30 @@ export const register: Register = on => {
     const found = classify(e.command)
     if (!found) return next(e)
 
+    // Nothing draws the session (a plain `claude -p` run): nobody can see the buttons, so refuse now.
+    if ((await $.session.surfaces()).length === 0) {
+      const { summary } = await measure($, found)
+      return {
+        deny:
+          `Blast Radius held this command and cancelled it: this session has no screen, so nobody can answer. ` +
+          `It would have: ${summary}. Ask the user to run it themselves.`,
+      }
+    }
+
     // One command is held at a time; a second waits its turn.
     while ((await read($, held)) !== null && !next.signal.aborted) {
       await $.process.run(['sleep', '0.25'])
     }
 
     const measured = await measure($, found)
-    const one: HeldCommand = { id: e.tool_use_id, command: e.command, risk: found.risk, ...measured, where: 'pane' }
+    const one: HeldCommand = {
+      id: e.tool_use_id,
+      command: e.command,
+      risk: found.risk,
+      ...measured,
+      where: 'pane',
+      secondsLeft: timeoutSeconds > 0 ? timeoutSeconds : null,
+    }
     await update($, held, () => one)
 
     const opened = await $.ui.open({ id: PANE, title: 'Blast Radius', focus: true })
@@ -38,15 +58,36 @@ export const register: Register = on => {
     }
 
     // Time spent inside $ calls doesn't count against the hook's time limit.
+    // Nobody pressing within the timeout counts as Cancel, so an unattended session never stalls.
+    const deadline = timeoutSeconds > 0 ? (await $.clock.now()) + timeoutSeconds * 1000 : null
+    let isTimedOut = false
     while (!decisions.has(one.id) && !next.signal.aborted) {
+      if (deadline !== null) {
+        const left = Math.ceil((deadline - (await $.clock.now())) / 1000)
+        if (left <= 0) {
+          isTimedOut = true
+          break
+        }
+        if (left !== one.secondsLeft) {
+          one.secondsLeft = left
+          await update($, held, h => (h && h.id === one.id ? { ...h, secondsLeft: left } : h))
+        }
+      }
       await $.process.run(['sleep', '0.25'])
     }
-    const decision = decisions.get(one.id) ?? 'cancel'
+    const decision = isTimedOut ? 'cancel' : (decisions.get(one.id) ?? 'cancel')
     decisions.delete(one.id)
     await update($, held, () => null)
     await $.ui.close({ id: PANE })
 
     if (decision === 'proceed') return next(e) // runs as written
+    if (isTimedOut) {
+      return {
+        deny:
+          `Blast Radius held this command and nobody answered within ${timeoutSeconds} s, so it was cancelled. ` +
+          `It would have: ${one.summary}. Ask the user to run it, or run it again when they're here.`,
+      }
+    }
     return {
       deny: `Blast Radius held this command: the user pressed Cancel. It would have: ${one.summary}.`,
     }
@@ -95,9 +136,21 @@ function report(
       <Box flexDirection="row" gap={1}>
         <Button key="cancel" label="Cancel" hotkey="c" variant="primary" autoFocus onPress={() => decide(one.id, 'cancel')} />
         <Button key="proceed" label="Proceed" hotkey="y" onPress={() => decide(one.id, 'proceed')} />
+        {one.secondsLeft != null && (
+          <Text key="countdown" color={one.secondsLeft <= 10 ? 'yellow' : undefined} dimColor={one.secondsLeft > 10}>
+            {`auto-cancels in ${one.secondsLeft} s`}
+          </Text>
+        )}
       </Box>
     </Box>
   )
+}
+
+// The timeoutSeconds option as whole seconds: a number or a numeric string, 0 to wait forever.
+export function timeoutFrom(value: unknown): number {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) return DEFAULT_TIMEOUT_SECONDS
+  return Math.round(n)
 }
 
 // Which risky kind a command is, if any, looking at each part of a compound command.

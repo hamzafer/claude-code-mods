@@ -16,7 +16,7 @@
 - blast-radius, rulebook-guard and merge-gate stop a tool call and ask you
 - **Saying no** (Cancel, Block it, Hold) refuses the call, and Claude gets the reason
 - **Saying yes** (Proceed, Allow once, Merge anyway) runs it as written
-- In auto mode the session waits for your answer
+- In auto mode the session waits for your answer, except blast-radius, which cancels on its own after a timeout (below)
 
 ## 🧩 Notes per mod
 
@@ -107,6 +107,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
 - Lists the files and size an `rm` would delete
 - Lists the remote commits a force push would drop
+- **Nobody there?** If you don't press within 60 s, it cancels the command and tells Claude why, so an auto-mode or unattended session keeps going. The pane counts down (`auto-cancels in 42 s`). It never runs the command on its own
+- Set `timeoutSeconds` to change the wait (`0` waits forever). Change it in `/config`, or in `settings.json` under `pluginConfigs["blast-radius"].options`
+- In a session with no screen (a plain `claude -p` run) it cancels at once, since nobody can answer
 
 ### 💾 session-saver
 
