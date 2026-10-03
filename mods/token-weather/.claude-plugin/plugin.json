@@ -1,10 +1,22 @@
 {
   "name": "token-weather",
-  "version": "0.1.1",
-  "description": "A live forecast of the context window, drawn above the prompt.",
+  "version": "0.2.0",
+  "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "cacheTtl": {
+      "type": "string",
+      "title": "Prompt cache lifetime",
+      "description": "How long the prompt cache lives after each request: 5m (the API default) or 1h (if your plan or setup uses the 1-hour cache).",
+      "options": [
+        "5m",
+        "1h"
+      ],
+      "default": "5m"
+    }
+  }
 }

@@ -31,6 +31,10 @@
 ### 🌦️ token-weather
 
 - Levels go by percent of the window, so a 1M window stays Clear until 250k tokens
+- `❄ cache 4:12` counts down from the end of the last model request. Each request, tool steps included, restarts it. Send the next prompt before it runs out and the cached prefix is reused, which is cheaper and faster
+- The countdown appears after the first request and is the first part dropped on a narrow terminal
+- Plain while more than a minute is left, yellow under a minute, `cache cold` in dim red at zero
+- `cacheTtl` setting: `5m` (default, the API default) or `1h` if your plan or setup uses the 1-hour cache. Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
 
 ### 📍 where-am-i
 

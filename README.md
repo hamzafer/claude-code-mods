@@ -35,7 +35,7 @@ Restart Claude Code and type `/mission`.
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 🛰️ | **mission-control** | Live map of agents, tool calls and the code they touch | `/mission` |
-| 🌦️ | **token-weather** | How full the context is, from Clear to Compact soon | |
+| 🌦️ | **token-weather** | How full the context is, from Clear to Compact soon, plus a prompt-cache countdown | |
 | 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |
 | 🌐 | **browser-lanes** | Is this session attached to a browser, and who holds it | `/browser` |
