@@ -78,7 +78,7 @@ export const register: Register = (on, options) => {
       if (override === null) {
         // The last response's usage in the transcript says which lifetime it wrote to the cache with.
         const found = ttlFromTranscript(await readTail($))
-        if (found !== null) await detect($, found, override)
+        if (found !== null) await detect($, found)
       }
     }
     return result
@@ -132,13 +132,15 @@ async function ttlMsFor($: EngineInterface, override: CacheTtl | null) {
   return TTL_MS[override ?? (await read($, detectedTtl)) ?? '5m']
 }
 
-// Keeps a newly detected lifetime, here and for the next session, and moves the countdown onto it.
-async function detect($: EngineInterface, ttl: CacheTtl, override: CacheTtl | null) {
+// Keeps a newly detected lifetime, here and for the next session, and moves the countdown
+// onto it. Only called with no override set.
+async function detect($: EngineInterface, ttl: CacheTtl) {
   if ((await read($, detectedTtl)) === ttl) return
   await update($, detectedTtl, () => ttl)
   await $.store.set('detectedTtl', ttl).catch(() => {}) // remembered for the next session when the store allows
-  const since = await read($, lastRequestAt)
-  if (since !== null) restart($, since, await $.clock.now(), await ttlMsFor($, override))
+  const now = await $.clock.now()
+  const since = await read($, lastRequestAt) // read last, so a request that just finished is the one re-armed
+  if (since !== null) restart($, since, now, TTL_MS[ttl])
 }
 
 // The end of this session's transcript, where the last response is: whole if small,
@@ -157,6 +159,8 @@ async function readTail($: EngineInterface) {
 }
 
 // <config dir>/projects/<project root, each other character a dash>/<session id>.jsonl
+// A very long project path, or a root moved during the session, gives a path that does
+// not exist: then nothing is detected and the last value stays.
 async function transcriptPath($: EngineInterface) {
   const home = await $.env.get('HOME')
   const configDir = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? (home ? `${home}/.claude` : undefined)

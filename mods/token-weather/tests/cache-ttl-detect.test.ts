@@ -27,10 +27,17 @@ function response(m5: number, h1: number) {
 }
 
 // Stands for the engine: a transcript on disk, one model request per step, a store.
-async function start($: Engine, on: On, store: Record<string, unknown> = {}, padding = '') {
+async function start(
+  $: Engine,
+  on: On,
+  store: Record<string, unknown> | null = {}, // null: the test answers the store itself
+  padding = '',
+  env: Record<string, string> = { HOME: '/home/me' },
+  file = '/home/me/.claude/projects/-work-my-app/abc.jsonl',
+) {
   let transcript = padding
   const clock = mock.clock(on, { now: 1_000_000 })
-  mock.store(on, store)
+  if (store) mock.store(on, store)
   on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
   on('session.usage', () => ({
     value: { startedAt: 0, rateLimits: [], context: { tokens: 20_000, window: 200_000, percent: 10 } },
@@ -39,12 +46,12 @@ async function start($: Engine, on: On, store: Record<string, unknown> = {}, pad
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
   })
   on('fs.stat', (_$, e) => {
-    if (e.path !== '/home/me/.claude/projects/-work-my-app/abc.jsonl') return { deny: 'no such file' } as any
+    if (e.path !== file) return { deny: 'no such file' } as any
     return { value: { kind: 'file', size: transcript.length, mtimeMs: 0, isLink: false } } as any
   })
-  on('fs.read', () => ({ value: transcript.length > 1024 * 1024 ? '' : transcript }) as any) // over 4 MiB in life: never read whole
+  on('fs.read', () => ({ value: transcript.length > 1024 * 1024 ? '' : transcript }) as any) // past 1 MiB the mod tails it instead
   on('turn.complete', () => ({ text: '' }) as any)
-  mock.env(on, { HOME: '/home/me' })
+  mock.env(on, env)
   on('session.root', () => ({ value: '/work/my app' }) as any)
   on('session.id', () => ({ value: 'abc' }) as any)
   on('process.run', (_$, e) => {
@@ -107,11 +114,8 @@ describe('token-weather cache lifetime detection', () => {
   })
 
   test('a new session starts from the last detected value', async ($, on) => {
-    await start($, on, { detectedTtl: '1h' })
-    const stream = $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1 })
-    for await (const _ of stream) {
-      // drain
-    }
+    const { turn } = await start($, on, { detectedTtl: '1h' })
+    await turn('{"type":"user"}')
     const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
     await ui.unmount()
@@ -131,6 +135,34 @@ describe('token-weather cache lifetime detection', () => {
   test('reads only the end of a large transcript', async ($, on) => {
     const { turn } = await start($, on, {}, 'x'.repeat(1200 * 1024) + '\n')
     await turn(response(0, 1355))
+    const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('remembers a detection for the next session', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    on('store.get', () => ({ value: undefined }) as any)
+    on('store.set', (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined } as any
+    })
+    const { turn } = await start($, on, null)
+    await turn(response(0, 1355))
+    expect(saved.detectedTtl).toBe('1h')
+  })
+
+  test('finds the transcript under CLAUDE_CONFIG_DIR', async ($, on) => {
+    const { turn } = await start($, on, {}, '', { HOME: '/home/me', CLAUDE_CONFIG_DIR: '/cfg' }, '/cfg/projects/-work-my-app/abc.jsonl')
+    await turn(response(0, 1355))
+    const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('keeps the last value when the transcript cannot be found', async ($, on) => {
+    const { turn } = await start($, on, { detectedTtl: '1h' }, '', { HOME: '/home/me' }, '/somewhere/else.jsonl')
+    await turn(response(400, 0))
     const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
     await ui.unmount()
