@@ -48,7 +48,7 @@ Restart Claude Code and type `/mission`.
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
-| 💥 | **blast-radius** | Holds `rm -r`, force pushes and migrations, shows what they'd delete | |
+| 💥 | **blast-radius** | Holds `rm -r`, force pushes and migrations, shows what they'd delete, cancels if nobody answers in time | |
 
 ### 🔧 My setup (fork and adapt)
 
