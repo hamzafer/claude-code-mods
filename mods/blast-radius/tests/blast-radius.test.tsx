@@ -69,7 +69,7 @@ describe('blast-radius', () => {
     expect(await ui.find({ type: 'Text', text: /build\/chunk-0\.js/ })).toBeDefined()
     await ui.press({ key: 'cancel' })
     const r: any = await call
-    expect(r.deny).toMatch(/the user pressed Cancel\. It would have: delete 9 files/)
+    expect(r.deny).toMatch(/^blast-radius: the user pressed Cancel on this command\. It would have: delete 9 files/)
     expect(ran).toEqual([])
     await ui.unmount()
   })

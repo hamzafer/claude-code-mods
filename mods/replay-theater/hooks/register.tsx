@@ -52,7 +52,7 @@ export const register: Register = on => {
       pending = []
       await update($, replay, () => steps) // one replay per turn
       await update($, pos, () => 0)
-      $.ui.toast(`Replay Theater: ${steps.length} edit${steps.length === 1 ? '' : 's'} last turn. Run /replay`)
+      $.ui.toast(`replay-theater: ${steps.length} edit${steps.length === 1 ? '' : 's'} last turn. Run /replay`)
     }
     return r
   })

@@ -52,7 +52,7 @@ function words(text: string, max: number) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'mission', description: 'Live map of agents and tool calls; /mission code shows the code map', argumentHint: '[who|code]' }).catch(() => {})
+    await $.command.register({ name: 'mission', description: 'Open the live map of agents and tool calls; /mission code opens the code map', argumentHint: '[who|code]' }).catch(() => {})
     $.clock.every(1000, () => {
       void (async () => {
         const busy = (await read($, nodes)).some(n => n.status === 'running')

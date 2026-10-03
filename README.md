@@ -18,7 +18,7 @@ claude plugin marketplace add hamzafer/claude-code-mods
 claude plugin install mission-control@claude-code-mods
 ```
 
-Restart Claude Code and type `/mission`.
+Restart Claude Code and type `/mission` (or `/mission code` to open the code map). `q` closes it.
 
 - 🤖 `w` shows the agents and every tool call, live
 - 🗺️ `c` shows the code map, with import arrows
@@ -26,7 +26,7 @@ Restart Claude Code and type `/mission`.
 - 🟠 **Orange** while it writes
 - 🟢 **Green** when done, with one line on what changed
 
-> **Needs** Claude Code 2.1.287+. The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2). The Who view works everywhere.
+> **Needs** Claude Code 2.1.287+. The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm). The Who view works everywhere.
 
 ## 🧩 The mods
 
@@ -35,14 +35,14 @@ Restart Claude Code and type `/mission`.
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 🛰️ | **mission-control** | Live map of agents, tool calls and the code they touch | `/mission` |
-| 🌦️ | **token-weather** | How full the context is, from Clear to Compact soon, plus a prompt-cache countdown that detects the cache lifetime | |
+| 🌦️ | **token-weather** | Context fill from Clear to Compact soon, plus a prompt-cache countdown | |
 | 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
 | ➡️ | **next-steps** | 2 or 3 likely next prompts after each turn, one key to draft one | `1` `2` `3`, `0` hides |
-| 💰 | **usage-meter** | Your 5-hour and 7-day plan usage, the reset countdown, and the session's cost | |
+| 💰 | **usage-meter** | 5-hour and 7-day plan usage, the reset countdown and the session's cost | |
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |
-| 🌐 | **browser-lanes** | Is this session attached to a browser, and who holds it | `/browser` |
+| 🌐 | **browser-lanes** | Whether this session has a browser, and who holds it | `/browser` |
 | 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
-| 📝 | **md-preview** | Shows the Markdown files Claude edits, rendered like GitHub, before and after side by side | `/md` |
+| 📝 | **md-preview** | Shows the Markdown files Claude edits, rendered like GitHub, before and after side by side. Needs Chrome and a terminal that shows images | `/md` |
 
 ### 🛡️ Guard your repo
 
@@ -58,9 +58,9 @@ These are built around my own tools and rules. Fork them and change the rules to
 | --- | --- | --- | --- |
 | 👀 | **glance** | One line with what needs you: next meeting, PRs, Linear issues, Slack DMs. Needs `gh` and the Google Calendar, Linear and Slack connectors | `/glance` |
 | 🏋️ | **oneform-line** | Your OneForm day: sleep, protein, calories, training. Needs a OneForm account | `/oneform` |
-| 🚦 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed once. Needs `gh` and the Codex CLI, built around one review on gpt-5.6-luna | `/gate` |
-| 📏 | **rulebook-guard** | Enforces my writing and git rules: rewrites em dashes, asks before `--amend`, unformatted pushes, emails and phone numbers in notes. Change the rules to yours | |
-| 💾 | **session-saver** | Saves where you left off, shows it on resume. Needs [unpause](https://github.com/hamzafer/unpause) | `/park` |
+| 🚦 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed once. Needs `gh` and the Codex CLI. Reviews run on one fixed model; change it to yours | `/gate` |
+| 📏 | **rulebook-guard** | Enforces my writing and git rules: rewrites em dashes, asks before `--amend`, unformatted pushes, emails and phone numbers in notes | |
+| 💾 | **session-saver** | Saves where you left off, shows it on resume. Needs [unpause](https://github.com/hamzafer/unpause) | `/park [note]` |
 
 ### 🎮 For fun (opt-in)
 

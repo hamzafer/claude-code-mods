@@ -33,7 +33,7 @@ export const register: Register = (on, options) => {
       const { summary } = await measure($, found)
       return {
         deny:
-          `Blast Radius held this command and cancelled it: this session has no screen, so nobody can answer. ` +
+          `blast-radius: cancelled this command because this session has no screen, so nobody can answer. ` +
           `It would have: ${summary}. Ask the user to run it themselves.`,
       }
     }
@@ -41,7 +41,7 @@ export const register: Register = (on, options) => {
     // One command is held at a time; a second waits its turn (the first one's timeout bounds the wait).
     for (;;) {
       // The call ended while it waited its turn: leave the held one alone.
-      if (next.signal.aborted) return { deny: 'Blast Radius held this command: the call was stopped before it was shown.' }
+      if (next.signal.aborted) return { deny: 'blast-radius: held this command, but the call was stopped before it was shown.' }
       if (holder === null && (await read($, held)) === null && holder === null) break
       await $.process.run(['sleep', '0.25'])
     }
@@ -90,12 +90,12 @@ export const register: Register = (on, options) => {
       if (isTimedOut) {
         return {
           deny:
-            `Blast Radius held this command and nobody answered within ${timeoutSeconds} s, so it was cancelled. ` +
+            `blast-radius: held this command and nobody answered within ${timeoutSeconds} s, so it was cancelled. ` +
             `It would have: ${one.summary}. Don't retry it on your own: ask the user to run it, or run it again once they're back.`,
         }
       }
       return {
-        deny: `Blast Radius held this command: the user pressed Cancel. It would have: ${one.summary}.`,
+        deny: `blast-radius: the user pressed Cancel on this command. It would have: ${one.summary}.`,
       }
     } finally {
       holder = null

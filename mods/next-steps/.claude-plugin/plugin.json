@@ -1,7 +1,7 @@
 {
   "name": "next-steps",
-  "version": "0.1.0",
-  "description": "After each turn, 2 or 3 likely next prompts above the input. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
+  "version": "0.1.1",
+  "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"

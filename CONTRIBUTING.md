@@ -13,13 +13,13 @@ claude plugin validate mods/<name>
 claude plugin test mods/<name>
 ```
 
-Tip: `claude plugin test` can refuse inside a running Claude Code session. Run it with `CLAUDE_CONFIG_DIR` set to another config dir:
+💡 `claude plugin test` can refuse inside a running Claude Code session. If it does, run it with `CLAUDE_CONFIG_DIR` set to another config dir.
 
 ```sh
 CLAUDE_CONFIG_DIR=$(mktemp -d) claude plugin test mods/<name>
 ```
 
-## 📦 Add a new mod
+## 📦 Add or change a mod
 
 - 📁 Put it in `mods/<name>/`
 - 🧾 Add an entry to `.claude-plugin/marketplace.json`
