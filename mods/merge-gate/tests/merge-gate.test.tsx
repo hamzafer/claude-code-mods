@@ -1,12 +1,16 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bare, countChecks, isOllama, prNumber } from '../hooks/register'
+import { bare, cdTargets, countChecks, isOllama, prNumber, resolveDir } from '../hooks/register'
 
 const LUNA_REVIEW = `codex review -c 'model="gpt-5.6-luna"' --base main --title "Add mods"`
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 140 } }
 
+// A folder git and gh know: its main checkout, its branch and that branch's open PR (if any).
+type Dir = { repo: string; branch: string; pr?: number }
+
 // Stands for the engine beneath the mod: a repo with PR #42, its checks, the Codex config, a dialog.
-function engine(on: any, opts: { config?: string; checks?: object[]; answer?: string } = {}) {
+// With `dirs`, git and gh answer for the folder they run in (session folder `cwd`, /repo by default).
+function engine(on: any, opts: { config?: string; checks?: object[]; answer?: string; cwd?: string; dirs?: Record<string, Dir> } = {}) {
   const ran: string[] = []
   const store = new Map<string, unknown>()
   on('tool.call', { tool: 'AskUserQuestion' }, (_$: any, e: any) => {
@@ -23,11 +27,21 @@ function engine(on: any, opts: { config?: string; checks?: object[]; answer?: st
   on('fs.read', () => ({ value: opts.config ?? 'model = "gpt-6-astra"\n' }))
   on('store.get', (_$: any, e: any) => ({ value: store.get(e.key) }))
   on('store.set', (_$: any, e: any) => (store.set(e.key, e.value), { value: undefined }))
-  on('session.cwd', () => ({ value: '/repo' }))
+  on('session.cwd', () => ({ value: opts.cwd ?? '/repo' }))
   on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
   on('process.run', (_$: any, e: any) => {
     const argv = (e.argv as string[]).join(' ')
     const ok = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '' } })
+    if (opts.dirs) {
+      const cwd: string = e.init?.cwd ?? opts.cwd ?? '/repo'
+      const d = opts.dirs[cwd]
+      if (!d) return ok('', 128) // not a git repo
+      if (argv.startsWith('git rev-parse')) return ok(`${d.repo}/.git\n`)
+      if (argv.startsWith('git branch')) return ok(`${d.branch}\n`)
+      if (argv.startsWith('gh pr view')) {
+        return d.pr ? ok(JSON.stringify({ number: d.pr, title: `PR ${d.pr}`, headRefName: d.branch, state: 'OPEN' })) : ok('', 1)
+      }
+    }
     if (argv.startsWith('git rev-parse')) return ok('/repo\n')
     if (argv.startsWith('git branch')) return ok('feat/mods\n')
     if (argv.startsWith('gh pr view')) return ok(JSON.stringify({ number: 42, title: 'Add mods', headRefName: 'feat/mods', state: 'OPEN' }))
@@ -65,6 +79,91 @@ describe('merge-gate', () => {
     const again: any = await $.tool.call({ tool: 'Bash', command: LUNA_REVIEW } as any)
     expect(again.deny).toMatch(/one pass per PR/)
     expect(ran).toEqual([LUNA_REVIEW])
+  })
+
+  test('Codex: one pass per PR, counted for the PR where the review runs', async ($, on) => {
+    const dirs: Record<string, Dir> = {
+      '/code/mods': { repo: '/code/mods', branch: 'main' },
+      '/code/mods/wt/a': { repo: '/code/mods', branch: 'fix-a', pr: 7 },
+      '/code/mods/wt/b': { repo: '/code/mods', branch: 'fix-b', pr: 8 },
+      '/code/mods/wt/c': { repo: '/code/mods', branch: 'fix-c' },
+      '/code/mods/wt/d': { repo: '/code/mods', branch: '' },
+      '/code/mods/wt/e': { repo: '/code/mods', branch: '' },
+      '/code/other': { repo: '/code/other', branch: 'main' },
+    }
+    const { ran, store } = engine(on, { cwd: '/code/mods', dirs })
+    await start($)
+    const review = (cd: string) => $.tool.call({ tool: 'Bash', command: `${cd}${LUNA_REVIEW}` } as any) as Promise<any>
+    // Two worktrees, two PRs: both run
+    expect((await review('cd /code/mods/wt/a && ')).deny).toBeUndefined()
+    expect((await review('cd wt/b; ')).deny).toBeUndefined()
+    // The same PR again: refused, from any folder and any spelling of the path
+    expect((await review('cd /code/mods/wt/a && ')).deny).toMatch(/one pass per PR/)
+    expect((await review('cd wt && cd ./a/../a && ')).deny).toMatch(/one pass per PR/)
+    expect((await review('(cd "/code/mods/wt/b" && ')).deny).toMatch(/one pass per PR/)
+    // No PR yet: counted for the branch
+    expect((await review('cd wt/c && ')).deny).toBeUndefined()
+    expect((await review('cd /code/mods/wt/c && ')).deny).toMatch(/one pass per PR/)
+    // Detached HEAD, no PR: counted per folder, so two such worktrees do not share a count
+    expect((await review('cd wt/d && ')).deny).toBeUndefined()
+    expect((await review('cd wt/e && ')).deny).toBeUndefined()
+    // Inside bash -c, and after many cds
+    expect((await review(`bash -lc 'cd wt/a && ${LUNA_REVIEW.replace(/'/g, '')}' #`)).deny).toMatch(/one pass per PR/)
+    expect((await review(`${'cd wt && cd .. && '.repeat(10)}cd wt/b && `)).deny).toMatch(/one pass per PR/)
+    expect([...store.keys()].filter(k => k.startsWith('codex:')).sort()).toEqual([
+      'codex:/code/mods#7',
+      'codex:/code/mods#8',
+      'codex:/code/mods@/code/mods/wt/d',
+      'codex:/code/mods@/code/mods/wt/e',
+      'codex:/code/mods@fix-c',
+    ])
+    expect(ran.length).toBe(5)
+  })
+
+  test('merge: a leading cd checks the PR, CI and Codex count of that folder', async ($, on) => {
+    const dirs: Record<string, Dir> = {
+      '/code/other': { repo: '/code/other', branch: 'main' },
+      '/code/mods/wt/a': { repo: '/code/mods', branch: 'fix-a', pr: 7 },
+    }
+    const { ran } = engine(on, { cwd: '/code/other', dirs })
+    await start($)
+    const held: any = await $.tool.call({ tool: 'Bash', command: 'cd /code/mods/wt/a && gh pr merge --squash' } as any)
+    expect(held.deny).toMatch(/held the merge of PR #7: Codex has not reviewed it/)
+    await $.tool.call({ tool: 'Bash', command: `cd /code/mods/wt/a && ${LUNA_REVIEW}` } as any)
+    await $.tool.call({ tool: 'Bash', command: 'cd /code/mods/wt/a && gh pr merge --squash' } as any)
+    expect(ran).toEqual([`cd /code/mods/wt/a && ${LUNA_REVIEW}`, 'cd /code/mods/wt/a && gh pr merge --squash'])
+  })
+
+  test('Codex: a session started in another repo counts the review for the repo it cds into', async ($, on) => {
+    const dirs: Record<string, Dir> = {
+      '/code/other': { repo: '/code/other', branch: 'main' },
+      '/code/mods/wt/a': { repo: '/code/mods', branch: 'fix-a', pr: 7 },
+      '/code/mods/wt/b': { repo: '/code/mods', branch: 'fix-b', pr: 8 },
+    }
+    const { ran, store } = engine(on, { cwd: '/code/other', dirs })
+    await start($)
+    const review = (dir: string) => $.tool.call({ tool: 'Bash', command: `cd ${dir} && ${LUNA_REVIEW}` } as any) as Promise<any>
+    expect((await review('../mods/wt/a')).deny).toBeUndefined()
+    expect((await review('/code/mods/wt/b')).deny).toBeUndefined()
+    expect((await review('/code/mods/wt/a')).deny).toMatch(/one pass per PR/)
+    expect([...store.keys()].filter(k => k.startsWith('codex:')).sort()).toEqual(['codex:/code/mods#7', 'codex:/code/mods#8'])
+    expect(ran.length).toBe(2)
+  })
+
+  test('cdTargets and resolveDir find where a command runs', () => {
+    expect(cdTargets('codex review')).toEqual([])
+    expect(cdTargets('cd a && cd "b c"; cd \'d\'\ncodex review')).toEqual(['a', 'b c', 'd'])
+    expect(cdTargets('(cd x\\ y && codex review)')).toEqual(['x y'])
+    expect(cdTargets('ls && cd a && codex review')).toEqual([])
+    expect(cdTargets('cd a || codex review')).toEqual([])
+    expect(cdTargets(`cd a && bash -lc 'cd b && codex review'`)).toEqual(['a', 'b'])
+    expect(cdTargets('eval "cd \\"x y\\"; codex review"')).toEqual(['x y'])
+    expect(resolveDir('/r', 'a/../b/./c', '/h')).toBe('/r/b/c')
+    expect(resolveDir('/r/x', '/abs', '/h')).toBe('/abs')
+    expect(resolveDir('/r', '~/w', '/h')).toBe('/h/w')
+    expect(resolveDir('/r', '$WT', '/h')).toBeNull()
+    expect(resolveDir('/r', '-', '/h')).toBeNull()
+    expect(resolveDir('/r', '~bob/x', '/h')).toBeNull()
   })
 
   test('codex exec is never run', async ($, on) => {

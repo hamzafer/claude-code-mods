@@ -87,7 +87,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Holds `gh pr merge` until CI is green and Codex reviewed the PR once, then asks you: **Hold** or **Merge anyway**
 - With no one to answer, it holds
 - Refuses a `codex review` that doesn't set `-c 'model="gpt-5.6-luna"'`
-- Refuses a second review of the same PR
+- Refuses a second review of the same PR. The PR is the one checked out where the review runs, so `cd <worktree> && codex review ...` counts for that worktree's PR (or its branch before it has one)
 - Refuses any `codex exec`
 - All three checks look only at commands the shell would run (including `bash -c '...'` and `eval`); text that only mentions one (a quoted argument, a heredoc, a grep pattern, a `#` comment) passes
 - Refuses any review while `~/.codex/config.toml` points at a local Ollama server
