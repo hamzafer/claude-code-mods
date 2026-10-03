@@ -141,25 +141,23 @@ function parse(text: string) {
 
 type Piece = { text: string; color?: string; isDim?: boolean }
 
-function pieces({ today, plan }: OneFormDay, isWide: boolean): Piece[] {
+function pieces({ today, plan, error }: OneFormDay, isWide: boolean): Piece[] {
+  if (!today) return [{ text: error === 'network' ? "can't reach OneForm" : 'OneForm loading…', isDim: true }]
   const out: Piece[] = []
-  const next = nextSession(plan, today?.logical_date)
+  const next = nextSession(plan, today.logical_date)
 
-  if (!today) return [{ text: 'OneForm loading…', isDim: true }]
   if (today.sleep_hours != null) {
     const isShort = today.sleep_hours < today.targets.sleep_hours
     out.push({ text: `🌙 ${hours(today.sleep_hours)}/${hours(today.targets.sleep_hours)}`, color: isShort ? 'yellow' : undefined })
   } else {
     out.push({ text: '🌙 sleep not logged', isDim: true })
   }
-  {
-    const p = today.remaining.protein
-    if (p > 0) out.push({ text: `🍗 ${p}g protein left` })
-    else out.push({ text: p === 0 ? '🍗 protein ✓' : `🍗 +${-p}g over`, color: 'green' })
-    if (isWide) {
-      const c = today.remaining.calories
-      out.push(c >= 0 ? { text: `🔥 ${num(c)} kcal left` } : { text: `🔥 ${num(-c)} kcal over`, color: 'yellow' })
-    }
+  const p = today.remaining.protein
+  if (p > 0) out.push({ text: `🍗 ${p}g protein left` })
+  else out.push({ text: p === 0 ? '🍗 protein ✓' : `🍗 +${-p}g over`, color: 'green' })
+  if (isWide) {
+    const c = today.remaining.calories
+    out.push(c >= 0 ? { text: `🔥 ${num(c)} kcal left` } : { text: `🔥 ${num(-c)} kcal over`, color: 'yellow' })
   }
   if (isWide) {
     for (const a of today.activities.slice(0, 2)) {
@@ -176,8 +174,7 @@ function pieces({ today, plan }: OneFormDay, isWide: boolean): Piece[] {
 }
 
 // The first training item from today on that nothing has done yet (a travel day is not a session).
-function nextSession(plan: OneFormPlanItem[], todayDate: string | undefined) {
-  if (!todayDate) return undefined
+function nextSession(plan: OneFormPlanItem[], todayDate: string) {
   return plan
     .filter(i => i.logical_date >= todayDate && i.type !== 'travel' && i.status === 'planned' && i.satisfied_by === null)
     .sort((a, b) => a.logical_date.localeCompare(b.logical_date))[0]

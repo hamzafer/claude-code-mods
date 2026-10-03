@@ -112,6 +112,26 @@ describe('oneform-line', () => {
     await ui.unmount()
   })
 
+  test('a narrow empty day keeps sleep and protein, and no "nothing planned"', OPTIONS, async ($, on) => {
+    const empty = { ...TODAY, sleep_hours: null, meals: [], activities: [], remaining: { calories: 2000, protein: 140 } }
+    engine(on, { status: 200, today: empty, plan: { plan_items: [] } })
+    await start($)
+    const ui = await mount($, 'terminal', 50)
+    expect(await ui.find({ type: 'Text', text: /🌙 sleep not logged/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /140g protein left/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /nothing planned/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('unreachable from the start says so, not "loading" forever', OPTIONS, async ($, on) => {
+    engine(on, { status: 503 })
+    await start($)
+    const ui = await mount($, 'terminal')
+    expect(await ui.find({ type: 'Text', text: /can't reach OneForm/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /loading/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
   test('refreshes at most every 10 minutes', OPTIONS, async ($, on) => {
     const h = engine(on, { status: 200 })
     await start($)
