@@ -77,7 +77,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="row" paddingX={1}>
           <Text>{'💪 '}</Text>
           {bits.map((b, i) => (
-            <Text key={String(i)} color={b.color} dimColor={!b.color}>{(i > 0 ? ' · ' : '') + b.text}</Text>
+            <Text key={String(i)} color={b.color} dimColor={b.isDim}>{(i > 0 ? ' · ' : '') + b.text}</Text>
           ))}
           {now.error === 'network' && now.fetchedAt > 0 && <Text dimColor>{` · as of ${clock(now.fetchedAt)}`}</Text>}
         </Box>
@@ -93,7 +93,7 @@ const SETUP = [
   '- **url**: where your OneForm runs',
   '- **key**: a OneForm client key, e.g. from `pnpm keys:create claude-code-band`',
   '',
-  'Set them in `/config` (the key goes to secure storage), then restart the session.',
+  'Installed from the marketplace, Claude Code asks for both. Loaded from a folder, set them in settings.json under `pluginConfigs["oneform-line"].options`. The mod reloads by itself.',
 ].join('\n')
 
 const NOT_HTTPS = 'OneForm Line sends your key in a header, so the **url** setting has to start with `https://` (plain `http://` only for localhost).'
@@ -139,26 +139,29 @@ function parse(text: string) {
   }
 }
 
-type Piece = { text: string; color?: string }
+type Piece = { text: string; color?: string; isDim?: boolean }
 
 function pieces({ today, plan }: OneFormDay, isWide: boolean): Piece[] {
   const out: Piece[] = []
   const next = nextSession(plan, today?.logical_date)
 
-  if (today?.sleep_hours != null) {
+  if (!today) return [{ text: 'OneForm loading…', isDim: true }]
+  if (today.sleep_hours != null) {
     const isShort = today.sleep_hours < today.targets.sleep_hours
-    out.push({ text: `🌙 ${hours(today.sleep_hours)}/${hours(today.targets.sleep_hours)}`, color: isShort ? 'yellow' : 'white' })
+    out.push({ text: `🌙 ${hours(today.sleep_hours)}/${hours(today.targets.sleep_hours)}`, color: isShort ? 'yellow' : undefined })
+  } else {
+    out.push({ text: '🌙 sleep not logged', isDim: true })
   }
-  if (today && today.meals.length > 0) {
+  {
     const p = today.remaining.protein
-    if (p > 0) out.push({ text: `🍗 ${p}g protein left`, color: 'white' })
+    if (p > 0) out.push({ text: `🍗 ${p}g protein left` })
     else out.push({ text: p === 0 ? '🍗 protein ✓' : `🍗 +${-p}g over`, color: 'green' })
     if (isWide) {
       const c = today.remaining.calories
-      out.push(c >= 0 ? { text: `🔥 ${num(c)} kcal left`, color: 'white' } : { text: `🔥 ${num(-c)} kcal over`, color: 'yellow' })
+      out.push(c >= 0 ? { text: `🔥 ${num(c)} kcal left` } : { text: `🔥 ${num(-c)} kcal over`, color: 'yellow' })
     }
   }
-  if (isWide && today) {
+  if (isWide) {
     for (const a of today.activities.slice(0, 2)) {
       out.push({ text: `🏃 ${a.strava_sport_type ?? a.name} ${Math.round(a.moving_time_s / 60)}m`, color: 'cyan' })
     }
@@ -167,7 +170,8 @@ function pieces({ today, plan }: OneFormDay, isWide: boolean): Piece[] {
       out.push({ text: `🏋️ ${today.workout.sets_count} sets${live}`, color: 'cyan' })
     }
   }
-  if (next && today) out.push({ text: `📅 ${PLAN_LABEL[next.type] ?? next.type} ${when(next.logical_date, today.logical_date)}` })
+  if (next) out.push({ text: `📅 ${PLAN_LABEL[next.type] ?? next.type} ${when(next.logical_date, today.logical_date)}` })
+  else if (isWide) out.push({ text: '📅 nothing planned', isDim: true })
   return out
 }
 

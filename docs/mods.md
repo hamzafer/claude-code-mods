@@ -4,7 +4,7 @@ How the mods behave, setup notes for each one, and how to build your own. Videos
 
 ## How they behave
 
-**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add a line there. They stack, and each one hides when it has nothing to show.
+**Lines above the prompt.** token-weather, where-am-i, agent-radar, browser-lanes, merge-gate, oneform-line and session-saver each add a line there. They stack, and each one hides when it has nothing to show (oneform-line stays once it's set up).
 
 **Guards ask before they block.** blast-radius, rulebook-guard and merge-gate stop a tool call and ask you. Saying no refuses the call, and Claude gets the reason. Saying yes runs it as written. In auto mode the session waits for your answer.
 
@@ -35,7 +35,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 **session-saver.** Needs [unpause](https://github.com/hamzafer/unpause). Run `/park` before you close, then `unpause open <name>`, and the note shows until you type. Untitled sessions get a name after their second turn.
 
-**oneform-line.** For OneForm, my own fitness coach app, so it's only useful if you run OneForm. Set `url` and `key` in `/config` (the key goes to secure storage). It calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes (1 minute after a failure), so it doesn't fill OneForm's tool-call log. The URL has to be `https://`. It hides what isn't logged yet, shows targets you passed as "over", and keeps the last answer with an "as of" time when OneForm can't be reached. `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days.
+**oneform-line.** For OneForm, my own fitness coach app, so it's only useful if you run OneForm. Installed from the marketplace, Claude Code asks for `url` and `key` and keeps the key in secure storage. Loaded from a folder, set them in `settings.json` under `pluginConfigs["oneform-line"].options`. It calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes (1 minute after a failure), so it doesn't fill OneForm's tool-call log. The URL has to be `https://`. Once set up the line is always there: what isn't logged yet says so, targets you passed show as "over", and keeps the last answer with an "as of" time when OneForm can't be reached. `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days.
 
 **replay-theater.** Run `/replay` after a turn that edited files. `n` and `p` step, `q` closes.
 
