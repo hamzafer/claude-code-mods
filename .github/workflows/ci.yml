@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mods:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Mods need Claude Code 2.1.287 or newer. Bump this on purpose.
+      CLAUDE_CODE_VERSION: 2.1.288
+      DISABLE_AUTOUPDATER: 1
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Claude Code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          claude --version
+
+      - name: Validate the marketplace
+        run: claude plugin validate .
+
+      - name: Validate and test each mod
+        run: |
+          # A mod is any folder under mods/ with a tracked plugin.json.
+          mods=$(git ls-files 'mods/*/.claude-plugin/plugin.json' | cut -d/ -f2 | sort -u)
+          if [ -z "$mods" ]; then
+            echo "::error::No mods found under mods/"
+            exit 1
+          fi
+          failed=""
+          for mod in $mods; do
+            echo "::group::$mod"
+            if ! claude plugin validate "mods/$mod"; then
+              failed="$failed $mod(validate)"
+            fi
+            if [ -d "mods/$mod/tests" ] && ! claude plugin test "mods/$mod"; then
+              failed="$failed $mod(test)"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Failed:$failed"
+            exit 1
+          fi
+          echo "All mods passed."
