@@ -2,7 +2,7 @@
 
 See what your agent is reading and writing, live. mission-control draws every subagent, every tool call and every file they touch, in a pane next to the chat.
 
-![mission-control at 4x: two subagents and a logout feature landing across four files](docs/mission-control.gif)
+![mission-control at 4x: two subagents and a logout feature landing across four files](images/mission-control.gif)
 
 ## Try mission-control
 
