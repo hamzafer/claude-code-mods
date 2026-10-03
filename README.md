@@ -57,7 +57,6 @@ These are built around my own tools and rules. Fork them and change the rules to
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 👀 | **glance** | One line with what needs you: next meeting, PRs, Linear issues, Slack DMs. Needs `gh` and the Google Calendar, Linear and Slack connectors | `/glance` |
-| 🏋️ | **oneform-line** | Your OneForm day: sleep, protein, calories, training. Needs a OneForm account | `/oneform` |
 | 🚦 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed once. Needs `gh` and the Codex CLI. Reviews run on one fixed model; change it to yours | `/gate` |
 | 📏 | **rulebook-guard** | Enforces my writing and git rules: rewrites em dashes, asks before `--amend`, unformatted pushes, emails and phone numbers in notes | |
 | 💾 | **session-saver** | Saves where you left off, shows it on resume. Needs [unpause](https://github.com/hamzafer/unpause) | `/park [note]` |

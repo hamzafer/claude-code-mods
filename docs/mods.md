@@ -7,9 +7,9 @@
 
 ### 📏 Lines above the prompt
 
-- token-weather, usage-meter, where-am-i, next-steps, agent-radar, browser-lanes, merge-gate, glance, oneform-line and session-saver each add one
+- token-weather, usage-meter, where-am-i, next-steps, agent-radar, browser-lanes, merge-gate, glance and session-saver each add one
 - They stack
-- Each hides when it has nothing to show (oneform-line stays once it's set up)
+- Each hides when it has nothing to show
 
 ### 🙋 Guards ask before they block
 
@@ -130,18 +130,6 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - `/park <note>` adds your own note, shown under the summary on resume
 - The note shows until you type
 - Untitled sessions get a name after their second turn
-
-### 🏋️ oneform-line
-
-- Needs a OneForm account
-- **Marketplace install:** Claude Code asks for `url` and `key` and keeps the key in secure storage
-- **Loaded from a folder:** set them in `settings.json` under `pluginConfigs["oneform-line"].options`
-- The URL has to be `https://`
-- Calls `get_today` and `get_plan` when the session starts, then after a turn at most every 10 minutes
-- After a failure it retries in 1 minute, and the slow pace keeps OneForm's tool-call log short
-- Once set up the line is always there: what isn't logged yet says so, targets you passed show as "over"
-- When OneForm can't be reached, it keeps the last answer with an "as of" time
-- `/oneform` refreshes and prints the day: meals, training, check-in and the next 7 days
 
 ### 👀 glance
 
