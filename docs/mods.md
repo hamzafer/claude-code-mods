@@ -43,6 +43,16 @@
 - Makes one Haiku call after each turn to write the summary
 - `/where` gives a few bullets instead
 
+### ➡️ next-steps
+
+- After each turn, shows 2 or 3 short prompts you'd likely send next, like `next:  1 run the tests you just wrote  ·  2 open a draft PR  ·  0 dismiss`
+- **Keys** (only while the prompt is empty): `1`, `2` or `3` puts that prompt in the box as a draft. Edit it or press Enter, nothing sends on its own. `0` hides the list
+- Digits typed after other text, and pasted ones, go in as usual. To start a prompt with a digit while the list shows, press `0` first
+- Hidden while Claude works or a survey is open
+- The list clears when you send a prompt (slash commands too) or a new turn starts
+- Makes one Haiku call after each turn. Skips it for short replies, and for a turn that ends while background agents still run
+- While the list shows, where-am-i leaves out its own "next" part, so you don't see two. When there's no list, where-am-i's "next" is back
+
 ### 💰 usage-meter
 
 - One line: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost

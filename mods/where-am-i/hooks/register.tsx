@@ -10,6 +10,8 @@ const MAX_LOG = 20
 // Held by the host, so the recap survives a hot reload of this file.
 const recap = atom({ plugin: 'where-am-i', key: 'recap' } as const, null as Recap | null)
 const live = atom({ plugin: 'where-am-i', key: 'live' } as const, '')
+// True while the next-steps mod shows its list of next prompts: this band leaves out its own next meanwhile.
+const nextStepsActive = { plugin: 'next-steps', key: 'active' } as const
 
 export const register: Register = on => {
   let prompt = ''
@@ -55,6 +57,8 @@ export const register: Register = on => {
 
     const { Box, Text } = $.ui.resolve(e)
     const now = clip((await read($, live)) || r.now)
+    const { value: hasNextSteps = false } = await $.state.get(nextStepsActive)
+    const nextStep = hasNextSteps ? '' : r.next
 
     return (
       <Box flexDirection="column">
@@ -66,8 +70,8 @@ export const register: Register = on => {
           <Text wrap="truncate-end">
             <Text dimColor>{'  now: '}</Text>
             <Text>{now}</Text>
-            {r.next !== '' && <Text dimColor>{'  ·  next: '}</Text>}
-            {r.next !== "" && <Text>{clip(r.next)}</Text>}
+            {nextStep !== '' && <Text dimColor>{'  ·  next: '}</Text>}
+            {nextStep !== '' && <Text>{clip(nextStep)}</Text>}
           </Text>
           {r.waiting !== '' && (
             <Text color="yellow" wrap="truncate-end">{`  waiting on you: ${clip(r.waiting)}`}</Text>
