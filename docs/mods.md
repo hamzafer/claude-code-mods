@@ -113,7 +113,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 - When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn)
 - `/md` opens a pane on the latest one, `/md <path>` on any file
-- Keys: `n`/`p` next and previous file, `r` render again, `t` page or text view, `q` close. The arrow keys scroll
+- `/md compare <a> <b>` shows two files side by side under their names, for picking between option A and option B
+- `/md open` (or `o` in the pane) opens the rendered page full size in your browser, from a temp file with working links
+- Keys: `n`/`p` next and previous file, `b` before and after side by side (stacked when the pane is narrow), `o` browser, `r` render again, `t` page or text view, `q` close. The arrow keys scroll
 - It draws again when the file you're looking at changes
 - A green bar marks the blocks the last edit changed
 - **Renderer, best first:**

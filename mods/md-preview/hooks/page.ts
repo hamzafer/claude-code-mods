@@ -43,6 +43,7 @@ table tr:nth-child(2n){background:#151b23}
 img{max-width:100%;box-sizing:content-box}
 kbd{display:inline-block;padding:3px 5px;font:11px ui-monospace,monospace;line-height:10px;color:#f0f6fc;vertical-align:middle;background:#151b23;border:solid 1px #3d444db3;border-bottom-color:#3d444db3;border-radius:6px;box-shadow:inset 0 -1px 0 #3d444db3}
 details summary{cursor:pointer}
+.label{padding:14px 28px 0;color:#9198a1;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 .md-mark{display:none}
 .md-mark+*{position:relative}
 .md-mark+*::after{content:'';position:absolute;left:-18px;top:0;bottom:0;width:4px;border-radius:2px;background:#3fb950}
@@ -54,20 +55,38 @@ export function markers(html: string) {
   return html.replace(new RegExp(`<p[^>]*>\\s*${MARK}\\s*</p>`, 'g'), '<div class="md-mark"></div>')
 }
 
+// Relative links and images point at the Markdown file's folder, as file:// URLs.
+export function absolute(html: string, dir: string) {
+  const root = `file://${encodeURI(dir.replace(/\/?$/, '/'))}`
+  return html.replace(/\b(src|href)="(?![a-z][a-z0-9+.-]*:|#|\/\/)([^"]*)"/gi, (_m, attr: string, url: string) => {
+    if (url.startsWith('/')) return `${attr}="file://${url}"`
+    return `${attr}="${root}${url.replace(/^\.\//, '')}"`
+  })
+}
+
+export type Side = { label?: string; html: string; dir: string }
+
 /**
- * A whole page: relative links and images resolve from the Markdown file's folder.
- * On load it writes its height into the body, for `--dump-dom` to read back.
+ * A whole page: one rendered file, or several side by side (stacked when narrow),
+ * each under its label. `width` 0 is the browser's page: centered, any width.
+ * On load it writes its height into the body, for `--dump-dom` to read back; a
+ * `#<px>` in the URL shifts it up, so a tall page is drawn in parts.
  */
-export function page(html: string, opts: { dir: string; title: string; width: number }) {
-  const base = `file://${encodeURI(opts.dir.replace(/\/?$/, '/'))}`
+export function page(sides: readonly Side[], opts: { title: string; width: number; stacked?: boolean }) {
+  const many = sides.length > 1
+  const cols = sides
+    .map(s => `<section class="col">${s.label ? `<div class="label">${esc(s.label)}</div>` : ''}<article class="markdown-body">\n${absolute(markers(s.html), s.dir)}\n</article></section>`)
+    .join('\n')
+  const size = opts.width > 0 ? `body{width:${opts.width}px}` : `body{max-width:${many && !opts.stacked ? 2000 : 1012}px;margin:0 auto}`
+  const grid = many && !opts.stacked ? `.cols{display:grid;grid-template-columns:repeat(${sides.length},minmax(0,1fr))}.col+.col{border-left:1px solid #3d444d}` : '.col+.col{border-top:1px solid #3d444d}'
   return `<!doctype html>
-<html><head><meta charset="utf-8"><base href="${esc(base)}"><title>${esc(opts.title)}</title>
-<style>${CSS}body{width:${opts.width}px}</style></head>
-<body><article class="markdown-body">
-${markers(html)}
-</article>
-<script>if(location.hash.length>1){document.querySelector('.markdown-body').style.transform='translateY(-'+parseInt(location.hash.slice(1),10)+'px)'}
-addEventListener('load',function(){document.body.setAttribute('data-height',String(Math.ceil(document.querySelector('.markdown-body').getBoundingClientRect().height)))})</script>
+<html><head><meta charset="utf-8"><title>${esc(opts.title)}</title>
+<style>${CSS}${size}${grid}</style></head>
+<body><main class="page"><div class="cols">
+${cols}
+</div></main>
+<script>if(location.hash.length>1){document.querySelector('.page').style.transform='translateY(-'+parseInt(location.hash.slice(1),10)+'px)'}
+addEventListener('load',function(){document.body.setAttribute('data-height',String(Math.ceil(document.querySelector('.page').getBoundingClientRect().height)))})</script>
 </body></html>
 `
 }

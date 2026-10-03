@@ -40,7 +40,7 @@ Restart Claude Code and type `/mission`.
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |
 | 🌐 | **browser-lanes** | Is this session attached to a browser, and who holds it | `/browser` |
 | 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
-| 📝 | **md-preview** | Shows the Markdown files Claude edits, rendered like GitHub | `/md` |
+| 📝 | **md-preview** | Shows the Markdown files Claude edits, rendered like GitHub, before and after side by side | `/md` |
 
 ### 🛡️ Guard your repo
 

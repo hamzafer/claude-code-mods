@@ -15,6 +15,8 @@ function engine(on: any, opts: Opts = {}) {
     '/repo/README.md': '# Title\n\nOld paragraph.\n\n- one\n- two\n',
     '/repo/docs/guide.md': '# Guide\n\nRead me.\n',
     '/repo/src/app.ts': 'export {}\n',
+    '/repo/opt/a.md': '# Plan\n\nOption A text.\n',
+    '/repo/opt/b.md': '# Plan\n\nOption B text.\n',
   }
   const runs: { argv: string[]; stdin?: string }[] = []
   const toasts: string[] = []
@@ -34,7 +36,7 @@ function engine(on: any, opts: Opts = {}) {
     return { value: disk[e.path] }
   })
   on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
-  on('fs.exists', (_$: any, e: any) => ({ value: e.path === CHROME ? opts.chrome !== false : disk[e.path] !== undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path === CHROME ? opts.chrome !== false : e.path === '/usr/bin/open' ? true : disk[e.path] !== undefined }))
   on('env.get', (_$: any, e: any) => ({ value: ({ TERM_PROGRAM: opts.term ?? 'ghostty', TMPDIR: '/tmp/', HOME: '/home/me' } as Record<string, string>)[e.name] }))
   on('process.run', (_$: any, e: any) => {
     runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
@@ -103,7 +105,7 @@ describe('md-preview', () => {
     expect(runs.some(x => x.argv[0] === 'sh' && x.argv.includes(CHROME))).toBe(true)
     const html = Object.entries(writes).find(([p]) => p.endsWith('.html'))?.[1] ?? ''
     expect(html).toContain('From GitHub')
-    expect(html).toContain('<base href="file:///repo/docs/">')
+    expect(html).not.toContain('<base')
     await pane.unmount()
     const drawn = await mount($)
     const images = await drawn.findAll({ type: 'Image' })
@@ -205,6 +207,70 @@ describe('md-preview', () => {
     await pane.unmount()
   })
 
+  test('b shows the file before the last edit next to it, stacked when narrow', async ($, on) => {
+    const { writes, clock } = engine(on, { gh: 'missing' })
+    await start($)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'Fresh paragraph.' } as any)
+    await $.command.run({ command: 'md', args: '' } as any)
+    const wide = await $.ui.mount({ plugin: 'md-preview', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: 160 } } as any)
+    await clock.advance(400)
+    await wide.press({ key: 'before' })
+    await clock.advance(400)
+    const last = () => Object.entries(writes).filter(([p]) => p.endsWith('.html')).map(([, t]) => t).find(t => t.includes('Before')) ?? ''
+    expect(last()).toContain('<div class="label">Before</div>')
+    expect(last()).toContain('<div class="label">After</div>')
+    expect(last()).toContain('Old paragraph.') // the text before the edit
+    expect(last()).toContain('Fresh paragraph.')
+    expect(last()).toContain('grid-template-columns') // side by side
+    await wide.unmount()
+    const narrow = await mount($) // 100 columns: stacked
+    await clock.advance(400)
+    const stacked = Object.values(writes).filter(t => t.includes('Before'))
+    expect(stacked.some(t => !t.includes('grid-template-columns'))).toBe(true)
+    expect(await narrow.find({ type: 'Text', text: /before \| after/ })).toBeDefined()
+    await narrow.press({ key: 'view' }) // the text view shows both, labeled
+    expect(await narrow.find({ type: 'Text', text: /── Before ──/ })).toBeDefined()
+    expect(await narrow.find({ type: 'Text', text: /── After ──/ })).toBeDefined()
+    await narrow.unmount()
+  })
+
+  test('/md compare <a> <b> renders two files side by side under their names', async ($, on) => {
+    const { writes, clock } = engine(on, { gh: 'missing' })
+    await start($)
+    expect((await $.command.run({ command: 'md', args: 'compare opt/a.md' } as any)).text).toMatch(/compare <fileA> <fileB>/)
+    expect((await $.command.run({ command: 'md', args: 'compare opt/a.md opt/zz.md' } as any)).text).toMatch(/no file at/)
+    const r = await $.command.run({ command: 'md', args: 'compare opt/a.md opt/b.md' } as any)
+    expect(r.text).toMatch(/a\.md \| b\.md side by side/)
+    const pane = await $.ui.mount({ plugin: 'md-preview', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: 160 } } as any)
+    await clock.advance(400)
+    const html = Object.values(writes).find(t => t.includes('Option A')) ?? ''
+    expect(html).toContain('<div class="label">a.md</div>')
+    expect(html).toContain('<div class="label">b.md</div>')
+    expect(html).toContain('Option B text.')
+    expect(html).toContain('<div class="md-mark"></div>\n<p>Option B text.</p>') // what B has that A does not
+    await pane.unmount()
+  })
+
+  test('o and /md open open the page in the browser from a temp file', async ($, on) => {
+    const { runs, writes } = engine(on, { gh: 'missing' })
+    await start($)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/nothing to open yet/)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    const r = await $.command.run({ command: 'md', args: 'open' } as any)
+    expect(r.text).toMatch(/opened README\.md in the browser/)
+    const open = runs.find(x => x.argv[0] === 'open')
+    expect(open?.argv[1]).toMatch(/^\/tmp\/md-preview\/open-\d+\.html$/)
+    const page = writes[open?.argv[1] ?? ''] ?? ''
+    expect(page).toContain('New paragraph.')
+    expect(page).toContain('<style>') // self-contained
+    expect(page).toContain('margin:0 auto')
+    await $.command.run({ command: 'md', args: '' } as any)
+    const pane = await mount($)
+    await pane.press({ key: 'open' })
+    expect(runs.filter(x => x.argv[0] === 'open')).toHaveLength(2)
+    await pane.unmount()
+  })
+
   test('the built-in renderer', () => {
     const html = toHtml(
       parse(
@@ -276,7 +342,17 @@ describe('md-preview', () => {
     const edited = lines.find(l => l.segs.some(s => s.text.includes('edited')))
     expect(edited?.mark).toBe(true)
     expect(lines.find(l => l.segs.some(s => s.text === 'Para two.'))?.mark).toBeUndefined()
-    expect(page('<p>x</p>', { dir: '/a b', title: 'R', width: 900 })).toContain('<base href="file:///a%20b/">')
+    const one = page([{ html: '<p><img src="img/a.png"> <a href="#x">x</a> <a href="https://g.com">g</a> <img src="/abs.png"></p>', dir: '/a b' }], { title: 'R', width: 900 })
+    expect(one).toContain('src="file:///a%20b/img/a.png"') // local images load from the file's folder
+    expect(one).toContain('href="#x"')
+    expect(one).toContain('href="https://g.com"')
+    expect(one).toContain('src="file:///abs.png"')
+    expect(one).toContain('body{width:900px}')
+    const two = page([{ label: 'Before', html: '<p>a</p>', dir: '/r' }, { label: 'After', html: '<p>b</p>', dir: '/r' }], { title: 'R', width: 0 })
+    expect(two).toContain('grid-template-columns:repeat(2,minmax(0,1fr))')
+    expect(two).toContain('<div class="label">Before</div>')
+    expect(two).toContain('margin:0 auto') // the browser's page: centered, any width
+    expect(page([{ html: 'a', dir: '/' }, { html: 'b', dir: '/' }], { title: 'R', width: 500, stacked: true })).not.toContain('grid-template-columns')
   })
 
   test('helpers', () => {
