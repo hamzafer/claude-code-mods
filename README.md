@@ -1,7 +1,7 @@
 # 🛰️ Claude Code mods
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml)
+[![CI](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml)
 
 **See what your agent is reading and writing, live.**
 
