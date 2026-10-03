@@ -26,7 +26,7 @@ Restart Claude Code and type `/mission` (or `/mission code` to open the code map
 - 🟠 **Orange** while it writes
 - 🟢 **Green** when done, with one line on what changed
 
-> **Needs** Claude Code 2.1.287+. The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm). The Who view works everywhere.
+> **Needs** Claude Code 2.1.287+. The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2). The Who view works everywhere.
 
 ## 🧩 The mods
 

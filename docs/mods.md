@@ -25,7 +25,7 @@
 - Press `w` for Who, `c` for Code and `q` to close
 - `/mission code` opens straight to the code map, `/mission who` to the agents
 - Headless Chrome (`/Applications/Google Chrome.app`) draws the code map as an image, in a throwaway profile
-- The Code view is macOS only and needs a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm)
+- The Code view is macOS only and needs a terminal that shows images (Ghostty, kitty, iTerm2)
 - A file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed
 - One Haiku call after each turn writes the line under each changed file
 
@@ -69,7 +69,7 @@
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes
 - `/radar` lists every agent this session
-- Pane keys: `1` to `9` open that agent's messages, `b` goes back, `c` clears finished agents, `q` closes
+- In the pane, `1` to `9` open that agent's messages, `b` goes back, `c` clears finished agents and `q` closes
 
 ### 🌐 browser-lanes
 
@@ -187,7 +187,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - `stop` turns them off again
 - Reels needs Playwright once, and `/reels` prints the install command
 - `/reels login` opens a YouTube window to accept cookies or sign in. Close it, then run `/reels`
-- Reels pane keys: `j` next, `k` previous, `m` mute, `x` stop
+- In the reels pane, `j` is next, `k` previous, `m` mute and `x` stop
 
 ## 🛠️ Build your own
 
