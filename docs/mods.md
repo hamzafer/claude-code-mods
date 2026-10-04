@@ -71,6 +71,14 @@
 - `/radar` lists every agent this session
 - In the pane, `1` to `9` open that agent's messages, `b` goes back, `c` clears finished agents and `q` closes
 
+### 🔍 review-watch
+
+- Tracks every `codex review` shell command, in the foreground or background, and every subagent whose description says "review"
+- Each line shows the model (from `-c model=...` or `--model`, else your `~/.codex/config.toml`), the `--title` or what's under review, and the elapsed time. Codex reviews also show the last line Codex printed
+- When a review ends, a toast says so. For Codex it counts the `[P1]`/`[P2]` findings when the output goes to a file (`> review.txt`) or runs in the background
+- A finished review shows a ✅ line for 30 s, then goes away
+- Needs `ps` and `tail` (macOS and Linux have both)
+
 ### 🌐 browser-lanes
 
 - **Setup:** run the Playwright MCP server with `--isolated`
