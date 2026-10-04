@@ -149,6 +149,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 ### 🎬 replay-theater
 
 - Run `/replay` after a turn that edited files
+- The first turn with edits shows a toast. After that, the status line keeps count quietly (`▶ /replay: 3 edits`)
 - `n` and `p` step, `q` closes
 
 ### 📝 md-preview

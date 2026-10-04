@@ -35,6 +35,30 @@ describe('replay-theater', () => {
     await ui.unmount()
   })
 
+  test('toasts once per session, then uses the status line', async ($, on) => {
+    const toasts: string[] = []
+    const statuses: (string | undefined)[] = []
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('turn.start', (_$, e) => ({ turnId: e.turnId }) as any)
+    on('turn.complete', () => ({ text: '' }) as any)
+    on('tool.call', () => ({ result: {}, text: 'ok' }) as any)
+    on('ui.toast', (_$, e: any) => (toasts.push(e.text ?? e.message ?? String(e)), { value: undefined }) as any)
+    on('ui.status', (_$, e: any) => (statuses.push(e.text), { value: undefined }) as any)
+    on('command.register', () => ({ value: undefined }) as any)
+
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    for (const [i, n] of [1, 2, 3].entries()) {
+      await $.turn.start({ text: 'edit', turnId: `t${i}` } as any)
+      for (let k = 0; k < n; k++) {
+        await $.tool.call({ tool: 'Edit', file_path: '/work/a.ts', old_string: 'a', new_string: 'b' } as any)
+      }
+      await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    }
+
+    expect(toasts.length).toBe(1)
+    expect(statuses).toEqual(['▶ /replay: 2 edits', '▶ /replay: 3 edits'])
+  })
+
   test('says so when there is nothing to replay', async ($, on) => {
     on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
     on('command.register', () => ({ value: undefined }) as any)

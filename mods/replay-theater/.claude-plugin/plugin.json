@@ -1,6 +1,6 @@
 {
   "name": "replay-theater",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Step through the last turn's file edits, one diff at a time.",
   "author": {
     "name": "Hamza Zafar",
