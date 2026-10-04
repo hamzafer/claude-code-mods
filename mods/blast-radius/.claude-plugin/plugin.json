@@ -1,6 +1,6 @@
 {
   "name": "blast-radius",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Holds risky Bash commands and shows what they would change before they run.",
   "author": {
     "name": "Hamza Zafar",

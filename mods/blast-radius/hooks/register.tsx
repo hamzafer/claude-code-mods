@@ -14,7 +14,7 @@ const held = atom({ plugin: 'blast-radius', key: 'held' } as const, null as Held
 const MIGRATION =
   /\b(prisma\s+(migrate|db\s+push)|supabase\s+(db\s+(reset|push)|migration\s+up)|drizzle-kit\s+(push|migrate)|knex\s+migrate|sequelize(-cli)?\s+db:migrate|rails\s+db:(migrate|reset|drop)|alembic\s+(upgrade|downgrade)|typeorm\s+migration:run)\b/
 
-type Risk = { risk: HeldCommand['risk']; cwd?: string; targets?: string[] }
+type Risk = { risk: HeldCommand['risk']; cwd?: string; targets?: string[]; hasQuotes?: boolean }
 
 export const register: Register = (on, options) => {
   // How long a held command waits for a press before it is cancelled; 0 waits forever.
@@ -175,7 +175,8 @@ export function classify(command: string): Risk | null {
       const args = words.slice(at + 1)
       const flags = args.filter(a => a.startsWith('-'))
       const isRecursive = flags.some(f => f === '--recursive' || (/^-[a-zA-Z]+$/.test(f) && /[rR]/.test(f)))
-      if (isRecursive) return { risk: 'delete', cwd, targets: args.filter(a => !a.startsWith('-')) }
+      // Quotes are gone after split: remember they were there, so '~' or '$HOME' are not expanded as if bare.
+      if (isRecursive) return { risk: 'delete', cwd, targets: args.filter(a => !a.startsWith('-')), ...(/['"\\]/.test(command) ? { hasQuotes: true } : {}) }
     }
     if (words[0] === 'git' && words.includes('push') && words.some(w => w === '-f' || w.startsWith('--force') || /^\+/.test(w))) {
       return { risk: 'force-push', cwd }
@@ -186,21 +187,37 @@ export function classify(command: string): Risk | null {
 }
 
 // What the command would touch, from the tools' own commands.
+// Paths the preview can't resolve without running the command: shell variables, command substitution, ~user.
+const UNRESOLVED = /[$`]|^~[^/]/
+const UNRESOLVED_QUOTED = /[$`~]/ // with quotes around, even ~ and $HOME are unknown
+
 async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldCommand, 'summary' | 'details'>> {
-  const init = found.cwd ? { cwd: found.cwd } : undefined
+  // ~ and $HOME are expanded here; anything else with a variable is reported as unknown, never as "nothing".
+  const home = (await $.env.get('HOME').catch(() => undefined)) ?? ''
+  // With quotes in the command we can't tell '~' (literal) from ~ (home): don't expand, report it instead.
+  const expand = (p: string) => (home && !found.hasQuotes ? p.replace(/^~(?=\/|$)/, home).replace(/\$\{HOME\}|\$HOME\b/g, home) : p)
+  const cwd = found.cwd ? expand(found.cwd) : undefined
+  const unresolved = found.hasQuotes ? UNRESOLVED_QUOTED : UNRESOLVED
+  const init = cwd && !unresolved.test(cwd) ? { cwd, timeoutMs: 10_000 } : { timeoutMs: 10_000 }
   try {
     if (found.risk === 'delete') {
+      const targets = (found.targets ?? []).map(expand)
+      const unknown = targets.filter(t => unresolved.test(t))
+      if (unknown.length > 0 || (cwd !== undefined && unresolved.test(cwd))) {
+        const list = unknown.length > 0 ? unknown : [`cd ${found.cwd}`]
+        return { summary: `can't preview: ${list.length === 1 ? 'a path uses' : `${list.length} paths use`} a shell variable, check by hand`, details: list.slice(0, MAX_LISTED) }
+      }
       // Unquoted $t expands globs, and nothing else, without running the command.
       const script =
         'shopt -s nullglob; for t in "$@"; do for p in $t; do [ -e "$p" ] || continue; ' +
-        'echo "S $(du -sk "$p" | cut -f1)"; find "$p" -type f | sed "s/^/F /"; done; done'
-      const r = await $.process.run(['bash', '-c', script, 'blast-radius', ...(found.targets ?? [])], init)
+        'echo "S $(du -sk "$p" | cut -f1)"; find "$p" -type f | head -n 5000 | sed "s/^/F /"; done; done'
+      const r = await $.process.run(['bash', '-c', script, 'blast-radius', ...targets], init)
       const lines = r.stdout.split('\n')
-      const files = lines.filter(l => l.startsWith('F ')).map(l => short(l.slice(2), found.targets ?? []))
+      const files = lines.filter(l => l.startsWith('F ')).map(l => short(l.slice(2), targets))
       const kb = lines.filter(l => l.startsWith('S ')).reduce((sum, l) => sum + Number(l.slice(2)), 0)
       if (files.length === 0 && kb === 0) return { summary: 'delete nothing that exists right now', details: [] }
       return {
-        summary: `delete ${files.length} file${files.length === 1 ? '' : 's'} (${size(kb)})`,
+        summary: `delete ${files.length >= 5000 ? '5000+' : files.length} file${files.length === 1 ? '' : 's'} (${size(kb)})`,
         details: files.slice(0, MAX_LISTED),
       }
     }

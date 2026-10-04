@@ -14,7 +14,7 @@
     {
       "name": "blast-radius",
       "description": "Holds risky Bash commands and shows what they would change before they run.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "source": "./mods/blast-radius"
     },
     {
