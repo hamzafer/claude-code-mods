@@ -153,7 +153,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📝 md-preview
 
-- When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn). This includes files written by shell commands or scripts. md-preview compares the repo's Markdown files at the start and end of each turn
+- When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn). This includes files written by shell commands. In a turn where Claude runs one, md-preview compares the repo's Markdown files before the first command and at the end of the turn
 - `/md` opens a pane on the latest one, `/md <path>` on any file
 - `/md compare <a> <b>` shows two files side by side under their names, for picking between option A and option B
 - `/md open` (or `o` in the pane) opens the rendered page full size in your browser, from a temp file with working links
