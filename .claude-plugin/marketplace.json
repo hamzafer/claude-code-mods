@@ -66,6 +66,12 @@
       "source": "./mods/replay-theater"
     },
     {
+      "name": "review-watch",
+      "description": "A live line above the prompt for each running code review: Codex or a review subagent, its model, what it reviews, time, and Codex's latest output. A toast with the findings when it ends.",
+      "version": "0.1.0",
+      "source": "./mods/review-watch"
+    },
+    {
       "name": "rulebook-guard",
       "description": "Writing and git rules: replaces em dashes in prose, and asks before git commit --amend, an unformatted push, or personal info in notes and commits.",
       "version": "0.1.2",
