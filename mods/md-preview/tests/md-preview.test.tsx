@@ -26,6 +26,7 @@ function engine(on: any, opts: Opts = {}) {
   on('command.register', () => ({ value: undefined }))
   const clock = mock.clock(on)
   on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: 'ok' }))
   on('tool.call', (_$: any, e: any) => {
     if (e.tool === 'Write') disk[e.file_path] = e.content
     if (e.tool === 'Edit') disk[e.file_path] = (disk[e.file_path] ?? '').replace(e.old_string, e.new_string)
@@ -41,6 +42,11 @@ function engine(on: any, opts: Opts = {}) {
   on('process.run', (_$: any, e: any) => {
     runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
     const cmd = e.argv[0]
+    if (cmd === 'git' && e.argv[1] === 'ls-files') {
+      const md = Object.keys(disk).filter(f => f.startsWith('/repo/') && /\.(md|mdx|markdown)$/.test(f)).map(f => f.slice('/repo/'.length))
+      const sep = e.argv.includes('-z') ? '\0' : '\n'
+      return { value: { exitCode: 0, stdout: md.join(sep) + sep, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
     if (cmd === 'git') return { value: { exitCode: 0, stdout: opts.remote ?? 'origin\tgit@github.com:someone/docs-repo.git (fetch)\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'gh') {
       if (opts.gh === 'missing') throw new Error('gh: not found')
@@ -65,6 +71,63 @@ async function start($: any) {
 const mount = ($: any, surface = 'terminal') => $.ui.mount({ plugin: 'md-preview', surface, ...PANE } as any)
 
 describe('md-preview', () => {
+  test('catches Markdown a shell command writes, and new files', async ($, on) => {
+    const { disk, toasts } = engine(on)
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: 'cat > README.md <<EOF ...' } as any) // snapshot before the first shell command
+    disk['/repo/README.md'] = '# Title\n\nWritten by a shell.\n'
+    disk['/repo/NOTES.md'] = '# Notes\n'
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(toasts).toContain('README.md changed · /md to preview')
+    expect(toasts).toContain('NOTES.md changed · /md to preview')
+    expect(toasts).toHaveLength(2) // untouched docs/guide.md and opt/*.md stay quiet
+    const r = await $.command.run({ command: 'md', args: 'README.md' } as any)
+    expect(JSON.stringify(r)).not.toContain('no Markdown edits')
+  })
+
+  test('a new file is caught even when the repo had no Markdown yet', async ($, on) => {
+    const { disk, toasts } = engine(on)
+    for (const f of Object.keys(disk)) if (/\.md$/.test(f)) delete disk[f]
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: 'echo hi > README.md' } as any)
+    disk['/repo/README.md'] = '# Hi\n'
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(toasts).toEqual(['README.md changed · /md to preview'])
+  })
+
+  test('no shell command, no snapshot: outside edits during the turn are not reported', async ($, on) => {
+    const { disk, toasts, runs } = engine(on)
+    await start($)
+    disk['/repo/README.md'] = '# Edited in your editor\n'
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(toasts).toEqual([])
+    expect(runs.some(r => r.argv.includes('ls-files'))).toBe(false)
+  })
+
+  test('a Write/Edit change is not reported twice at turn end', async ($, on) => {
+    const { toasts } = engine(on)
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: 'ls' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(toasts).toEqual(['README.md changed · /md to preview'])
+  })
+
+  test('a subagent starting mid-turn keeps the main turn tracking', async ($, on) => {
+    const { toasts } = engine(on)
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: 'ls' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    await $.turn.start({ text: 'sub', turnId: 't1-sub', agentId: 'a1' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(toasts).toEqual(['README.md changed · /md to preview'])
+  })
+
   test('tracks Markdown edits, ignores code files, toasts once per file per turn', async ($, on) => {
     const { toasts } = engine(on)
     await start($)

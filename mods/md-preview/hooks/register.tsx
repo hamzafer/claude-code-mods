@@ -76,6 +76,11 @@ const draw = { pending: false, dirty: false, n: 0, columns: 100, failed: '', dra
 const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
+// Markdown files before the turn's first shell command, to catch writes that skip Write/Edit (`cat > README.md`).
+const shot = { taken: false, isFull: false, listed: new Set<string>(), texts: new Map<string, string>(), tooBig: new Set<string>() }
+const SNAPSHOT_FILES = 200
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])
+let snapshotting: Promise<void> | null = null // shared, so parallel shell calls take one snapshot
 
 const base = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 const folder = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/'
@@ -137,13 +142,29 @@ export const register: Register = on => {
   })
 
   on('turn.start', async (_$, e, next) => {
-    toasted.clear()
-    turnBefore.clear()
+    if (!e.agentId) {
+      // A subagent starting mid-turn must not drop the main turn's tracking.
+      toasted.clear()
+      turnBefore.clear()
+      resetSnapshot()
+    }
     return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.agentId && shot.taken) await compareSnapshot($).catch(() => {}) // after next(e): the turn is already over
+    return r
   })
 
   // Reads what the main agent wrote; never blocks or changes the call.
   on('tool.call', async ($, e, next) => {
+    // Shell commands can write Markdown without Write/Edit: snapshot before the turn's first one,
+    // compare at turn end. Turns without a shell command cost nothing.
+    if (SHELL_TOOLS.has(e.tool) && !shot.taken) {
+      snapshotting ??= takeSnapshot($).catch(() => {}).finally(() => (snapshotting = null))
+      await snapshotting
+    }
     if (!EDIT_TOOLS.has(e.tool) || e.agentId) return next(e)
     const path = (e as unknown as { file_path?: unknown }).file_path
     if (typeof path !== 'string' || !MD_FILE.test(path)) return next(e)
@@ -333,7 +354,67 @@ async function command($: EngineInterface, args: string) {
   return { text: `md-preview: ${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
 }
 
+function resetSnapshot() {
+  shot.taken = false
+  shot.isFull = false
+  shot.listed.clear()
+  shot.texts.clear()
+  shot.tooBig.clear()
+}
+
+// The repo's Markdown files (tracked and untracked, not ignored), or null when git can't list them.
+async function listMarkdown($: EngineInterface): Promise<string[] | null> {
+  if (!session.cwd) return null
+  const git = await $.process
+    .run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '*.md', '*.mdx', '*.markdown'], { cwd: session.cwd })
+    .catch(() => null)
+  if (!git || git.exitCode !== 0) return null
+  const root = session.cwd.replace(/\/$/, '')
+  return [...new Set(git.stdout.split('\0').filter(l => l !== '' && MD_FILE.test(l)))].map(l => `${root}/${l}`)
+}
+
+async function readAll($: EngineInterface, paths: string[]): Promise<(string | null)[]> {
+  const out: (string | null)[] = []
+  for (let i = 0; i < paths.length; i += 20) {
+    const batch = await Promise.all(paths.slice(i, i + 20).map(p => $.fs.read(p).then(t => (typeof t === 'string' ? t : null)).catch(() => null)))
+    out.push(...batch)
+  }
+  return out
+}
+
+async function takeSnapshot($: EngineInterface) {
+  const all = await listMarkdown($)
+  if (all === null) return // not a git repo, or git failed: stay off for this turn
+  const paths = all.slice(0, SNAPSHOT_FILES)
+  shot.isFull = all.length > SNAPSHOT_FILES
+  const texts = await readAll($, paths)
+  paths.forEach((p, i) => {
+    shot.listed.add(p)
+    const text = texts[i]
+    if (typeof text === 'string' && text.length <= BEFORE_MAX) shot.texts.set(p, text)
+    else shot.tooBig.add(p)
+  })
+  shot.taken = true
+}
+
+async function compareSnapshot($: EngineInterface) {
+  const all = await listMarkdown($)
+  if (all === null) return
+  // A file is new only if the listing wasn't cut off; otherwise files that slid into the window would look new.
+  const paths = all.filter(p => !turnBefore.has(p) && !shot.tooBig.has(p) && (shot.listed.has(p) || !shot.isFull)).slice(0, SNAPSHOT_FILES)
+  const nows = await readAll($, paths)
+  for (let i = 0; i < paths.length; i++) {
+    const path = paths[i]
+    const now = nows[i]
+    if (now === null) continue
+    const was = shot.texts.get(path)
+    if (was === undefined) await changed($, path, null) // new file this turn
+    else if (was !== now) await changed($, path, was)
+  }
+}
+
 // A Markdown file changed: remember its text before and which blocks, redraw or say so.
+
 async function changed($: EngineInterface, path: string, before: string | null) {
   const after = await $.fs.read(path).catch(() => null)
   if (typeof after !== 'string') return
