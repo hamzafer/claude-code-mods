@@ -4,7 +4,7 @@
 //   is under review, the time, and Codex's latest output line. When a review ends a toast
 //   says so, with the findings Codex reported, and its line shows a check for 30 s.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Review } from '../types'
 
@@ -17,19 +17,27 @@ const UNSEEN_POLLS = 3 // a review whose process never shows up in ps is over af
 const reviews = atom({ plugin: 'review-watch', key: 'reviews' } as const, [] as Review[])
 const now = atom({ plugin: 'review-watch', key: 'now' } as const, 0)
 
+let isPolling = false // a slow ps must not let two polls overlap
+
 export const register: Register = on => {
   let cwd = ''
+  let timers: Timer[] = []
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     cwd = e.cwd
+    // A review agent that is no longer running (a resumed or new session) has no line to keep.
+    const live = new Set((await $.agent.list().catch(() => [])).filter(a => a.status === 'running').map(a => a.id))
+    await update($, reviews, list => list.filter(v => v.kind === 'codex' || v.status !== 'running' || live.has(v.id)))
+    for (const t of timers) t.cancel()
+    timers = []
     // A clock for the elapsed times, ticking only while something shows.
-    $.clock.every(1000, () => {
+    timers.push($.clock.every(1000, () => {
       void (async () => {
         if ((await read($, reviews)).some(v => isShown(v, Date.now() - 3_000))) await update($, now, () => Date.now())
       })().catch(() => {})
-    })
-    $.clock.every(POLL_MS, () => void poll($).catch(() => {}))
+    }))
+    timers.push($.clock.every(POLL_MS, () => void poll($).catch(() => {})))
     return r
   })
 
@@ -44,7 +52,7 @@ export const register: Register = on => {
       status: 'running',
       startedAt: Date.now(),
       key: keyOf(e.command),
-      out: outputOf(e.command, cwd),
+      out: outputOf(e.command, cwd, (await $.env.get('HOME').catch(() => undefined)) ?? ''),
       polls: 0,
       last: 'starting',
     }
@@ -61,7 +69,7 @@ export const register: Register = on => {
 
   on('agent.spawn', async ($, e, next) => {
     const r = await next(e)
-    if (r.agentId && /review/i.test(e.description ?? '')) {
+    if (r.agentId && isReviewAgent(e.description ?? '')) {
       const one: Review = { id: r.agentId, kind: 'agent', model: e.model || r.model || 'inherit', label: e.description, status: 'running', startedAt: Date.now(), last: e.subagentType }
       await update($, reviews, list => [one, ...list.filter(v => v.id !== one.id)].slice(0, 20))
     }
@@ -104,13 +112,23 @@ export const register: Register = on => {
 
 // Checks each running Codex review: is its process still there, and what did it print last.
 async function poll($: EngineInterface) {
+  if (isPolling) return
+  isPolling = true
+  try {
+    await pollOnce($)
+  } finally {
+    isPolling = false
+  }
+}
+
+async function pollOnce($: EngineInterface) {
   const running = (await read($, reviews)).filter(v => v.kind === 'codex' && v.status === 'running')
   if (running.length === 0) return
   const ps = await $.process.run(['ps', '-axww', '-o', 'command='], { timeoutMs: 5_000 })
   if (ps.exitCode !== 0) return
-  const lines = ps.stdout.split('\n').filter(l => isCodexReview(l))
+  const lines = ps.stdout.split('\n').filter(l => isCodexReview(l)).map(plain)
   for (const v of running) {
-    const isAlive = lines.some(l => l.includes(v.key ?? 'codex'))
+    const isAlive = lines.some(l => l.includes(v.key ?? 'codex review'))
     const polls = (v.polls ?? 0) + 1
     if (!isAlive && (v.seen || polls >= UNSEEN_POLLS)) {
       await finish($, v.id, false)
@@ -122,12 +140,16 @@ async function poll($: EngineInterface) {
 }
 
 async function finish($: EngineInterface, id: string, failed: boolean) {
-  const v = (await read($, reviews)).find(x => x.id === id)
-  if (!v || v.status !== 'running') return
-  const findings = v.kind === 'codex' && v.out && !failed ? findingsOf(await tail($, ['-c', '40000', v.out])) : undefined
-  const done: Review = { ...v, status: failed ? 'failed' : 'done', endedAt: Date.now(), findings }
-  await update($, reviews, list => list.map(x => (x.id === id ? done : x)))
-  const what = v.kind === 'codex' ? `codex review (${v.model})` : `${v.label} (${v.model})`
+  // Claimed in one update, so two callers (a poll and the tool call) never both toast.
+  let v: Review | undefined
+  await update($, reviews, list =>
+    list.map(x => (x.id === id && x.status === 'running' ? (v = { ...x, status: failed ? 'failed' : 'done', endedAt: Date.now() }) : x)),
+  )
+  if (!v) return
+  const done = v
+  const findings = done.kind === 'codex' && done.out && !failed ? findingsOf(await tail($, ['-c', '40000', '--', done.out])) : undefined
+  if (findings) await update($, reviews, list => list.map(x => (x.id === id ? { ...x, findings } : x)))
+  const what = done.kind === 'codex' ? `codex review (${done.model})` : `${done.label} (${done.model})`
   const extra = findings ? ` · ${findingsText(findings)}` : ''
   $.ui.toast(`${failed ? '✗' : '✓'} ${what} ${failed ? 'stopped' : 'done'} · ${elapsed(done)}${extra}`)
 }
@@ -138,7 +160,7 @@ async function tail($: EngineInterface, args: string[]) {
 }
 
 async function lastLine($: EngineInterface, file: string) {
-  const lines = clean(await tail($, ['-n', '30', file])).split('\n').map(l => l.trim()).filter(Boolean)
+  const lines = clean(await tail($, ['-n', '30', '--', file])).split('\n').map(l => l.trim()).filter(Boolean)
   return lines.at(-1)?.slice(0, 200) ?? ''
 }
 
@@ -150,47 +172,89 @@ async function configModel($: EngineInterface) {
   return (r && /=\s*["']?([\w.:-]+)/.exec(r.stdout)?.[1]) || 'default'
 }
 
-// True for a command that runs `codex review`, flags before `review` allowed.
+// `codex review` where a command starts (after `;`, `&&`, `|`, `timeout 900` and the like), flags before `review` allowed.
+const CODEX_REVIEW =
+  /(?:^|[;&|(])\s*(?:(?:timeout|nohup|nice|env|time|command)(?:\s+[-\w.=:]+)*\s+)?(?:\S*\/)?codex(?:\s+-{1,2}[\w-]+(?:[\s=]+(?!-)\S+)?)*\s+review(?=\s|$)/
+
 export function isCodexReview(command: string) {
-  return /(?:^|[\s;&|(/])codex\s+(?:\S+\s+){0,4}?review(?:\s|$)/.test(command)
+  return CODEX_REVIEW.test(command)
+}
+
+// A subagent whose description says review (not "preview" or "interview").
+export function isReviewAgent(description: string) {
+  return /\breview(?:s|er|ers|ing)?\b/i.test(description)
+}
+
+const TITLE = /--title(?:\s+|=)(?:(["'])(.*?)\1|([^\s"';&|<>]+))/
+
+// The `codex ... review ...` part of a command, up to where the next command starts.
+function codexPart(command: string) {
+  const m = CODEX_REVIEW.exec(command)
+  if (!m) return ''
+  const rest = command.slice(m.index).replace(TITLE, '--title _')
+  return rest.split(/\s*(?:&&|\|\||;|\|(?!&))\s*/)[0]!
 }
 
 export function modelOf(command: string) {
-  return /model\s*=\s*\\?["']?([\w.:-]+)/.exec(command)?.[1] ?? /(?:--model|-m)[\s=]+["']?([\w.:-]+)/.exec(command)?.[1]
+  const part = codexPart(command)
+  return /\s-c\s+["']?model\s*=\s*\\?["']?([\w.:-]+)/.exec(part)?.[1] ?? /\s(?:--model|-m)(?:\s+|=)["']?([\w.:-]+)/.exec(part)?.[1]
 }
 
 export function labelOf(command: string) {
-  const title = /--title[\s=]+(["'])(.*?)\1/.exec(command)?.[2]
+  const title = titleOf(command)
   if (title) return title
-  const commit = /--commit[\s=]+["']?(\w+)/.exec(command)?.[1]
+  const part = codexPart(command)
+  const commit = /--commit(?:\s+|=)["']?(\w+)/.exec(part)?.[1]
   if (commit) return `commit ${commit.slice(0, 7)}`
-  const base = /--base[\s=]+["']?([^\s"']+)/.exec(command)?.[1]
+  const base = /--base(?:\s+|=)["']?([^\s"']+)/.exec(part)?.[1]
   return base ? `changes vs ${base}` : 'uncommitted changes'
 }
 
-// What finds this review's process in ps: its title, or else any codex review.
-function keyOf(command: string) {
-  return /--title[\s=]+(["'])(.*?)\1/.exec(command)?.[2] || 'codex'
+function titleOf(command: string) {
+  const m = TITLE.exec(command.slice(Math.max(0, command.search(CODEX_REVIEW))))
+  return m ? (m[2] ?? m[3] ?? '') : ''
 }
 
-// The file the review's stdout goes to (`> file`), resolved against the session's folder.
-export function outputOf(command: string, cwd: string) {
-  const at = command.search(/codex\s/)
+// What finds this review's process in ps: its arguments as ps prints them (quotes gone).
+export function keyOf(command: string) {
+  const m = CODEX_REVIEW.exec(command)
+  if (!m) return 'codex review'
+  const rest = command.slice(m.index + m[0].search(/codex\s/))
+  // Up to the first redirect or the next command, past a quoted title.
+  const masked = rest.replace(TITLE, x => x.replace(/[;&|<>]/g, '_'))
+  const cut = masked.search(/\s(?:\d?>|&>)|\s*(?:&&|\|\||;|\|)/)
+  return plain(cut >= 0 ? rest.slice(0, cut) : rest)
+}
+
+// The file the review's stdout goes to (`> file`): `~` from HOME, a relative one from a `cd` before it or the session's folder.
+export function outputOf(command: string, cwd: string, home = '') {
+  const at = Math.max(0, command.search(CODEX_REVIEW))
   const re = /(\d|&)?>>?\s*(["']?)([^\s"'&|;<>]+)\2/g
-  for (const m of command.slice(Math.max(0, at)).matchAll(re)) {
+  const rest = command.slice(at).replace(TITLE, '--title _')
+  for (const m of rest.matchAll(re)) {
     if (m[1] === '2' || m[3]!.startsWith('&')) continue
-    const path = m[3]!
-    if (path === '/dev/null') return undefined
-    return path.startsWith('/') || path.startsWith('~') || !cwd ? path : `${cwd}/${path}`
+    let path = m[3]!
+    if (path === '/dev/null' || path.includes('$')) return undefined
+    if (path.startsWith('~/')) {
+      if (!home) return undefined
+      path = home + path.slice(1)
+    }
+    if (path.startsWith('/')) return path
+    const cds = [...command.slice(0, at).matchAll(/(?:^|[;&|])\s*cd\s+(["']?)([^\s"';&|]+)\1/g)]
+    const dir = cds.at(-1)?.[2]
+    const base = dir ? (dir.startsWith('/') ? dir : dir.startsWith('~/') && home ? home + dir.slice(1) : `${cwd}/${dir}`) : cwd
+    return base ? `${base}/${path}` : undefined
   }
   return undefined
 }
 
 // Codex ends with a "Full review comments:" block of `- [P2] title — file:line` items.
-export function findingsOf(text: string) {
+// Undefined when the output says neither (an error, a killed run, an unreadable file).
+export function findingsOf(text: string): string[] | undefined {
   const at = text.lastIndexOf('Full review comments:')
-  const part = at >= 0 ? text.slice(at) : text.slice(-4000)
-  return [...part.matchAll(/^\s*-\s*\[(P\d)\]/gm)].map(m => m[1]!)
+  if (at >= 0) return [...text.slice(at).matchAll(/^\s*-\s*\[(P\d)\]/gm)].map(m => m[1]!)
+  if (/\b(?:no (?:issues|findings|problems|bugs)|did not (?:find|identify)|didn't (?:find|identify)|looks good)\b/i.test(text.slice(-3000))) return []
+  return undefined
 }
 
 export function findingsText(findings: string[]) {
@@ -205,6 +269,11 @@ export function isShown(v: Pick<Review, 'status' | 'endedAt'>, at = Date.now()) 
 export function elapsed(v: Pick<Review, 'startedAt' | 'endedAt'>) {
   const s = Math.max(0, Math.round(((v.endedAt ?? Date.now()) - v.startedAt) / 1000))
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
+}
+
+// A command line as ps prints it: no quotes, single spaces.
+function plain(text: string) {
+  return text.replace(/["']/g, '').replace(/\s+/g, ' ').trim()
 }
 
 function clean(text: string) {
