@@ -80,6 +80,7 @@ const turnBefore = new Map<string, string | null>() // each file's text before t
 const shot = { taken: false, isFull: false, listed: new Set<string>(), texts: new Map<string, string>(), tooBig: new Set<string>() }
 const SNAPSHOT_FILES = 200
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])
+let snapshotting: Promise<void> | null = null // shared, so parallel shell calls take one snapshot
 
 const base = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 const folder = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/'
@@ -160,7 +161,10 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     // Shell commands can write Markdown without Write/Edit: snapshot before the turn's first one,
     // compare at turn end. Turns without a shell command cost nothing.
-    if (SHELL_TOOLS.has(e.tool) && !shot.taken) await takeSnapshot($).catch(() => {})
+    if (SHELL_TOOLS.has(e.tool) && !shot.taken) {
+      snapshotting ??= takeSnapshot($).catch(() => {}).finally(() => (snapshotting = null))
+      await snapshotting
+    }
     if (!EDIT_TOOLS.has(e.tool) || e.agentId) return next(e)
     const path = (e as unknown as { file_path?: unknown }).file_path
     if (typeof path !== 'string' || !MD_FILE.test(path)) return next(e)
