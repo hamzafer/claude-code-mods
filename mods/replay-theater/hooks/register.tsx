@@ -14,16 +14,27 @@ const pos = atom({ plugin: 'replay-theater', key: 'pos' } as const, 0)
 export const register: Register = on => {
   let pending: ReplayStep[] = []
   let cwd = ''
+  let toasted = false // one toast per session teaches /replay; later turns use the status line
+  let showing = false // the status line holds a count from the last turn
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     cwd = e.cwd
+    toasted = false
+    if (showing) {
+      showing = false
+      $.ui.status(undefined) // a new session starts without the last one's count
+    }
     await $.command.register({ name: 'replay', description: "Step through the last turn's file edits" }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     return r
   })
 
   on('turn.start', ($, e, next) => {
     pending = [] // a model turn begins: start a fresh replay
+    if (showing) {
+      showing = false
+      $.ui.status(undefined) // the count belongs to the last turn
+    }
     return next(e)
   })
 
@@ -52,7 +63,14 @@ export const register: Register = on => {
       pending = []
       await update($, replay, () => steps) // one replay per turn
       await update($, pos, () => 0)
-      $.ui.toast(`replay-theater: ${steps.length} edit${steps.length === 1 ? '' : 's'} last turn. Run /replay`)
+      const count = `${steps.length} edit${steps.length === 1 ? '' : 's'}`
+      if (!toasted) {
+        toasted = true
+        $.ui.toast(`replay-theater: ${count} last turn. Run /replay`)
+      } else {
+        showing = true
+        $.ui.status(`▶ /replay: ${count}`)
+      }
     }
     return r
   })

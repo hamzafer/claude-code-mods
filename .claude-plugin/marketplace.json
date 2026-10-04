@@ -62,7 +62,7 @@
     {
       "name": "replay-theater",
       "description": "Step through the last turn's file edits, one diff at a time.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/replay-theater"
     },
     {
