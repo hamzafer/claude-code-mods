@@ -13,7 +13,7 @@ claude plugin validate mods/<name>
 claude plugin test mods/<name>
 ```
 
-💡 `claude plugin test` can refuse inside a running Claude Code session. If it does, run it with `CLAUDE_CONFIG_DIR` set to another config dir.
+💡 `claude plugin test` may refuse to run inside a Claude Code session. If it does, run it with `CLAUDE_CONFIG_DIR` set to another config dir.
 
 ```sh
 CLAUDE_CONFIG_DIR=$(mktemp -d) claude plugin test mods/<name>

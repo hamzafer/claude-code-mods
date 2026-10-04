@@ -7,7 +7,7 @@
 
 ### 📏 Lines above the prompt
 
-- token-weather, usage-meter, where-am-i, next-steps, agent-radar, browser-lanes, merge-gate, glance and session-saver each add one
+- token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, browser-lanes, merge-gate, glance and session-saver each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -32,12 +32,12 @@
 ### 🌦️ token-weather
 
 - Levels go by percent of the window, so a 1M window stays Clear until 250k tokens
-- `❄ cache 4:15` is about how long the prompt cache stays warm. It counts down from the end of the last model request, and every request restarts it, tool steps included
-- Prompt before it runs out and the cached prefix gets reused, which is cheaper and faster
+- `❄ cache 4:15` estimates how long the prompt cache stays warm. It counts down from the end of the last model request. Every request restarts it, including tool steps
+- Send a prompt before it hits zero and the cached prefix is reused, billed at the cache-read rate
 - The countdown is an estimate from timing, not read from the API. A model switch or /compact starts a fresh cache
 - Shows after the first request, hides again after /clear, and is the first part dropped on a narrow terminal
 - Plain while more than a minute is left, yellow under a minute, `cache cold` in dim red at zero (the cache has probably expired)
-- Detects the cache lifetime from Claude's responses. After each turn it reads the last response's usage in the session transcript. 1-hour cache writes mean `1h`, 5-minute writes mean `5m`, and a pure cache hit keeps the last value. Until the first detection it uses the last session's value, or `5m`
+- Reads the cache lifetime from the last response's usage in the session transcript, after each turn. 1-hour cache writes mean `1h`. 5-minute writes mean `5m`. A pure cache hit keeps the last value. Before the first reading it uses the last session's value, or `5m`
 - Set `cacheTtl` to `5m` or `1h` to override (default `auto`). Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
 
 ### 📍 where-am-i
@@ -53,7 +53,7 @@
 - Hidden while Claude works or a survey is open
 - The list clears when you send a prompt (slash commands too) or a new turn starts
 - Makes one Haiku call after each turn. Skips it for short replies, and for a turn that ends while background agents still run
-- While the list shows, where-am-i leaves out its own "next" part, so you don't see two. When there's no list, where-am-i's "next" is back
+- where-am-i drops its own "next" part while the list shows, and restores it when the list clears
 
 ### 💰 usage-meter
 
@@ -75,9 +75,9 @@
 
 - Tracks every `codex review` shell command, in the foreground or background, and every subagent whose description says "review"
 - Each line shows the model (from `-c model=...` or `--model`, else your `~/.codex/config.toml`), the `--title` or what's under review, and the elapsed time. Codex reviews also show the last line Codex printed
-- When a review ends, a toast says so. For Codex it counts the `[P1]`/`[P2]` findings when the output goes to a file (`> review.txt`) or runs in the background
+- When a review ends, a toast says so. For Codex it also counts the `[P1]`/`[P2]` findings. That works when the output goes to a file (`> review.txt`) or the review runs in the background
 - A finished review shows a ✅ line for 30 s, then goes away
-- A Codex review whose output it can't read (an error, a killed run, a `$VAR` path) toasts without a findings count rather than saying "no findings"
+- If it can't read a Codex review's output (an error, a killed run, a `$VAR` path), the toast has no findings count. It never guesses "no findings"
 - With agent-radar on too, a review subagent gets a toast from each mod
 - Needs `ps` and `tail` (macOS and Linux have both)
 
@@ -107,7 +107,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Refuses a second review of the same PR
 - The PR is the one checked out where the review runs. `cd <worktree> && codex review ...` counts for that worktree's PR, or its branch before it has a PR
 - Refuses any `codex exec`
-- The three checks read only commands the shell would run, including `bash -c '...'` and `eval`
+- The model, second-review and `codex exec` checks look only at commands the shell would run, including `bash -c '...'` and `eval`
 - They ignore quoted arguments, heredocs, grep patterns and `#` comments that only mention a command
 - Refuses any review while `~/.codex/config.toml` points at a local Ollama server
 - A review counts when it starts, so a quota error doesn't buy a retry
@@ -124,13 +124,13 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 ### 💥 blast-radius
 
 - Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
-- Lists the files and size an `rm` would delete. `~` and `$HOME` are expanded; a path with any other shell variable shows "can't preview" instead of a guess
+- Lists the files and size an `rm` would delete. It expands `~` and `$HOME`. A path with any other shell variable shows "can't preview" instead of a guess
 - Lists the remote commits a force push would drop
 - No answer in 60 s cancels the command
 - Claude gets the reason, so an auto-mode or unattended session keeps going
 - The pane counts down (`auto-cancels in 42 s`). It never runs the command on its own
 - Set `timeoutSeconds` to change the wait (`0` waits forever). Change it in `/config`, or in `settings.json` under `pluginConfigs["blast-radius"].options`
-- In a session with no screen attached (a plain `claude -p` run, or an SDK host that draws nothing) it cancels at once, since nobody can answer
+- With no screen attached (a plain `claude -p` run, or an SDK host that draws nothing), it cancels at once. Nobody can answer
 - One command is held at a time. A second one waits its turn, then gets its own full countdown
 
 ### 💾 session-saver
@@ -149,7 +149,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
   - 🔀 a review asked of you, then your PR with failing CI, then one with changes requested
   - 📋 your Linear issues In Progress or In Review, last touched first
   - 💬 DMs and channel @mentions from people (no bots) in the last 2 hours. Slack's connector can't see what you've read
-- Slack has no "mentions me" filter, so glance looks up your Slack user id once and searches for it. The id stays in memory, nothing else from your profile is read
+- Slack has no "mentions me" filter, so glance looks up your Slack user id once and searches for it. glance keeps the id in memory and reads nothing else from your profile
 - On a narrow terminal it shrinks Slack first, then Linear and PRs, and the meeting last
 - Fetches at start, then every 5 minutes. Connector calls cost no model tokens
 - The meeting countdown moves each minute without a fetch
@@ -164,7 +164,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📝 md-preview
 
-- When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn). This includes files written by shell commands. In a turn where Claude runs one, md-preview compares the repo's Markdown files before the first command and at the end of the turn
+- When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn). Files written by shell commands count too. If Claude runs a shell command, md-preview compares the repo's Markdown files before the first command and at the end of the turn
 - `/md` opens a pane on the latest one, `/md <path>` on any file
 - `/md compare <a> <b>` shows two files side by side under their names, for picking between option A and option B
 - `/md open` (or `o` in the pane) opens the rendered page full size in your browser, from a temp file with working links
@@ -176,7 +176,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
   2. A small built-in renderer, when `gh` is missing, signed out or offline
   3. A text view, without Chrome or a terminal that shows images
 - `/mdview` does the same, in case a built-in ever takes `/md`
-- The rendered view needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm), not through tmux. Built and tested on macOS. Headless Chrome draws it in a throwaway profile
+- The rendered view needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm). It does not work through tmux. Built and tested on macOS. Headless Chrome draws the page in a throwaway profile
 - Scripts in the Markdown never run. The page allows only its own script, and the built-in renderer drops script tags, event handlers and `javascript:` links
 - **Privacy:** with the GitHub renderer, the file's text goes to GitHub's API under your own `gh` login. Nothing else is sent anywhere. Images the file links to on the web load in that Chrome, the same as on GitHub
 
