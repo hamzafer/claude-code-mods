@@ -114,7 +114,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 ### 💥 blast-radius
 
 - Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
-- Lists the files and size an `rm` would delete
+- Lists the files and size an `rm` would delete. `~` and `$HOME` are expanded; a path with any other shell variable shows "can't preview" instead of a guess
 - Lists the remote commits a force push would drop
 - No answer in 60 s cancels the command
 - Claude gets the reason, so an auto-mode or unattended session keeps going

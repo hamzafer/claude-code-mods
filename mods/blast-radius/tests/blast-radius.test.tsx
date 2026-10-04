@@ -6,8 +6,9 @@ const PANE = { component: 'Pane', requestId: 'blast-radius', props: { title: 'Bl
 
 // Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open, a terminal that draws.
 // Its clock is the test's: pass one from mock.clock to move it, or the engine makes its own.
-function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true } = {}) {
+function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true, previews = [] as string[][] } = {}) {
   if (!clock) mock.clock(on)
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('session.surfaces', () => ({ value: surfaces }))
   on('tool.call', (_$: any, e: any) => {
     ran.push(e.command)
@@ -15,6 +16,7 @@ function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] a
   })
   on('process.run', async (_$: any, e: any) => {
     const argv: string[] = e.argv
+    if (argv[0] === 'bash') previews.push(argv.slice(4)) // the targets the preview looks at
     if (argv[0] === 'sleep') await new Promise(done => (globalThis as any).setTimeout(done, 5)) // a real wait, so the hold loop yields
     const stdout = argv[0] === 'bash'
       ? ['S 1126', ...Array.from({ length: 9 }, (_, i) => `F build/chunk-${i}.js`)].join('\n')
@@ -99,6 +101,33 @@ describe('blast-radius', () => {
     const call = $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/deep/demo/build' } as any)
     const ui = await heldPane($)
     expect(await ui.find({ type: 'Text', text: /^  build\/chunk-1\.js$/ })).toBeDefined()
+    await ui.press({ key: 'cancel' })
+    await call
+    await ui.unmount()
+  })
+
+  test('a path with a shell variable says it cannot preview, never "nothing"', async ($, on) => {
+    const ran: string[] = []
+    const previews: string[][] = []
+    engine(on, ran, { previews })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf $S/build' } as any)
+    const ui = await heldPane($)
+    expect(await ui.find({ type: 'Text', text: /can't preview: a path uses a shell variable, check by hand/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /\$S\/build/ })).toBeDefined()
+    expect(previews).toEqual([]) // nothing measured, so no false "nothing"
+    await ui.press({ key: 'cancel' })
+    const r: any = await call
+    expect(r.deny).toMatch(/can't preview/)
+    await ui.unmount()
+  })
+
+  test('~ and $HOME are expanded before the preview', async ($, on) => {
+    const ran: string[] = []
+    const previews: string[][] = []
+    engine(on, ran, { previews })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf ~/build $HOME/cache' } as any)
+    const ui = await heldPane($)
+    expect(previews[0]).toEqual(['/home/me/build', '/home/me/cache'])
     await ui.press({ key: 'cancel' })
     await call
     await ui.unmount()

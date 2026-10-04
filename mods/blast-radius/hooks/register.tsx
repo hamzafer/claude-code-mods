@@ -186,21 +186,34 @@ export function classify(command: string): Risk | null {
 }
 
 // What the command would touch, from the tools' own commands.
+// Paths the preview can't resolve without running the command: shell variables, command substitution, ~user.
+const UNRESOLVED = /[$`]|^~[^/]/
+
 async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldCommand, 'summary' | 'details'>> {
-  const init = found.cwd ? { cwd: found.cwd } : undefined
+  // ~ and $HOME are expanded here; anything else with a variable is reported as unknown, never as "nothing".
+  const home = (await $.env.get('HOME').catch(() => undefined)) ?? ''
+  const expand = (p: string) => (home ? p.replace(/^~(?=\/|$)/, home).replace(/\$\{HOME\}|\$HOME\b/g, home) : p)
+  const cwd = found.cwd ? expand(found.cwd) : undefined
+  const init = cwd && !UNRESOLVED.test(cwd) ? { cwd, timeoutMs: 10_000 } : { timeoutMs: 10_000 }
   try {
     if (found.risk === 'delete') {
+      const targets = (found.targets ?? []).map(expand)
+      const unknown = targets.filter(t => UNRESOLVED.test(t))
+      if (unknown.length > 0 || (cwd !== undefined && UNRESOLVED.test(cwd))) {
+        const list = unknown.length > 0 ? unknown : [`cd ${found.cwd}`]
+        return { summary: `can't preview: ${list.length === 1 ? 'a path uses' : `${list.length} paths use`} a shell variable, check by hand`, details: list.slice(0, MAX_LISTED) }
+      }
       // Unquoted $t expands globs, and nothing else, without running the command.
       const script =
         'shopt -s nullglob; for t in "$@"; do for p in $t; do [ -e "$p" ] || continue; ' +
-        'echo "S $(du -sk "$p" | cut -f1)"; find "$p" -type f | sed "s/^/F /"; done; done'
-      const r = await $.process.run(['bash', '-c', script, 'blast-radius', ...(found.targets ?? [])], init)
+        'echo "S $(du -sk "$p" | cut -f1)"; find "$p" -type f | head -n 5000 | sed "s/^/F /"; done; done'
+      const r = await $.process.run(['bash', '-c', script, 'blast-radius', ...targets], init)
       const lines = r.stdout.split('\n')
-      const files = lines.filter(l => l.startsWith('F ')).map(l => short(l.slice(2), found.targets ?? []))
+      const files = lines.filter(l => l.startsWith('F ')).map(l => short(l.slice(2), targets))
       const kb = lines.filter(l => l.startsWith('S ')).reduce((sum, l) => sum + Number(l.slice(2)), 0)
       if (files.length === 0 && kb === 0) return { summary: 'delete nothing that exists right now', details: [] }
       return {
-        summary: `delete ${files.length} file${files.length === 1 ? '' : 's'} (${size(kb)})`,
+        summary: `delete ${files.length >= 5000 ? '5000+' : files.length} file${files.length === 1 ? '' : 's'} (${size(kb)})`,
         details: files.slice(0, MAX_LISTED),
       }
     }
