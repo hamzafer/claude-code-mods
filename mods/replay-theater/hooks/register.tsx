@@ -21,6 +21,10 @@ export const register: Register = on => {
     const r = await next(e)
     cwd = e.cwd
     toasted = false
+    if (showing) {
+      showing = false
+      $.ui.status(undefined) // a new session starts without the last one's count
+    }
     await $.command.register({ name: 'replay', description: "Step through the last turn's file edits" }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     return r
   })
