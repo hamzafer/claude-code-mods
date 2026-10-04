@@ -128,7 +128,7 @@ async function pollOnce($: EngineInterface) {
   if (ps.exitCode !== 0) return
   const lines = ps.stdout.split('\n').filter(l => isCodexReview(l)).map(plain)
   for (const v of running) {
-    const isAlive = lines.some(l => l.includes(v.key ?? 'codex review'))
+    const isAlive = lines.some(l => `${l} `.includes(`${v.key ?? 'codex review'} `)) // whole arguments: `--base main` is not `--base main2`
     const polls = (v.polls ?? 0) + 1
     if (!isAlive && (v.seen || polls >= UNSEEN_POLLS)) {
       await finish($, v.id, false)
