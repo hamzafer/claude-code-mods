@@ -133,6 +133,19 @@ describe('blast-radius', () => {
     await ui.unmount()
   })
 
+  test("a quoted '~' is not previewed as the home folder", async ($, on) => {
+    const ran: string[] = []
+    const previews: string[][] = []
+    engine(on, ran, { previews })
+    const call = $.tool.call({ tool: 'Bash', command: "rm -rf '~' \"$HOME/x\"" } as any)
+    const ui = await heldPane($)
+    expect(await ui.find({ type: 'Text', text: /can't preview: 2 paths use a shell variable/ })).toBeDefined()
+    expect(previews).toEqual([])
+    await ui.press({ key: 'cancel' })
+    await call
+    await ui.unmount()
+  })
+
   test('a safe command is never held', async ($, on) => {
     const ran: string[] = []
     engine(on, ran)
