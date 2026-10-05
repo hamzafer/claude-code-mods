@@ -13,8 +13,9 @@ const SPLIT = '   '
 // /context's theme gives several rows the same grey, so each used row gets its own color, in order.
 const PALETTE = ['#7aa2f7', '#7dcfff', '#bb9af7', '#9ece6a', '#e0af68', '#f7768e', '#73daca', '#ff9e64', '#c0caf5']
 const MESSAGES = '#d97757' // the row that grows, in the accent color
-const FREE = '#3b4048'
-const BUFFER = '#5c6370'
+const FREE = '#808080' // a mid grey thin line reads as empty on dark and light themes alike
+const BUFFER = '#808080'
+const GLYPH = { used: '█', free: '─', buffer: '░' } as const
 
 // Held by the host, so the bar survives a hot reload of this file.
 const reading = atom({ plugin: 'context-bar', key: 'reading' } as const, null as Reading | null)
@@ -83,7 +84,7 @@ export const register: Register = on => {
               {line.map((s, i) => (
                 <Text>
                   {i > 0 && <Text>{SPLIT}</Text>}
-                  <Text color={s.color}>{s.kind === 'buffer' ? '░ ' : '■ '}</Text>
+                  <Text color={s.color}>{s.kind === 'used' ? '■ ' : `${GLYPH[s.kind]} `}</Text>
                   <Text dimColor={s.kind !== 'used'}>{`${s.name} `}</Text>
                   <Text bold={s.kind === 'used'}>{tokens(s.tokens)}</Text>
                   {s.kind === 'used' && <Text dimColor>{` ${share(s.tokens, r.window)}`}</Text>}
@@ -146,7 +147,7 @@ export function cells(r: Reading, width: number) {
     diff -= size - sizes[i]!
     sizes[i] = size
   }
-  return r.slices.map((s, i) => ({ color: s.color, kind: s.kind, text: (s.kind === 'buffer' ? '░' : '█').repeat(sizes[i]!) })).filter(c => c.text !== '')
+  return r.slices.map((s, i) => ({ color: s.color, kind: s.kind, text: GLYPH[s.kind].repeat(sizes[i]!) })).filter(c => c.text !== '')
 }
 
 // The legend, packed into lines no wider than `width`.

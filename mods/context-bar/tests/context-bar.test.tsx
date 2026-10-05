@@ -64,9 +64,10 @@ describe('context-bar', () => {
     expect(r.slices.map(s => s.name)).toEqual(['system prompt', 'system tools', 'mcp tools', 'messages', 'free space', 'autocompact buffer'])
     expect(r.compactsAt).toBe(950_000)
     // Every used row has its own color, and none matches free space or the buffer.
-    const colors = r.slices.map(s => s.color)
+    const colors = r.slices.filter(s => s.kind === 'used').map(s => s.color)
     expect(new Set(colors).size).toBe(colors.length)
     expect(cells(r, 80).find(c => c.kind === 'buffer')?.text).toMatch(/^░+$/)
+    expect(cells(r, 80).find(c => c.kind === 'free')?.text).toMatch(/^─+$/)
 
     for (const width of [20, 47, 80, 200]) {
       const bar = cells(r, width)
