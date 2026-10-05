@@ -46,6 +46,9 @@ describe('snake mod', () => {
     expect((await $.command.run({ command: 'snake', args: '' } as any)).text).toMatch(/Snake is off/)
     expect((await $.command.run({ command: 'snake', args: 'on' } as any)).text).toMatch(/Snake is on/)
     expect((await $.command.run({ command: 'snake', args: 'on' } as any)).text).toMatch(/Snake is on/)
+    expect((await $.command.run({ command: 'snake', args: 'off' } as any)).text).toMatch(/Snake is off/)
+    expect((await $.command.run({ command: 'snake', args: 'stpo' } as any)).text).toMatch(/^usage:/) // a typo changes nothing
+    expect((await $.command.run({ command: 'snake', args: '' } as any)).text).toMatch(/Snake is on/)
   })
 
   test('turned on mid-turn it plays right away; off, the spinner is untouched', async ($, on) => {
