@@ -322,23 +322,23 @@ async function command($: EngineInterface, args: string) {
   const words = args.trim().split(/\s+/).filter(Boolean)
   if (words[0] === 'open') return { text: await openInBrowser($) }
   if (words[0] === 'compare') {
-    if (words.length !== 3) return { text: `md-preview: /${session.command} compare <fileA> <fileB>` }
+    if (words.length !== 3) return { text: `usage: /${session.command} compare <fileA> <fileB>` }
     const [a, b] = [absolute(words[1] as string), absolute(words[2] as string)]
     for (const f of [a, b]) {
-      if (!MD_FILE.test(f)) return { text: `md-preview: ${base(f)} is not a .md, .mdx or .markdown file.` }
-      if (!(await $.fs.exists(f).catch(() => false))) return { text: `md-preview: no file at ${f}` }
+      if (!MD_FILE.test(f)) return { text: `${base(f)} is not a .md, .mdx or .markdown file.` }
+      if (!(await $.fs.exists(f).catch(() => false))) return { text: `no file at ${f}` }
     }
     await update($, pair, () => ({ a, b }))
     await update($, files, list => list.map(f => (f.path === a || f.path === b ? { ...f, at: Date.now() } : f)))
     await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
     void renderSoon($).catch(() => {})
-    return { text: `md-preview: ${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
+    return { text: `${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
   }
   let target: string | null = null
   if (words.length) {
     const abs = absolute(args.trim())
-    if (!MD_FILE.test(abs)) return { text: 'md-preview: give a .md, .mdx or .markdown file.' }
-    if (!(await $.fs.exists(abs).catch(() => false))) return { text: `md-preview: no file at ${abs}` }
+    if (!MD_FILE.test(abs)) return { text: 'give a .md, .mdx or .markdown file.' }
+    if (!(await $.fs.exists(abs).catch(() => false))) return { text: `no file at ${abs}` }
     await update($, files, list => (list.some(f => f.path === abs) ? list : [{ path: abs, at: Date.now(), marks: [] }, ...list].slice(0, MAX_FILES)))
     target = abs
   } else {
@@ -346,12 +346,12 @@ async function command($: EngineInterface, args: string) {
   }
   // Read again now: it may have changed outside Claude since it was last drawn.
   if (target) await update($, files, list => list.map(f => (f.path === target ? { ...f, at: Date.now() } : f)))
-  if (!target) return { text: `md-preview: no Markdown edits yet this session. /${session.command} <path> opens a file.` }
+  if (!target) return { text: `no Markdown edits yet this session. /${session.command} <path> opens a file.` }
   await update($, shown, () => target)
   await update($, pair, () => null)
   await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
   void renderSoon($).catch(() => {})
-  return { text: `md-preview: ${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
+  return { text: `${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
 }
 
 function resetSnapshot() {
