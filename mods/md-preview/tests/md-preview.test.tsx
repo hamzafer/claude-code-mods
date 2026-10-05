@@ -318,10 +318,10 @@ describe('md-preview', () => {
   test('o and /md open open the page in the browser from a temp file', async ($, on) => {
     const { runs, writes } = engine(on, { gh: 'missing' })
     await start($)
-    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/nothing to open yet/)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^nothing to open yet/)
     await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
     const r = await $.command.run({ command: 'md', args: 'open' } as any)
-    expect(r.text).toMatch(/opened README\.md in the browser/)
+    expect(r.text).toMatch(/^opened README\.md in the browser/)
     const open = runs.find(x => x.argv[0] === 'open')
     expect(open?.argv[1]).toMatch(/^\/tmp\/md-preview\/open-\d+\.html$/)
     const page = writes[open?.argv[1] ?? ''] ?? ''

@@ -205,7 +205,7 @@ export const register: Register = on => {
           <Button key="before" label={isCompare ? 'Single' : 'Before'} hotkey="b" onPress={() => toggleCompare($)} />
           <Button key="again" label="Render" hotkey="r" onPress={() => again($)} />
           <Button key="view" label={v === 'page' ? 'Text' : 'Page'} hotkey="t" onPress={() => toggleView($)} />
-          <Button key="open" label="Browser" hotkey="o" onPress={() => void openInBrowser($).then(t => $.ui.toast(t)).catch(() => {})} />
+          <Button key="open" label="Browser" hotkey="o" onPress={() => void openInBrowser($).then(t => $.ui.toast(`md-preview: ${t}`)).catch(() => {})} />
           <Button key="close" label="Close" hotkey="q" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
         </Box>
         {p && (
@@ -597,19 +597,20 @@ async function findChrome($: EngineInterface) {
 }
 
 // The same page, full size in the person's own browser: self-contained HTML in a temp file.
+// Its text has no name in front: a command reply gets one from Claude Code, the Browser button's toast adds its own.
 async function openInBrowser($: EngineInterface): Promise<string> {
   if (!(await read($, shown)) && !(await read($, pair))) {
     const latest = (await read($, files))[0]?.path
     if (latest) await update($, shown, () => latest)
   }
   const p = await plan($)
-  if (!p) return `md-preview: nothing to open yet. /${session.command} <path> picks a file.`
+  if (!p) return `nothing to open yet. /${session.command} <path> picks a file.`
   const loaded = await load($, p)
-  if (loaded.length === 0) return `md-preview: cannot read ${p.title}`
+  if (loaded.length === 0) return `cannot read ${p.title}`
   const { sides } = await html($, loaded)
   const file = `${await tmpRoot($)}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
   await $.fs.write(file, page(sides, { title: p.title, width: 0 }))
   const opener = (await $.fs.exists('/usr/bin/open').catch(() => false)) ? 'open' : 'xdg-open'
   const r = await $.process.run([opener, file], { timeoutMs: 10_000 }).catch(() => null)
-  return r && r.exitCode === 0 ? `md-preview: opened ${p.title} in the browser` : `md-preview: could not open the browser. The page is at ${file}`
+  return r && r.exitCode === 0 ? `opened ${p.title} in the browser` : `could not open the browser. The page is at ${file}`
 }
