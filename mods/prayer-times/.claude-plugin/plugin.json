@@ -1,6 +1,6 @@
 {
   "name": "prayer-times",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
   "author": {
     "name": "Hamza Zafar",
