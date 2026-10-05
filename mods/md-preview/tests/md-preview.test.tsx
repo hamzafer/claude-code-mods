@@ -365,6 +365,7 @@ describe('md-preview', () => {
     await $.command.run({ command: 'md', args: 'README.md' } as any)
     const pane = await mount($)
     await until(clock, () => runs.some(x => x.argv[0] === 'sh'))
+    await clock.advance(400) // and no second drawing follows
     expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1)
     expect(runs.filter(x => x.argv[0] === 'gh')).toHaveLength(1)
     await pane.press({ key: 'close' })
