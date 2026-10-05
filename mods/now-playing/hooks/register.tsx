@@ -187,7 +187,9 @@ async function loadLyrics($: EngineInterface, t: Track) {
   let synced = await getJson($, `${LRCLIB}/get?${q({ track_name: t.name, artist_name: t.artist, album_name: t.album, duration: seconds })}`).then(
     (j: any) => (typeof j?.syncedLyrics === 'string' ? j.syncedLyrics : ''),
   )
-  if (!synced) {
+  // Terminals can't draw right-to-left scripts (Urdu, Arabic, Persian, Hebrew) joined and in order,
+  // so look for a romanized version; with none, show no lyric rather than garbled text.
+  if (!synced || isRtl(synced)) {
     const list = await getJson($, `${LRCLIB}/search?${q({ track_name: t.name, artist_name: t.artist })}`)
     synced = pickSynced(Array.isArray(list) ? list : [], t.duration)
   }
@@ -259,12 +261,21 @@ export function lyricAt(l: Lyrics, seconds: number) {
   return line
 }
 
-// The search result with synced lyrics whose length is closest to the track's (within 5 s).
+// The search result with synced lyrics whose length is closest to the track's (within 5 s),
+// skipping right-to-left scripts the terminal would draw garbled.
 export function pickSynced(list: any[], duration: number) {
   const ok = list
-    .filter(x => typeof x?.syncedLyrics === 'string' && x.syncedLyrics && Math.abs(Number(x.duration) - duration) <= 5)
+    .filter(x => typeof x?.syncedLyrics === 'string' && x.syncedLyrics && !isRtl(x.syncedLyrics) && Math.abs(Number(x.duration) - duration) <= 5)
     .sort((a, b) => Math.abs(a.duration - duration) - Math.abs(b.duration - duration))
   return ok[0]?.syncedLyrics ?? ''
+}
+
+// True when most letters are in a right-to-left script (Hebrew, Arabic, Urdu, Persian).
+export function isRtl(text: string) {
+  const letters = text.replace(/\[[^\]]*\]/g, '').match(/\p{L}/gu) ?? []
+  if (letters.length === 0) return false
+  const rtl = letters.filter(c => /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(c)).length
+  return rtl / letters.length > 0.3
 }
 
 export function bar(pos: number, duration: number, width: number) {

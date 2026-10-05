@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { actionOf, bar, clock, lyricAt, parseLrc, parseTrack, pickSynced, positionAt } from '../hooks/register'
+import { actionOf, bar, clock, isRtl, lyricAt, parseLrc, parseTrack, pickSynced, positionAt } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160 } }
 // A made-up track, as osascript prints it.
@@ -57,6 +57,12 @@ describe('now-playing', () => {
 
     expect(pickSynced([{ duration: 260, syncedLyrics: 'far' }, { duration: 202, syncedLyrics: 'near' }, { duration: 200, syncedLyrics: null }], 200)).toBe('near')
     expect(pickSynced([], 200)).toBe('')
+    // Right-to-left lyrics draw garbled in a terminal: a romanized version wins, else none.
+    const urdu = '[00:10.00] تیرے نال عشق ہو گیا\n'
+    expect(isRtl(urdu)).toBe(true)
+    expect(isRtl(LRC)).toBe(false)
+    expect(pickSynced([{ duration: 200, syncedLyrics: urdu }, { duration: 203, syncedLyrics: '[00:10.00] Tere naal ishq ho gaya\n' }], 200)).toMatch(/Tere naal/)
+    expect(pickSynced([{ duration: 200, syncedLyrics: urdu }], 200)).toBe('')
 
     expect(bar(50, 200, 12)).toEqual({ done: '━━━', left: '─────────' })
     expect(bar(0, 0, 4)).toEqual({ done: '', left: '────' })

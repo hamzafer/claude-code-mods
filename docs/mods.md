@@ -235,6 +235,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - **Controls:** click ⏮ ⏸ ⏭ at the end of the line (Claude Code in fullscreen). Or press ctrl+x then Tab to reach the line, then `b` previous, `p` play or pause, `n` next, and Esc to go back. `/music`, `/music next` and `/music prev` work from the prompt anywhere
 - The lyric gets its own line under the track, so the buttons never cut it. It shows a moment early and moves 4 times a second, so it keeps up with the singing
 - On a narrow window the time is cut first, then the progress bar. The buttons stay
+- Terminals can't draw right-to-left scripts (Urdu, Arabic, Persian, Hebrew) properly, so for those songs it looks for romanized lyrics instead. If there are none, the lyric line stays hidden
 - **Without the keys**: `/music` plays or pauses, `/music next` and `/music prev` skip
 - The first time, macOS asks once to let your terminal control Spotify (Automation). Allow it, or the line stays empty. To change it later: System Settings, Privacy & Security, Automation
 - On Linux and Windows it does nothing: no line, no command, nothing runs
