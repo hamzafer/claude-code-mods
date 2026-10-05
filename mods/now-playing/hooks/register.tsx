@@ -36,18 +36,24 @@ const track = atom({ plugin: 'now-playing', key: 'track' } as const, null as Tra
 const lyrics = atom({ plugin: 'now-playing', key: 'lyrics' } as const, null as Lyrics | null)
 const now = atom({ plugin: 'now-playing', key: 'now' } as const, 0)
 
-let isPolling = false // a slow osascript must not let two polls overlap
+let polling: Promise<void> | null = null // a slow osascript must not let two polls overlap
+// Module-level, so a hot reload (which runs register again) can cancel the old loop.
+let timers: Timer[] = []
 
 export const register: Register = (on, options) => {
   const wantsLyrics = options.lyrics !== false
-  let timers: Timer[] = []
   let lastPoll = 0
+  let isMac = false
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'music', description: 'Spotify: play or pause. /music next, /music prev skip' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
-    // One loop per session: a hot reload runs this again, so the old timers go first.
     for (const t of timers) t.cancel()
+    timers = []
+    // Off macOS there is no Spotify to ask: no command, no polling, nothing runs again.
+    const uname = await $.process.run(['uname', '-s'], { timeoutMs: 3_000 }).catch(() => null)
+    isMac = uname?.stdout.trim() === 'Darwin'
+    if (!isMac) return r
+    await $.command.register({ name: 'music', description: 'Spotify: play or pause. /music next, /music prev skip' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     lastPoll = await $.clock.now()
     timers = [
       $.clock.every(1000, () => {
@@ -66,11 +72,18 @@ export const register: Register = (on, options) => {
     return r
   })
 
+  on('session.end', async ($, e, next) => {
+    for (const t of timers) t.cancel()
+    timers = []
+    return next(e)
+  })
+
   // ⌥ Space, ⌥ ← and ⌥ → in an empty prompt control Spotify instead of editing.
   on('prompt.edit', async ($, e, next) => {
-    const action = e.text === '' ? hotkey(e.key) : null
+    const action = isMac && e.text === '' && e.start === 0 && e.end === 0 ? hotkey(e.key) : null
     if (!action || !(await read($, track))) return next(e)
-    await control($, action, wantsLyrics).catch(() => {})
+    // Spotify may have quit since the last poll: then the key is the editor's after all.
+    if (!(await control($, action, wantsLyrics).catch(() => false))) return next(e)
     return { text: '', cursor: 0 } // consumed: the box stays empty
   })
 
@@ -114,26 +127,32 @@ export const register: Register = (on, options) => {
   })
 }
 
-// Reads Spotify's state; on a new track, fetches its lyrics once.
-async function poll($: EngineInterface, wantsLyrics: boolean) {
-  if (isPolling) return
-  isPolling = true
+// Reads Spotify's state; on a new track, fetches its lyrics once. `fresh` waits out a poll
+// already running and reads again, so a control action sees its own result.
+async function poll($: EngineInterface, wantsLyrics: boolean, fresh = false) {
+  if (polling && !fresh) return
+  while (polling) await polling.catch(() => {})
+  polling = pollOnce($, wantsLyrics)
   try {
-    const before = await read($, track)
-    // Closed last time: a cheap pgrep before any osascript, so an idle session runs almost nothing.
-    if (!before) {
-      const pg = await $.process.run(['pgrep', '-x', 'Spotify'], { timeoutMs: 3_000 }).catch(() => null)
-      if (!pg || pg.exitCode !== 0) return
-    }
-    const out = await $.process.run(['osascript', '-e', READ_SCRIPT], { timeoutMs: 5_000 }).catch(() => null)
-    if (!out || out.exitCode !== 0) return
-    const t = parseTrack(out.stdout, await $.clock.now())
-    await update($, track, () => t)
-    if (t) await update($, now, () => t.at)
-    if (t && wantsLyrics && t.id !== before?.id) void loadLyrics($, t).catch(() => {})
+    await polling
   } finally {
-    isPolling = false
+    polling = null
   }
+}
+
+async function pollOnce($: EngineInterface, wantsLyrics: boolean) {
+  const before = await read($, track)
+  // Closed last time: a cheap pgrep before any osascript, so an idle session runs almost nothing.
+  if (!before) {
+    const pg = await $.process.run(['pgrep', '-x', 'Spotify'], { timeoutMs: 3_000 }).catch(() => null)
+    if (!pg || pg.exitCode !== 0) return
+  }
+  const out = await $.process.run(['osascript', '-e', READ_SCRIPT], { timeoutMs: 5_000 }).catch(() => null)
+  if (!out || out.exitCode !== 0) return
+  const t = parseTrack(out.stdout, await $.clock.now())
+  await update($, track, () => t)
+  if (t) await update($, now, () => t.at)
+  if (t && wantsLyrics && t.id !== before?.id) void loadLyrics($, t).catch(() => {})
 }
 
 // Sends one command to Spotify, then reads it back. False when Spotify is not running.
@@ -144,8 +163,9 @@ async function control($: EngineInterface, action: Action, wantsLyrics: boolean)
 end if
 return "closed"`
   const r = await $.process.run(['osascript', '-e', script], { timeoutMs: 5_000 })
+  if (r.exitCode === 0 && r.stdout.trim() === 'closed') await update($, track, () => null) // it quit since the last poll
   if (r.exitCode !== 0 || r.stdout.trim() !== 'ok') return false
-  await poll($, wantsLyrics)
+  await poll($, wantsLyrics, true)
   return true
 }
 

@@ -235,6 +235,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - **Keys**, with an empty prompt: `⌥ Space` play or pause, `⌥ ←` previous, `⌥ →` next. Typing in the prompt keeps the keys for the editor
 - The keys need your terminal to send Option as Alt. Ghostty: `macos-option-as-alt = true`. iTerm2: Settings, Profiles, Keys, Left Option key: Esc+. Terminal.app: Settings, Profiles, Keyboard, Use Option as Meta key
 - **Without the keys**: `/music` plays or pauses, `/music next` and `/music prev` skip
+- The first time, macOS asks once to let your terminal control Spotify (Automation). Allow it, or the line stays empty. To change it later: System Settings, Privacy & Security, Automation
+- On Linux and Windows it does nothing: no line, no command, nothing runs
 - It checks Spotify every 3 s while playing and every 5 s otherwise. The bar moves each second in between. When Spotify is closed it only runs a quick `pgrep`
 - **Privacy:** for lyrics it sends the track, artist and album names to [LRCLIB](https://lrclib.net), once per track. Turn lyrics off in `/config` (now-playing) and nothing is sent. Songs without synced lyrics show no lyric
 

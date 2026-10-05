@@ -10,17 +10,20 @@ const LRC = '[00:58.00] Hold the light up high\n[01:02.50] Paper lanterns in the
 const settle = () => new Promise(done => (globalThis as any).setTimeout(done, 20)) // the first poll runs in the background
 
 // Stands for the engine beneath the mod: a Spotify that answers osascript, and LRCLIB.
-function engine(on: any, spotify: { out: string; isRunning?: boolean }) {
+function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: string }) {
   const runs: string[][] = []
   const urls: string[] = []
+  const commands: string[] = []
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', (_$: any, e: any) => (commands.push(e.name), { value: undefined }))
   on('process.run', (_$: any, e: any) => {
     const argv: string[] = e.argv
+    if (argv[0] === 'uname') return { value: { exitCode: 0, stdout: `${spotify.os ?? 'Darwin'}\n`, stderr: '' } }
     runs.push(argv)
     if (argv[0] === 'pgrep') return { value: { exitCode: spotify.isRunning === false ? 1 : 0, stdout: '', stderr: '' } }
     const script = argv[2] ?? ''
     if (spotify.isRunning === false) return { value: { exitCode: 0, stdout: 'closed\n', stderr: '' } }
+    if (/to playpause/.test(script)) spotify.out = spotify.out.replace(/^(playing|paused)/, s => (s === 'playing' ? 'paused' : 'playing'))
     if (/to (playpause|next track|previous track)/.test(script)) return { value: { exitCode: 0, stdout: 'ok\n', stderr: '' } }
     return { value: { exitCode: 0, stdout: spotify.out, stderr: '' } }
   })
@@ -31,7 +34,7 @@ function engine(on: any, spotify: { out: string; isRunning?: boolean }) {
   })
   on('prompt.edit', (_$: any, e: any) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
   on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
-  return { runs, urls }
+  return { runs, urls, commands }
 }
 
 describe('now-playing', () => {
@@ -133,9 +136,38 @@ describe('now-playing', () => {
     expect(typed.text).toBe('fix')
     expect(sent()).toEqual(['next track', 'playpause'])
 
-    expect((await $.command.run({ command: 'music', args: 'prev' } as any)).text).toBe('🎵 Paper Lanterns · The Night Owls')
-    expect(sent()).toEqual(['next track', 'playpause', 'previous track'])
+    expect((await $.command.run({ command: 'music', args: 'prev' } as any)).text).toBe('⏸ Paper Lanterns · The Night Owls')
+    expect((await $.command.run({ command: 'music', args: '' } as any)).text).toBe('🎵 Paper Lanterns · The Night Owls') // the new state, read right after
+    expect(sent()).toEqual(['next track', 'playpause', 'previous track', 'playpause'])
     expect((await $.command.run({ command: 'music', args: 'louder' } as any)).text).toMatch(/^Usage/)
+  })
+
+  test('Spotify quits between polls: the hotkey goes to the prompt and the line goes away', async ($, on) => {
+    mock.clock(on, { now: 1_000_000 })
+    const spotify = { out: PLAYING, isRunning: true }
+    engine(on, spotify)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    spotify.isRunning = false
+    const r = await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: ' ', key: { key: ' ', meta: true } } as any)
+    expect(r.text).toBe(' ')
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /🎵|⏸/ })).toBeUndefined()
+    await band.unmount()
+  })
+
+  test('off macOS: no command, nothing runs, no line', async ($, on) => {
+    const clk = mock.clock(on, { now: 1_000_000 })
+    const e = engine(on, { out: PLAYING, os: 'Linux' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    await clk.advance(12_000)
+    expect(e.commands).toEqual([])
+    expect(e.runs).toEqual([])
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /🎵|⏸/ })).toBeUndefined()
+    await band.unmount()
+    expect((await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: ' ', key: { key: ' ', meta: true } } as any)).text).toBe(' ')
   })
 
   test('lyrics off: nothing is fetched', { options: { lyrics: false } }, async ($, on) => {
