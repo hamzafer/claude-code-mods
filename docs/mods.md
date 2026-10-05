@@ -232,8 +232,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - **Needs** macOS and the Spotify desktop app. It reads Spotify through AppleScript, so there is nothing to log in to
 - One line: `🎵 Track · Artist  ━━━━━━────── 1:51/3:14 · ♪ the lyric being sung`
 - Paused, the line dims to the track and artist. Spotify closed, the line goes away. The mod never opens Spotify
-- **Keys**, with an empty prompt: `⌥ Space` play or pause, `⌥ ←` previous, `⌥ →` next. Typing in the prompt keeps the keys for the editor
-- The keys need your terminal to send Option as Alt. Ghostty: `macos-option-as-alt = true`. iTerm2: Settings, Profiles, Keys, Left Option key: Esc+. Terminal.app: Settings, Profiles, Keyboard, Use Option as Meta key
+- **Controls:** click ⏮ ⏸ ⏭ at the end of the line (Claude Code in fullscreen). Or press ctrl+x then Tab to reach the line, then `b` previous, `p` play or pause, `n` next, and Esc to go back. `/music`, `/music next` and `/music prev` work from the prompt anywhere
+- On a narrow window the lyric is cut first, then the progress bar. The buttons stay
 - **Without the keys**: `/music` plays or pauses, `/music next` and `/music prev` skip
 - The first time, macOS asks once to let your terminal control Spotify (Automation). Allow it, or the line stays empty. To change it later: System Settings, Privacy & Security, Automation
 - On Linux and Windows it does nothing: no line, no command, nothing runs

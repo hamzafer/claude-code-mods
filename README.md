@@ -99,7 +99,7 @@ These are built around my own tools and rules. Fork them and change the rules to
 | --- | --- | --- | --- |
 | 📱 | **reels** | YouTube Shorts while Claude works, pauses when it's done | `/reels` |
 | 🐍 | **snake** | Snake while Claude works | `/snake` |
-| 🎵 | **now-playing** | What Spotify is playing, with a progress bar and the lyric being sung. ⌥ Space, ⌥ ← and ⌥ → control it. Needs macOS and the Spotify app | `/music` |
+| 🎵 | **now-playing** | What Spotify is playing, with a progress bar, the lyric being sung, and ⏮ ⏸ ⏭ buttons. Needs macOS and the Spotify app | `/music` |
 
 <a id="mission-control"></a>
 

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { actionOf, bar, clock, hotkey, lyricAt, parseLrc, parseTrack, pickSynced, positionAt } from '../hooks/register'
+import { actionOf, bar, clock, lyricAt, parseLrc, parseTrack, pickSynced, positionAt } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160 } }
 // A made-up track, as osascript prints it.
@@ -32,7 +32,6 @@ function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: strin
     if (e.url.includes('/get?')) return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ syncedLyrics: LRC }) } }
     return { value: { status: 200, ok: true, headers: {}, text: '[]' } }
   })
-  on('prompt.edit', (_$: any, e: any) => ({ text: e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end), cursor: e.start + e.inputText.length }))
   on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
   return { runs, urls, commands }
 }
@@ -64,11 +63,6 @@ describe('now-playing', () => {
     expect(clock(111)).toBe('1:51')
     expect(clock(3_725)).toBe('1:02:05')
 
-    expect(hotkey({ key: ' ', meta: true })).toBe('toggle')
-    expect(hotkey({ key: 'left', meta: true })).toBe('prev')
-    expect(hotkey({ key: 'f', meta: true })).toBe('next')
-    expect(hotkey({ key: 'left' })).toBeNull() // a plain arrow is the editor's
-    expect(hotkey({ key: ' ', meta: true, ctrl: true })).toBeNull()
     expect(actionOf('')).toBe('toggle')
     expect(actionOf(' Next ')).toBe('next')
     expect(actionOf('back')).toBe('prev')
@@ -117,41 +111,42 @@ describe('now-playing', () => {
     await band.unmount()
     expect(e.runs.every(a => a[0] === 'pgrep')).toBe(true)
     expect((await $.command.run({ command: 'music', args: '' } as any)).text).toMatch(/^Spotify is not running/)
-    // ⌥ Space with nothing playing stays the editor's.
-    expect((await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: ' ', key: { key: ' ', meta: true } } as any)).text).toBe(' ')
   })
 
-  test('hotkeys in an empty prompt and /music control Spotify', async ($, on) => {
+  test('the ⏮ ⏸ ⏭ buttons and /music control Spotify', async ($, on) => {
     mock.clock(on, { now: 1_000_000 })
     const e = engine(on, { out: PLAYING })
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await settle()
     const sent = () => e.runs.map(a => /to (playpause|next track|previous track)/.exec(a[2] ?? '')?.[1]).filter(Boolean)
 
-    const r = await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: '', key: { key: 'right', meta: true } } as any)
-    expect(r.text).toBe('')
-    await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: ' ', key: { key: ' ', meta: true } } as any)
-    // With a draft, the keys are the editor's.
-    const typed = await $.prompt.edit({ origin: { kind: 'user' }, text: 'fix', cursor: 3, start: 0, end: 0, inputText: '', key: { key: 'left', meta: true } } as any)
-    expect(typed.text).toBe('fix')
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    await band.press({ key: 'next' })
+    await band.press({ key: 'toggle' })
+    await settle()
     expect(sent()).toEqual(['next track', 'playpause'])
+    expect(await band.find({ type: 'Text', text: '⏸' })).toBeDefined() // paused now: the line dims
+    await band.press({ key: 'prev' })
+    await settle()
+    expect(sent()).toEqual(['next track', 'playpause', 'previous track'])
+    await band.unmount()
 
-    expect((await $.command.run({ command: 'music', args: 'prev' } as any)).text).toBe('⏸ Paper Lanterns · The Night Owls')
     expect((await $.command.run({ command: 'music', args: '' } as any)).text).toBe('🎵 Paper Lanterns · The Night Owls') // the new state, read right after
-    expect(sent()).toEqual(['next track', 'playpause', 'previous track', 'playpause'])
+    expect((await $.command.run({ command: 'music', args: 'next' } as any)).text).toBe('🎵 Paper Lanterns · The Night Owls')
+    expect(sent()).toEqual(['next track', 'playpause', 'previous track', 'playpause', 'next track'])
     expect((await $.command.run({ command: 'music', args: 'louder' } as any)).text).toMatch(/^Usage/)
   })
 
-  test('Spotify quits between polls: the hotkey goes to the prompt and the line goes away', async ($, on) => {
+  test('Spotify quits between polls: a button press clears the line', async ($, on) => {
     mock.clock(on, { now: 1_000_000 })
     const spotify = { out: PLAYING, isRunning: true }
     engine(on, spotify)
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await settle()
-    spotify.isRunning = false
-    const r = await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: ' ', key: { key: ' ', meta: true } } as any)
-    expect(r.text).toBe(' ')
     const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    spotify.isRunning = false
+    await band.press({ key: 'toggle' })
+    await settle()
     expect(await band.find({ type: 'Text', text: /🎵|⏸/ })).toBeUndefined()
     await band.unmount()
   })
@@ -167,7 +162,6 @@ describe('now-playing', () => {
     const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /🎵|⏸/ })).toBeUndefined()
     await band.unmount()
-    expect((await $.prompt.edit({ origin: { kind: 'user' }, text: '', cursor: 0, start: 0, end: 0, inputText: ' ', key: { key: ' ', meta: true } } as any)).text).toBe(' ')
   })
 
   test('lyrics off: nothing is fetched', { options: { lyrics: false } }, async ($, on) => {

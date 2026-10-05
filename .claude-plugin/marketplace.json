@@ -61,7 +61,7 @@
     },
     {
       "name": "now-playing",
-      "description": "What Spotify is playing, one line above the prompt: track, progress and the lyric being sung. ⌥ Space, ⌥ ← and ⌥ → or /music control it. macOS.",
+      "description": "What Spotify is playing, one line above the prompt: track, progress and the lyric being sung, with ⏮ ⏸ ⏭ buttons. /music controls it too. macOS.",
       "version": "0.1.0",
       "source": "./mods/now-playing"
     },

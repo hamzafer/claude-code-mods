@@ -2,10 +2,10 @@
 //   One line above the prompt: the track and artist, a progress bar, the time, and the
 //   lyric line being sung (synced lyrics from LRCLIB, fetched once per track). Paused, the
 //   line dims; Spotify closed, it goes away. The mod never opens Spotify itself.
-//   With an empty prompt, ⌥ Space plays or pauses, ⌥ ← goes back and ⌥ → skips (the
-//   terminal must send Option as Alt). /music, /music next and /music prev do the same.
+//   ⏮ ⏯ ⏭ at the end of the line are buttons: click them, or ctrl+x tab to the band and
+//   press b, p or n. /music, /music next and /music prev do the same from the prompt.
 import { atom, read, update } from 'claude-code'
-import type { ClientKeyEvent, EngineInterface, Register, Timer } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Lyrics, Track } from '../types'
 
@@ -78,15 +78,6 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // ⌥ Space, ⌥ ← and ⌥ → in an empty prompt control Spotify instead of editing.
-  on('prompt.edit', async ($, e, next) => {
-    const action = isMac && e.text === '' && e.start === 0 && e.end === 0 ? hotkey(e.key) : null
-    if (!action || !(await read($, track))) return next(e)
-    // Spotify may have quit since the last poll: then the key is the editor's after all.
-    if (!(await control($, action, wantsLyrics).catch(() => false))) return next(e)
-    return { text: '', cursor: 0 } // consumed: the box stays empty
-  })
-
   on('command.run', { command: 'music' }, async ($, e) => {
     const action = actionOf(e.args)
     if (!action) return { text: 'Usage: /music (play or pause), /music next, /music prev' }
@@ -102,24 +93,33 @@ export const register: Register = (on, options) => {
     const tick = await read($, now) // subscribes the line to the clock
     if (e.props.hasSurvey || !t) return rest
     const l = await read($, lyrics)
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const press = (action: Action) => () => void control($, action, wantsLyrics).catch(() => false)
     const pos = positionAt(t, Math.max(tick, t.at))
     const sung = l && l.id === t.id ? lyricAt(l, pos) : ''
     const isPaused = t.state !== 'playing'
     const b = bar(pos, t.duration, BAR)
     return (
       <Box flexDirection="column">
-        <Box paddingX={1}>
-          <Text wrap="truncate-end">
-            {/* A leading emoji is drawn plain: some terminals shift or clip a bold one. */}
-            <Text dimColor={isPaused}>{isPaused ? '⏸' : '🎵'}</Text>
-            <Text bold={!isPaused} dimColor={isPaused}>{` ${t.name}`}</Text>
-            <Text dimColor>{` · ${t.artist}`}</Text>
-            {!isPaused && <Text color="#1db954">{`  ${b.done}`}</Text>}
-            {!isPaused && <Text dimColor>{b.left}</Text>}
-            {!isPaused && <Text dimColor>{` ${clock(pos)}/${clock(t.duration)}`}</Text>}
-            {!isPaused && sung !== '' && <Text dimColor italic>{` · ♪ ${sung}`}</Text>}
-          </Text>
+        <Box paddingX={1} flexDirection="row">
+          {/* Narrow, the end of this Text goes first (the lyric, then the bar); the buttons stay. */}
+          <Box flexGrow={1} flexShrink={1}>
+            <Text wrap="truncate-end">
+              {/* A leading emoji is drawn plain: some terminals shift or clip a bold one. */}
+              <Text dimColor={isPaused}>{isPaused ? '⏸' : '🎵'}</Text>
+              <Text bold={!isPaused} dimColor={isPaused}>{` ${t.name}`}</Text>
+              <Text dimColor>{` · ${t.artist}`}</Text>
+              {!isPaused && <Text color="#1db954">{`  ${b.done}`}</Text>}
+              {!isPaused && <Text dimColor>{b.left}</Text>}
+              {!isPaused && <Text dimColor>{` ${clock(pos)}/${clock(t.duration)}`}</Text>}
+              {!isPaused && sung !== '' && <Text dimColor italic>{` · ♪ ${sung}`}</Text>}
+            </Text>
+          </Box>
+          <Box flexShrink={0} flexDirection="row" gap={0} marginLeft={2}>
+            <Button key="prev" hotkey="b" label="⏮" onPress={press('prev')} />
+            <Button key="toggle" hotkey="p" label={isPaused ? '▶' : '⏸'} onPress={press('toggle')} />
+            <Button key="next" hotkey="n" label="⏭" onPress={press('next')} />
+          </Box>
         </Box>
         {rest}
       </Box>
@@ -191,15 +191,6 @@ async function getJson($: EngineInterface, url: string): Promise<unknown> {
     .then(r => (r.ok ? JSON.parse(r.text) : null))
     .catch(() => null)
   return Promise.race([fetched, timeout])
-}
-
-// ⌥ Space, ⌥ ←/→ (or the ⌥b and ⌥f a terminal may send for them) as an action.
-export function hotkey(key: ClientKeyEvent | undefined): Action | null {
-  if (!key?.meta || key.ctrl) return null
-  if (key.key === ' ' || key.key === 'space') return 'toggle'
-  if (key.key === 'left' || key.key === 'b') return 'prev'
-  if (key.key === 'right' || key.key === 'f') return 'next'
-  return null
 }
 
 export function actionOf(args: string): Action | null {
