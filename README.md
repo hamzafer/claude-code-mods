@@ -43,6 +43,7 @@ Restart Claude Code and type `/mission` (or `/mission code` to open the code map
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |
 | 🔍 | **review-watch** | One live line per running code review (Codex or a review subagent) with the model, target, elapsed time and Codex's latest output. A toast lists the findings when it ends | |
 | 🌐 | **browser-lanes** | Whether this session has a browser, and who holds it | `/browser` |
+| 🕌 | **prayer-times** | The current prayer and how long is left, the next one, and zawal. Computed on your computer, Hanafi or standard Asr | `/prayers` |
 | 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
 | 📝 | **md-preview** | Renders the Markdown files Claude edits like GitHub does, with before and after side by side. Needs Chrome and a terminal that shows images | `/md` |
 

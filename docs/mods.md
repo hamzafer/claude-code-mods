@@ -7,7 +7,7 @@
 
 ### 📏 Lines above the prompt
 
-- context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, browser-lanes, merge-gate, glance and session-saver each add one
+- context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance and session-saver each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -164,6 +164,22 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - The meeting countdown moves each minute without a fetch
 - A source that stops answering keeps its last answer, dimmed
 - `/glance` refreshes and lists everything behind the line
+
+### 🕌 prayer-times
+
+- **Set it up:** your latitude and longitude in `/config` (prayer-times). They stay in your local settings. The times are computed on your computer from the sun's position, so nothing is sent anywhere
+- In a prayer's time it shows that prayer and the time left to pray it, then the next prayer: `🕌 Asr · 1h 12m left · next Maghrib 19:08`. Under 20 minutes left turns yellow
+- Ends (Hanafi): Fajr at sunrise, Dhuhr when Asr begins, Asr at sunset, Maghrib when Isha begins, Isha at Fajr
+- Red when not to pray: zawal before Dhuhr (`⛔ Zawal · no prayer for 4m`), the minutes after sunrise, and the last minutes before sunset. Before Dhuhr the line also says when zawal starts
+- Settings:
+  - Asr: `hanafi` (shadow twice an object's length) or `standard`
+  - Fajr and Isha convention: `karachi`, `mwl`, `isna`, `egypt` or `makkah`
+  - A rule for far north or south, where in summer the sun never gets low enough for Fajr or Isha
+  - `adjust` to match your mosque or app to the minute, e.g. `asr+2 isha-5 fajr 1.5`. Adjusting Dhuhr moves its start, not zawal
+- With no sunrise or sunset at all (polar day or night), it uses latitude 65° and marks the line as an estimate
+- Daylight-saving days are handled: every time is computed as an exact moment, then shown on your clock
+- Times are within a minute or two of online tables. Those often add a few minutes to Asr, which `adjust` can match
+- A toast when each prayer begins (turn it off in `/config`). `/prayers` lists today's times
 
 ### 🎬 replay-theater
 
