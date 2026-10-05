@@ -18,6 +18,12 @@
       "source": "./mods/blast-radius"
     },
     {
+      "name": "context-bar",
+      "description": "Your context window as a stacked bar above the prompt, one color per category like /context, with the compaction point. /context-bar shows or hides it.",
+      "version": "0.1.0",
+      "source": "./mods/context-bar"
+    },
+    {
       "name": "browser-lanes",
       "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. A subagent that wants the browser waits until the one using it is done.",
       "version": "0.1.2",

@@ -35,6 +35,7 @@ Restart Claude Code and type `/mission` (or `/mission code` to open the code map
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 🛰️ | **mission-control** | Live map of agents, tool calls and the code they touch | `/mission` |
+| 📊 | **context-bar** | Your context window as one stacked bar, a color per category like `/context`, with token counts and where it compacts | `/context-bar` |
 | 🌦️ | **token-weather** | Context fill from Clear to Compact soon, plus a prompt-cache countdown | |
 | 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
 | ➡️ | **next-steps** | 2 or 3 likely next prompts after each turn, one key to draft one | `1` `2` `3`, `0` hides |

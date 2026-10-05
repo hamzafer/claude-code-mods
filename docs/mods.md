@@ -7,7 +7,7 @@
 
 ### 📏 Lines above the prompt
 
-- token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, browser-lanes, merge-gate, glance and session-saver each add one
+- context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, browser-lanes, merge-gate, glance and session-saver each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -28,6 +28,15 @@
 - The Code view is macOS only and needs a terminal that shows images (Ghostty, kitty, iTerm2)
 - A file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed
 - One Haiku call after each turn writes the line under each changed file
+
+### 📊 context-bar
+
+- One bar the width of the band, split by what fills the window: system prompt, tools, MCP tools, memory files, skills, messages, then free space and the compaction buffer. The colors are the ones `/context` uses
+- The header shows the tokens in use, the window, where auto-compaction runs, and the percent. The percent turns yellow at 70% of the compaction point and red at 90%
+- The legend lists each category's tokens and share of the window. Tool schemas loaded on demand are left out, as `/context` leaves them out of its grid
+- It refreshes after each of the main agent's turns and after a compaction, from the same breakdown `/context` draws, estimated locally (no extra API calls)
+- `/context-bar` hides or shows it. The choice is kept across sessions
+- Pairs with token-weather: that one tracks the trend and the cache, this one shows what the tokens are
 
 ### 🌦️ token-weather
 
