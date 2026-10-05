@@ -39,6 +39,18 @@ describe('snake mod', () => {
     expect(opened).toEqual(['snake', 'snake']) // off again: nothing new
   })
 
+  test('a bare /snake toggles, and /snake on keeps it on', async ($, on) => {
+    engine(on, {}, [])
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    expect((await $.command.run({ command: 'snake', args: '' } as any)).text).toMatch(/Snake is on/)
+    expect((await $.command.run({ command: 'snake', args: '' } as any)).text).toMatch(/Snake is off/)
+    expect((await $.command.run({ command: 'snake', args: 'on' } as any)).text).toMatch(/Snake is on/)
+    expect((await $.command.run({ command: 'snake', args: 'on' } as any)).text).toMatch(/Snake is on/)
+    expect((await $.command.run({ command: 'snake', args: 'off' } as any)).text).toMatch(/Snake is off/)
+    expect((await $.command.run({ command: 'snake', args: 'stpo' } as any)).text).toMatch(/^usage:/) // a typo changes nothing
+    expect((await $.command.run({ command: 'snake', args: '' } as any)).text).toMatch(/Snake is on/)
+  })
+
   test('turned on mid-turn it plays right away; off, the spinner is untouched', async ($, on) => {
     engine(on, {}, [])
     on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: e.props.message ?? e.props.word }))

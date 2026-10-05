@@ -1,5 +1,5 @@
 // Snake: play in a pane while Claude works; it pauses when Claude is done.
-// Nothing opens until /snake; /snake stop turns it off again.
+// Nothing opens until /snake; /snake again (or /snake stop) turns it off.
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
@@ -16,7 +16,7 @@ export const register: Register = on => {
   let isWorking = false // a main-loop turn is running, whether or not Snake is on
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'snake', description: 'Play Snake in a pane while Claude works; /snake stop ends it', argumentHint: '[stop]' }).catch(() => {})
+    await $.command.register({ name: 'snake', description: 'Turn Snake on or off: it plays in a pane while Claude works', argumentHint: '[on|off]' }).catch(() => {})
     const saved = Number(await $.store.get(BEST_KEY).catch(() => 0)) || 0
     await update($, best, b => Math.max(b, saved))
     return r
@@ -40,16 +40,20 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'snake' }, async ($, e) => {
-    if (e.args.trim().toLowerCase() === 'stop') {
+    const arg = e.args.trim().toLowerCase()
+    if (!['', 'on', 'off', 'stop'].includes(arg)) return { text: 'usage: /snake toggles it, /snake on or /snake off says which' }
+    // A bare /snake toggles; `stop` and `on` say which.
+    const isOff = arg === 'stop' || arg === 'off' || (arg !== 'on' && (await read($, isOn)))
+    if (isOff) {
       await update($, isOn, () => false)
       await update($, isPlaying, () => false)
       await $.ui.close({ id: PANE })
-      return { text: 'Snake is off. /snake turns it back on.' }
+      return { text: 'Snake is off. /snake (or /snake on) turns it back on.' }
     }
     await update($, isOn, () => true)
     await update($, isPlaying, () => isWorking) // turned on mid-turn: play now, not next turn
     await $.ui.open({ id: PANE, title: 'Snake', focus: true })
-    return { text: 'Snake is on. It plays while Claude works. /snake stop turns it off.' }
+    return { text: 'Snake is on. It plays while Claude works. /snake again turns it off.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
