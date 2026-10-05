@@ -192,7 +192,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 ### 📱🐍 reels and snake
 
 - Installing them changes nothing until you type `/reels` or `/snake`
-- `stop` turns them off again
+- `stop` turns them off again. For snake, typing `/snake` again does it too
 - Reels needs Playwright once, and `/reels` prints the install command
 - `/reels login` opens a YouTube window to accept cookies or sign in. Close it, then run `/reels`
 - In the reels pane, `j` is next, `k` previous, `m` mute and `x` stop

@@ -1,6 +1,6 @@
 {
   "name": "snake",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing opens until /snake.",
   "author": {
     "name": "Hamza Zafar",
