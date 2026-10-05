@@ -1,4 +1,4 @@
-<p align="center"><img src="images/claude-wave.gif" alt="" width="96"></p>
+<p align="center"><img src="images/claude-wave.gif" alt="" width="56"></p>
 
 <h1 align="center">Claude Code mods</h1>
 
