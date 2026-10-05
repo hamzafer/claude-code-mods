@@ -60,6 +60,12 @@
       "source": "./mods/next-steps"
     },
     {
+      "name": "now-playing",
+      "description": "What Spotify is playing, one line above the prompt: track, progress and the lyric being sung. ⌥ Space, ⌥ ← and ⌥ → or /music control it. macOS.",
+      "version": "0.1.0",
+      "source": "./mods/now-playing"
+    },
+    {
       "name": "prayer-times",
       "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
       "version": "0.1.3",

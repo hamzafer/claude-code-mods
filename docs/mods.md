@@ -9,7 +9,7 @@
 
 ![lines above the prompt](../images/bands.png)
 
-- context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance and session-saver each add one
+- context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -226,6 +226,17 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - The rendered view needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm). It does not work through tmux. Built and tested on macOS. Headless Chrome draws the page in a throwaway profile
 - Scripts in the Markdown never run. The page allows only its own script, and the built-in renderer drops script tags, event handlers and `javascript:` links
 - **Privacy:** with the GitHub renderer, the file's text goes to GitHub's API under your own `gh` login. In a GitHub repo, that happens for every Markdown file Claude edits, in the background at the end of the turn, even if you never open `/md`. Nothing else is sent anywhere. Images the file links to on the web load in that Chrome, the same as on GitHub
+
+### 🎵 now-playing
+
+- **Needs** macOS and the Spotify desktop app. It reads Spotify through AppleScript, so there is nothing to log in to
+- One line: `🎵 Track · Artist  ━━━━━━────── 1:51/3:14 · ♪ the lyric being sung`
+- Paused, the line dims to the track and artist. Spotify closed, the line goes away. The mod never opens Spotify
+- **Keys**, with an empty prompt: `⌥ Space` play or pause, `⌥ ←` previous, `⌥ →` next. Typing in the prompt keeps the keys for the editor
+- The keys need your terminal to send Option as Alt. Ghostty: `macos-option-as-alt = true`. iTerm2: Settings, Profiles, Keys, Left Option key: Esc+. Terminal.app: Settings, Profiles, Keyboard, Use Option as Meta key
+- **Without the keys**: `/music` plays or pauses, `/music next` and `/music prev` skip
+- It checks Spotify every 3 s while playing and every 5 s otherwise. The bar moves each second in between. When Spotify is closed it only runs a quick `pgrep`
+- **Privacy:** for lyrics it sends the track, artist and album names to [LRCLIB](https://lrclib.net), once per track. Turn lyrics off in `/config` (now-playing) and nothing is sent. Songs without synced lyrics show no lyric
 
 ### 📱🐍 reels and snake
 
