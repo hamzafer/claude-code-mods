@@ -95,7 +95,9 @@ export const register: Register = (on, options) => {
     if (!cfg) {
       return (
         <Box flexDirection="column">
-          <Text dimColor wrap="truncate-end">{'🕌 prayer-times: set your latitude and longitude in /config. They stay on this computer'}</Text>
+          <Box paddingX={1}>
+            <Text dimColor wrap="truncate-end">{'🕌 prayer-times: set your latitude and longitude in /config. They stay on this computer'}</Text>
+          </Box>
           {rest}
         </Box>
       )
@@ -103,20 +105,22 @@ export const register: Register = (on, options) => {
     const s = status(cfg, new Date(t), makruh, zawal)
     return (
       <Box flexDirection="column">
-        <Text wrap="truncate-end">
-          {s.parts.map((p, i) => {
-            // A leading emoji is drawn plain: some terminals shift or clip a bold one.
-            const icon = /^(\p{Extended_Pictographic}\uFE0F?) /u.exec(p.text)?.[1]
-            const label = icon ? p.text.slice(icon.length) : p.text
-            return (
-              <Text>
-                {i > 0 && <Text dimColor>{' · '}</Text>}
-                {icon && <Text>{icon}</Text>}
-                <Text color={p.color} bold={p.bold} dimColor={p.dim}>{label}</Text>
-              </Text>
-            )
-          })}
-        </Text>
+        <Box paddingX={1}>
+          <Text wrap="truncate-end">
+            {s.parts.map((p, i) => {
+              // A leading emoji is drawn plain: some terminals shift or clip a bold one.
+              const icon = /^(\p{Extended_Pictographic}\uFE0F?) /u.exec(p.text)?.[1]
+              const label = icon ? p.text.slice(icon.length) : p.text
+              return (
+                <Text>
+                  {i > 0 && <Text dimColor>{' · '}</Text>}
+                  {icon && <Text>{icon}</Text>}
+                  <Text color={p.color} bold={p.bold} dimColor={p.dim}>{label}</Text>
+                </Text>
+              )
+            })}
+          </Text>
+        </Box>
         {rest}
       </Box>
     )
