@@ -229,6 +229,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🎵 now-playing
 
+![now-playing: the track, progress, buttons and the lyric line](../images/now-playing.png)
+
 - **Needs** macOS and the Spotify desktop app. It reads Spotify through AppleScript, so there is nothing to log in to
 - One line: `🎵 Track · Artist  ━━━━━━────── 1:51/3:14 · ♪ the lyric being sung`
 - Paused, the line dims to the track and artist. Spotify closed, the line goes away. The mod never opens Spotify
