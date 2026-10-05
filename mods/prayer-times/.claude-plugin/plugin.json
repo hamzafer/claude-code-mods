@@ -88,7 +88,7 @@
     },
     "toasts": {
       "type": "boolean",
-      "title": "Toast when a prayer begins",
+      "title": "Prayer toasts",
       "default": true,
       "description": "A toast when each prayer time begins, saying until when it lasts, and one before it ends. Off turns off both."
     }

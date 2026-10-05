@@ -180,7 +180,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Daylight-saving days are handled: every time is computed as an exact moment, then shown on your clock
 - Times are within a minute or two of online tables. Those often add a few minutes to Asr, which `adjust` can match
 - A toast when each prayer begins (turn it off in `/config`). `/prayers` lists today's times
-- A toast when a prayer's time is nearly over: `⏳ Dhuhr ends in 15 min (16:32)`. It comes once per prayer, also if you start a session in those last minutes. Set how many minutes before in `/config` (15 by default, 0 turns it off). Asr warns too, since its time runs to sunset
+- A toast when a prayer's time is nearly over: `⏳ Dhuhr ends in 15 min (16:32)`. It comes once per prayer, also if you start a session in those last minutes. Set how many minutes before in `/config` (15 by default, 0 turns it off). For Asr it warns before the makruh minutes start: `⏳ Asr: makruh in 15 min (18:23), sunset 18:38`
 
 ### 🎬 replay-theater
 

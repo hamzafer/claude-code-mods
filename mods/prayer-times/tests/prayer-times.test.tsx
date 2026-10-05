@@ -92,11 +92,15 @@ describe('prayer-times', () => {
     expect(due(t.asr - 3 / 60)?.text).toMatch(/^⏳ Dhuhr ends in 3 min/) // a session started late still hears it once
     expect(due(t.asr - 10 / 60, 0)).toBeNull()
     expect(due(t.asr - 10 / 60, 30)?.text).toMatch(/^⏳ Dhuhr ends in 10 min/)
-    // Asr runs to sunset, so it warns through the makruh minutes; its key differs from Dhuhr's.
+    // Without makruh minutes, Asr warns before sunset; its key differs from Dhuhr's.
     const asr = due(t.sunset - 10 / 60, 15, w.key)!
     expect(asr.text).toBe(`⏳ Asr ends in 10 min (${hhmm(at(t.sunset))})`)
     expect(asr.key).not.toBe(w.key)
     expect(due(t.sunset - 10 / 60, 15, asr.key)).toBeNull()
+    // With makruh minutes, Asr warns before they begin, not when the line already says not to pray.
+    const early = (h: number) => deadlineDue(status(LONDON, at(h)), at(h), 15, '', 15)
+    expect(early(t.sunset - 31 / 60)).toBeNull()
+    expect(early(t.sunset - 30 / 60)?.text).toBe(`⏳ Asr: makruh in 15 min (${hhmm(at(t.sunset - 15 / 60))}), sunset ${hhmm(at(t.sunset))}`)
     // Between prayers there is nothing to warn about.
     expect(due(t.sunrise + 1)).toBeNull()
   })

@@ -64,7 +64,7 @@ export const register: Register = (on, options) => {
           toasted = key
           $.ui.toast(`🕌 ${s.current.name} has begun · until ${hhmm(s.current.end)}`)
         }
-        const due = deadlineDue(s, new Date(t), warnMinutes, warned)
+        const due = deadlineDue(s, new Date(t), warnMinutes, warned, makruh)
         if (due) {
           warned = due.key
           $.ui.toast(due.text)
@@ -153,13 +153,16 @@ export function status(cfg: Config, at: Date, makruh = 15, zawal = 5) {
 // The warning that the current prayer's time is nearly over, once per window (`warned` is the last key warned).
 // It also comes when the session starts inside the last minutes, but not for a window no longer than the warning,
 // whose start toast already says when it ends. Asr warns too: its time runs to sunset, through the makruh minutes.
-export function deadlineDue(s: Pick<ReturnType<typeof status>, 'current'>, at: Date, warnMinutes: number, warned: string) {
+// Asr's real deadline is the start of the makruh minutes before sunset, so it warns before those.
+export function deadlineDue(s: Pick<ReturnType<typeof status>, 'current'>, at: Date, warnMinutes: number, warned: string, makruh = 0) {
   const w = s.current
   if (!w || !(warnMinutes > 0)) return null
   const key = `${w.name}@${w.start.getTime()}`
-  const left = (w.end.getTime() - at.getTime()) / MIN
+  const end = w.name === 'Asr' && makruh > 0 ? new Date(w.end.getTime() - makruh * MIN) : w.end
+  const left = (end.getTime() - at.getTime()) / MIN
   const length = (w.end.getTime() - w.start.getTime()) / MIN
   if (key === warned || left <= 0 || left > warnMinutes || length <= warnMinutes) return null
+  if (end !== w.end) return { key, text: `⏳ Asr: makruh in ${Math.ceil(left)} min (${hhmm(end)}), sunset ${hhmm(w.end)}` }
   return { key, text: `⏳ ${w.name} ends in ${Math.ceil(left)} min (${hhmm(w.end)})` }
 }
 
