@@ -116,7 +116,7 @@
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "source": "./mods/where-am-i"
     }
   ]
