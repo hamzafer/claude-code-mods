@@ -13,11 +13,23 @@
   <a href="#-install">Install</a> · <a href="#-the-mods">All mods</a> · <a href="docs/mods.md">Docs</a> · <a href="https://claude.dev/blog/getting-started-with-claude-code-mods/">What are mods?</a>
 </p>
 
-| | | |
-| :---: | :---: | :---: |
-| [<img src="images/context-bar.png" alt="context-bar" width="280">](docs/mods.md#-context-bar)<br>📊 **context-bar**<br>what fills your context | [<img src="images/review-watch.png" alt="review-watch" width="280">](docs/mods.md#-review-watch)<br>🔍 **review-watch**<br>running code reviews, live | [<img src="images/md-preview.png" alt="md-preview" width="280">](docs/mods.md#-md-preview)<br>📝 **md-preview**<br>Markdown rendered like GitHub |
-| [<img src="images/blast-radius.png" alt="blast-radius" width="280">](docs/mods.md#-blast-radius)<br>💥 **blast-radius**<br>see what `rm -rf` would delete | [<img src="images/replay-theater.png" alt="replay-theater" width="280">](docs/mods.md#-replay-theater)<br>🎬 **replay-theater**<br>step through the last turn's edits | [<img src="images/reels-demo.gif" alt="reels" width="280">](docs/mods.md#-reels-and-snake)<br>📱 **reels**<br>Shorts while Claude works |
-| [<img src="images/where-am-i.png" alt="where-am-i" width="280">](docs/mods.md#-where-am-i)<br>📍 **where-am-i**<br>goal, now, waiting on you | [<img src="images/bands.png" alt="lines above the prompt" width="280">](docs/mods.md#-lines-above-the-prompt)<br>🌦️ **token-weather** and friends<br>lines above the prompt | [<img src="images/mission-control.gif" alt="mission-control" width="280">](#mission-control)<br>🛰️ **mission-control**<br>agents and the code they touch |
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="docs/mods.md#-context-bar"><img src="images/context-bar.png" alt="context-bar" width="260"></a><br>📊 <b>context-bar</b><br>what fills your context</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-review-watch"><img src="images/review-watch.png" alt="review-watch" width="260"></a><br>🔍 <b>review-watch</b><br>running code reviews, live</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-md-preview"><img src="images/md-preview.png" alt="md-preview" width="260"></a><br>📝 <b>md-preview</b><br>Markdown rendered like GitHub</td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/mods.md#-blast-radius"><img src="images/gallery/blast-radius.png" alt="blast-radius" width="260"></a><br>💥 <b>blast-radius</b><br>see what <code>rm -rf</code> would delete</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-replay-theater"><img src="images/gallery/replay-theater.png" alt="replay-theater" width="260"></a><br>🎬 <b>replay-theater</b><br>step through the last turn's edits</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-reels-and-snake"><img src="images/reels-demo.gif" alt="reels" width="260"></a><br>📱 <b>reels</b><br>Shorts while Claude works</td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/mods.md#-where-am-i"><img src="images/gallery/where-am-i.png" alt="where-am-i" width="260"></a><br>📍 <b>where-am-i</b><br>goal, now, waiting on you</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-lines-above-the-prompt"><img src="images/gallery/lines.png" alt="token-weather and friends" width="260"></a><br>🌦️ <b>token-weather and friends</b><br>lines above the prompt</td>
+    <td align="center" width="33%"><a href="#mission-control"><img src="images/gallery/mission-control.png" alt="mission-control" width="260"></a><br>🛰️ <b>mission-control</b><br>agents and the code they touch</td>
+  </tr>
+</table>
 
 ## 🚀 Install
 
