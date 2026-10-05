@@ -3,12 +3,14 @@
 //   next one; zawal and the makruh minutes after sunrise and before sunset in red. The times
 //   are computed on this computer from the latitude and longitude in /config (the sun's
 //   position, as prayer apps do it), so the location is never sent anywhere.
-//   /prayers lists today's times.
+//   /prayers lists today's times. A toast says when a prayer begins, and again when its time
+//   is nearly over.
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 const MIN = 60_000
 const SOON_MIN = 20 // the time left turns yellow under this many minutes
+const LAST_MIN = 5 // and red under this many
 
 // The sun's angle below the horizon for Fajr and Isha; Makkah's Isha is a fixed 90 minutes after Maghrib.
 const METHODS = {
@@ -41,16 +43,19 @@ export const register: Register = (on, options) => {
   const makruh = num(options.makruhMinutes, 15)
   const zawal = num(options.zawalMinutes, 5)
   const toasts = options.toasts !== false
+  const warnMinutes = Math.min(120, num(options.warnMinutes, 15))
   let toasted = ''
+  let warned = ''
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     await $.command.register({ name: 'prayers', description: "Today's prayer times" }).catch(() => {})
-    await update($, now, () => Date.now())
-    // The line moves each minute; a toast marks the start of each prayer.
+    const first = await $.clock.now()
+    await update($, now, () => first)
+    // The line moves each minute; a toast marks the start of each prayer, and another its last minutes.
     $.clock.every(30_000, () => {
       void (async () => {
-        const t = Date.now()
+        const t = await $.clock.now()
         await update($, now, () => t)
         if (!cfg || !toasts) return
         const s = status(cfg, new Date(t), makruh, zawal)
@@ -58,6 +63,11 @@ export const register: Register = (on, options) => {
         if (s.current && t - s.current.start.getTime() < 60_000 && key !== toasted) {
           toasted = key
           $.ui.toast(`🕌 ${s.current.name} has begun · until ${hhmm(s.current.end)}`)
+        }
+        const due = deadlineDue(s, new Date(t), warnMinutes, warned, makruh)
+        if (due) {
+          warned = due.key
+          $.ui.toast(due.text)
         }
       })().catch(() => {})
     })
@@ -128,7 +138,7 @@ export function status(cfg: Config, at: Date, makruh = 15, zawal = 5) {
   } else if (current) {
     const left = (current.end.getTime() - at.getTime()) / MIN
     parts.push({ text: `🕌 ${current.name}`, bold: true })
-    parts.push({ text: `${until(current.end, at)} left`, color: left < SOON_MIN ? 'yellow' : 'green', bold: left < SOON_MIN })
+    parts.push({ text: `${until(current.end, at)} left`, color: left < LAST_MIN ? 'red' : left < SOON_MIN ? 'yellow' : 'green', bold: left < SOON_MIN })
   } else {
     parts.push({ text: `🕌 ${next.name} in ${until(next.start, at)}`, bold: true })
   }
@@ -138,6 +148,22 @@ export function status(cfg: Config, at: Date, makruh = 15, zawal = 5) {
   if (z && next.name === 'Dhuhr' && !blocked) parts.push({ text: `zawal ${hhmm(z.start)}`, dim: true })
   if (timesFor(cfg, at).estimated) parts.push({ text: 'estimated (no sunrise or sunset today)', dim: true })
   return { parts, current, next, blocked }
+}
+
+// The warning that the current prayer's time is nearly over, once per window (`warned` is the last key warned).
+// It also comes when the session starts inside the last minutes, but not for a window no longer than the warning,
+// whose start toast already says when it ends. Asr warns too: its time runs to sunset, through the makruh minutes.
+// Asr's real deadline is the start of the makruh minutes before sunset, so it warns before those.
+export function deadlineDue(s: Pick<ReturnType<typeof status>, 'current'>, at: Date, warnMinutes: number, warned: string, makruh = 0) {
+  const w = s.current
+  if (!w || !(warnMinutes > 0)) return null
+  const key = `${w.name}@${w.start.getTime()}`
+  const end = w.name === 'Asr' && makruh > 0 ? new Date(w.end.getTime() - makruh * MIN) : w.end
+  const left = (end.getTime() - at.getTime()) / MIN
+  const length = (w.end.getTime() - w.start.getTime()) / MIN
+  if (key === warned || left <= 0 || left > warnMinutes || length <= warnMinutes) return null
+  if (end !== w.end) return { key, text: `⏳ Asr: makruh in ${Math.ceil(left)} min (${hhmm(end)}), sunset ${hhmm(w.end)}` }
+  return { key, text: `⏳ ${w.name} ends in ${Math.ceil(left)} min (${hhmm(w.end)})` }
 }
 
 // One day's windows: each prayer from its start to its end (Hanafi), and the times not to pray, marked with `!`.

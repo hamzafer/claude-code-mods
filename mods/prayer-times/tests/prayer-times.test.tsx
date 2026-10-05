@@ -1,8 +1,9 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { adjustFrom, atHours, computeTimes, hhmm, status, timesFor, until } from '../hooks/register'
+import { adjustFrom, atHours, computeTimes, deadlineDue, hhmm, status, timesFor, until } from '../hooks/register'
 import type { Config, Times } from '../hooks/register'
 
+const MINUTE = 60_000
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 const LONDON: Config = { latitude: 51.5074, longitude: -0.1278, method: 'karachi', asr: 'hanafi', highLatitude: 'angle' }
 
@@ -75,6 +76,35 @@ describe('prayer-times', () => {
     expect(late.parts[1]!.color).toBe('yellow')
   })
 
+  test('the time left: green, yellow under 20 minutes, red under 5', () => {
+    expect(status(LONDON, at(t.asr - 30 / 60)).parts[1]).toMatchObject({ color: 'green' })
+    expect(status(LONDON, at(t.asr - 19 / 60)).parts[1]).toMatchObject({ color: 'yellow', bold: true })
+    expect(status(LONDON, at(t.asr - 5 / 60)).parts[1]).toMatchObject({ color: 'yellow' })
+    expect(status(LONDON, at(t.asr - 4 / 60)).parts[1]).toMatchObject({ text: '4m left', color: 'red', bold: true })
+  })
+
+  test('the deadline warning: at N minutes left, once per prayer, off at 0', () => {
+    const due = (h: number, n = 15, warned = '') => deadlineDue(status(LONDON, at(h)), at(h), n, warned)
+    expect(due(t.asr - 16 / 60)).toBeNull() // more than 15 minutes left
+    const w = due(t.asr - 15 / 60)!
+    expect(w.text).toBe(`⏳ Dhuhr ends in 15 min (${hhmm(at(t.asr))})`)
+    expect(due(t.asr - 10 / 60, 15, w.key)).toBeNull() // already warned for this Dhuhr
+    expect(due(t.asr - 3 / 60)?.text).toMatch(/^⏳ Dhuhr ends in 3 min/) // a session started late still hears it once
+    expect(due(t.asr - 10 / 60, 0)).toBeNull()
+    expect(due(t.asr - 10 / 60, 30)?.text).toMatch(/^⏳ Dhuhr ends in 10 min/)
+    // Without makruh minutes, Asr warns before sunset; its key differs from Dhuhr's.
+    const asr = due(t.sunset - 10 / 60, 15, w.key)!
+    expect(asr.text).toBe(`⏳ Asr ends in 10 min (${hhmm(at(t.sunset))})`)
+    expect(asr.key).not.toBe(w.key)
+    expect(due(t.sunset - 10 / 60, 15, asr.key)).toBeNull()
+    // With makruh minutes, Asr warns before they begin, not when the line already says not to pray.
+    const early = (h: number) => deadlineDue(status(LONDON, at(h)), at(h), 15, '', 15)
+    expect(early(t.sunset - 31 / 60)).toBeNull()
+    expect(early(t.sunset - 30 / 60)?.text).toBe(`⏳ Asr: makruh in 15 min (${hhmm(at(t.sunset - 15 / 60))}), sunset ${hhmm(at(t.sunset))}`)
+    // Between prayers there is nothing to warn about.
+    expect(due(t.sunrise + 1)).toBeNull()
+  })
+
   test('zawal: no prayer, a countdown, then Dhuhr', () => {
     const s = status(LONDON, at(t.noon - 2 / 60))
     expect(s.blocked?.name).toBe('!zawal')
@@ -139,6 +169,19 @@ describe('prayer-times', () => {
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined()
     await band.unmount()
     expect((await $.command.run({ command: 'prayers', args: '' } as any)).text).toMatch(/^Fajr \d\d:\d\d · Sunrise .* Isha \d\d:\d\d \(karachi, hanafi Asr\)$/)
+  })
+
+  test('one toast in the last 15 minutes of Dhuhr', { options: { latitude: 51.5074, longitude: -0.1278, warnMinutes: 15 } }, async ($, on) => {
+    const clock = mock.clock(on, { now: at(t.asr - 20 / 60).getTime() })
+    const toasts: string[] = []
+    on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
+    on('command.register', () => ({ value: undefined }))
+    on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await clock.advance(4 * MINUTE) // 16 minutes left: not yet
+    expect(toasts.filter(x => x.startsWith('⏳'))).toEqual([])
+    await clock.advance(12 * MINUTE) // through the last 15 minutes
+    expect(toasts.filter(x => / ends in /.test(x))).toEqual([expect.stringMatching(/^⏳ Dhuhr ends in 1[45] min \(\d\d:\d\d\)$/)])
   })
 
   test('without a location it asks for one and computes nothing', async ($, on) => {

@@ -1,6 +1,6 @@
 {
   "name": "prayer-times",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
   "author": {
     "name": "Hamza Zafar",
@@ -78,11 +78,19 @@
       "min": 0,
       "max": 30
     },
+    "warnMinutes": {
+      "type": "number",
+      "title": "Warn before a prayer ends (minutes)",
+      "description": "A toast when this many minutes are left to pray the current prayer, once per prayer. 0 turns it off.",
+      "default": 15,
+      "min": 0,
+      "max": 120
+    },
     "toasts": {
       "type": "boolean",
-      "title": "Toast when a prayer begins",
+      "title": "Prayer toasts",
       "default": true,
-      "description": "A toast when each prayer time begins, saying until when it lasts."
+      "description": "A toast when each prayer time begins, saying until when it lasts, and one before it ends. Off turns off both."
     }
   }
 }

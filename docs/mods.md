@@ -168,7 +168,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 ### 🕌 prayer-times
 
 - **Set it up:** your latitude and longitude in `/config` (prayer-times). They stay in your local settings. The times are computed on your computer from the sun's position, so nothing is sent anywhere
-- In a prayer's time it shows that prayer and the time left to pray it, then the next prayer: `🕌 Asr · 1h 12m left · next Maghrib 19:08`. Under 20 minutes left turns yellow
+- In a prayer's time it shows that prayer and the time left to pray it, then the next prayer: `🕌 Asr · 1h 12m left · next Maghrib 19:08`. Under 20 minutes left turns yellow, and under 5 minutes it turns red
 - Ends (Hanafi): Fajr at sunrise, Dhuhr when Asr begins, Asr at sunset, Maghrib when Isha begins, Isha at Fajr
 - Red when not to pray: zawal before Dhuhr (`⛔ Zawal · no prayer for 4m`), the minutes after sunrise, and the last minutes before sunset. Before Dhuhr the line also says when zawal starts
 - Settings:
@@ -180,6 +180,7 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Daylight-saving days are handled: every time is computed as an exact moment, then shown on your clock
 - Times are within a minute or two of online tables. Those often add a few minutes to Asr, which `adjust` can match
 - A toast when each prayer begins (turn it off in `/config`). `/prayers` lists today's times
+- A toast when a prayer's time is nearly over: `⏳ Dhuhr ends in 15 min (16:32)`. It comes once per prayer, also if you start a session in those last minutes. Set how many minutes before in `/config` (15 by default, 0 turns it off). For Asr it warns before the makruh minutes start: `⏳ Asr: makruh in 15 min (18:23), sunset 18:38`
 
 ### 🎬 replay-theater
 
