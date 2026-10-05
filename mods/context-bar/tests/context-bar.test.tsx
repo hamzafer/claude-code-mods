@@ -101,6 +101,16 @@ describe('context-bar', () => {
     expect(asked.length).toBe(2)
   })
 
+  test('refreshes after a compaction', async ($, on) => {
+    const { asked } = engine(on)
+    on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    await settle()
+    expect(asked.length).toBe(2)
+  })
+
   test('/context-bar hides and shows it, and remembers the choice', async ($, on) => {
     const { store } = engine(on)
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)

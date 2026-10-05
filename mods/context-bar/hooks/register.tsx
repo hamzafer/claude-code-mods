@@ -31,6 +31,12 @@ export const register: Register = on => {
     return r
   })
 
+  on('session.compact', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.agentId && 'messages' in r) void refresh($).catch(() => {}) // a /compact empties the window without a turn ending
+    return r
+  })
+
   on('command.run', { command: 'context-bar' }, async $ => {
     const hidden = await update($, isHidden, h => !h)
     await $.store.set('isHidden', hidden).catch(() => {})
@@ -53,7 +59,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box flexDirection="column" borderStyle="round" borderColor="inactive" paddingX={1}>
           <Box flexDirection="row" justifyContent="space-between">
-            <Text>
+            <Text wrap="truncate-end">
               <Text color="#d97757">{'◆ '}</Text>
               <Text bold>context</Text>
             </Text>
@@ -92,7 +98,7 @@ async function refresh($: EngineInterface) {
   if (await read($, isHidden)) return
   const usage = await $.session.usage({ breakdown: 'summary' })
   const b = usage.context.breakdown
-  if (!b) return
+  if (!b || !(b.rawMaxTokens > 0)) return // no window to measure against
   await update($, reading, () => toReading(b))
 }
 
