@@ -21,7 +21,7 @@
   </tr>
   <tr>
     <td align="center" width="33%"><a href="docs/mods.md#-blast-radius"><img src="images/gallery/blast-radius.png" alt="blast-radius" width="260"></a><br>💥 <b>blast-radius</b><br>see what <code>rm -rf</code> would delete</td>
-    <td align="center" width="33%"><a href="docs/mods.md#-replay-theater"><img src="images/gallery/replay-theater.png" alt="replay-theater" width="260"></a><br>🎬 <b>replay-theater</b><br>step through the last turn's edits</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-now-playing"><img src="images/now-playing.png" alt="now-playing" width="260"></a><br>🎵 <b>now-playing</b><br>Spotify and its lyrics, live</td>
     <td align="center" width="33%"><a href="docs/mods.md#-reels-and-snake"><img src="images/reels-demo.gif" alt="reels" width="260"></a><br>📱 <b>reels</b><br>Shorts while Claude works</td>
   </tr>
   <tr>
