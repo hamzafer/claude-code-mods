@@ -2,7 +2,7 @@
 //   One line above the prompt: the track and artist, a progress bar, the time, and the
 //   lyric line being sung (synced lyrics from LRCLIB, fetched once per track). Paused, the
 //   line dims; Spotify closed, it goes away. The mod never opens Spotify itself.
-//   ⏮ ⏯ ⏭ at the end of the line are buttons: click them, or ctrl+x tab to the band and
+//   ⏮ ⏸ ⏭ at the end of the line are buttons: click them, or ctrl+x tab to the band and
 //   press b, p or n. /music, /music next and /music prev do the same from the prompt.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
