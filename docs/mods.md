@@ -7,6 +7,8 @@
 
 ### 📏 Lines above the prompt
 
+![lines above the prompt](../images/bands.png)
+
 - context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance and session-saver each add one
 - They stack
 - Each hides when it has nothing to show
@@ -22,6 +24,8 @@
 
 ### 🛰️ mission-control
 
+![mission-control](../images/mission-control.gif)
+
 - Press `w` for Who, `c` for Code and `q` to close
 - `/mission code` opens straight to the code map, `/mission who` to the agents
 - Headless Chrome (`/Applications/Google Chrome.app`) draws the code map as an image, in a throwaway profile
@@ -30,6 +34,8 @@
 - One Haiku call after each turn writes the line under each changed file
 
 ### 📊 context-bar
+
+![context-bar](../images/context-bar.png)
 
 - One bar the width of the band, split by what fills the window: system prompt, tools, MCP tools, memory files, skills, messages, then free space and the compaction buffer. Each used category gets its own color, messages in orange. Free space is a thin grey line (`─`), and the compaction buffer is hatched (`░`)
 - The header shows the tokens in use, the window, where auto-compaction runs, and the percent. The percent turns yellow at 70% of the compaction point and red at 90%
@@ -50,6 +56,8 @@
 - Set `cacheTtl` to `5m` or `1h` to override (default `auto`). Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
 
 ### 📍 where-am-i
+
+![where-am-i](../images/where-am-i.png)
 
 - Makes one Haiku call after each turn to write the summary
 - `/where` gives a few bullets instead
@@ -81,6 +89,8 @@
 - In the pane, `1` to `9` open that agent's messages, `b` goes back, `c` clears finished agents and `q` closes
 
 ### 🔍 review-watch
+
+![review-watch: a Codex review and a review subagent running](../images/review-watch.png)
 
 - Tracks every `codex review` shell command, in the foreground or background, and every subagent whose description says "review"
 - Each line shows the model (from `-c model=...` or `--model`, else your `~/.codex/config.toml`), the `--title` or what's under review, and the elapsed time. Codex reviews also show the last line Codex printed
@@ -124,6 +134,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📏 rulebook-guard
 
+![rulebook-guard](../images/rulebook-guard.png)
+
 - Rewrites em dashes in `.md`, `.mdx`, `.markdown` and `.txt` writes, commit messages, PR text and Slack posts (code files are left alone)
 - Asks before `git commit --amend`
 - Asks before a `git push` with files that `ruff format` or Prettier would change
@@ -131,6 +143,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - The rules are plain code in `hooks/register.ts`, so change them to match yours
 
 ### 💥 blast-radius
+
+![blast-radius](../images/blast-radius.png)
 
 - Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
 - Lists the files and size an `rm` would delete. It expands `~` and `$HOME`. A path with any other shell variable shows "can't preview" instead of a guess
@@ -167,6 +181,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🕌 prayer-times
 
+![prayer-times](../images/prayer-times.png)
+
 - **Set it up:** your latitude and longitude in `/config` (prayer-times). They stay in your local settings. The times are computed on your computer from the sun's position, so nothing is sent anywhere
 - In a prayer's time it shows that prayer and the time left to pray it, then the next prayer: `🕌 Asr · 1h 12m left · next Maghrib 19:08`. Under 20 minutes left turns yellow, and under 5 minutes it turns red
 - Ends (Hanafi): Fajr at sunrise, Dhuhr when Asr begins, Asr at sunset, Maghrib when Isha begins, Isha at Fajr
@@ -184,11 +200,15 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🎬 replay-theater
 
+![replay-theater](../images/replay-theater.png)
+
 - Run `/replay` after a turn that edited files
 - The first turn with edits shows a toast. After that, the status line shows the last turn's count instead (`▶ /replay: 3 edits`)
 - `n` and `p` step, `q` closes
 
 ### 📝 md-preview
+
+![md-preview: a diff on the left, the rendered page on the right](../images/md-preview.png)
 
 - When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn). Files written by shell commands count too. If Claude runs a shell command, md-preview compares the repo's Markdown files before the first command and at the end of the turn
 - `/md` opens a pane on the latest one, `/md <path>` on any file

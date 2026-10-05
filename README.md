@@ -3,30 +3,31 @@
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml)
 
-**See what your agent is reading and writing, live.**
+**A collection of mods that make Claude Code show what it's doing: live lines above the prompt, guards, panes and games.**
 
-Mods are Claude Code plugins that add live UI and hooks to a session (Claude Code 2.1.287+). [What are mods?](https://claude.dev/blog/getting-started-with-claude-code-mods/)
+Mods are Claude Code plugins that add live UI and hooks to a session (Claude Code 2.1.287+). [What are mods?](https://claude.dev/blog/getting-started-with-claude-code-mods/) Pick the ones you want; each installs on its own.
 
-mission-control draws every subagent, every tool call and every file they touch, in a pane next to the chat.
+| | | |
+| :---: | :---: | :---: |
+| [<img src="images/context-bar.png" alt="context-bar" width="280">](docs/mods.md#-context-bar)<br>📊 **context-bar**<br>what fills your context | [<img src="images/review-watch.png" alt="review-watch" width="280">](docs/mods.md#-review-watch)<br>🔍 **review-watch**<br>running code reviews, live | [<img src="images/md-preview.png" alt="md-preview" width="280">](docs/mods.md#-md-preview)<br>📝 **md-preview**<br>Markdown rendered like GitHub |
+| [<img src="images/blast-radius.png" alt="blast-radius" width="280">](docs/mods.md#-blast-radius)<br>💥 **blast-radius**<br>see what `rm -rf` would delete | [<img src="images/replay-theater.png" alt="replay-theater" width="280">](docs/mods.md#-replay-theater)<br>🎬 **replay-theater**<br>step through the last turn's edits | [<img src="images/prayer-times.png" alt="prayer-times" width="280">](docs/mods.md#-prayer-times)<br>🕌 **prayer-times**<br>the current prayer and time left |
+| [<img src="images/where-am-i.png" alt="where-am-i" width="280">](docs/mods.md#-where-am-i)<br>📍 **where-am-i**<br>goal, now, waiting on you | [<img src="images/bands.png" alt="lines above the prompt" width="280">](docs/mods.md#-lines-above-the-prompt)<br>🌦️ **token-weather** and friends<br>lines above the prompt | [<img src="images/mission-control.gif" alt="mission-control" width="280">](#mission-control)<br>🛰️ **mission-control**<br>agents and the code they touch |
 
-![mission-control at 4x: two subagents and a logout feature landing across four files](images/mission-control.gif)
-
-## 🚀 Try mission-control
+## 🚀 Install any mod
 
 ```sh
 claude plugin marketplace add hamzafer/claude-code-mods
-claude plugin install mission-control@claude-code-mods
+claude plugin install context-bar@claude-code-mods
 ```
 
-Restart Claude Code and type `/mission` (or `/mission code` to open the code map). `q` closes it.
+Swap `context-bar` for any mod below, then restart Claude Code. Or try one without installing:
 
-- 🤖 `w` shows the agents and every tool call, live
-- 🗺️ `c` shows the code map, with import arrows
-- 🔵 **Blue** while the agent reads a file
-- 🟠 **Orange** while it writes
-- 🟢 **Green** when done, with one line on what changed
+```sh
+git clone https://github.com/hamzafer/claude-code-mods && cd claude-code-mods
+claude --plugin-dir mods/context-bar
+```
 
-> **Needs** Claude Code 2.1.287+. The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2). The Who view works everywhere.
+> **Needs** Claude Code 2.1.287+. A few mods need more (Chrome, `gh`, a connector); the tables say which.
 
 ## 🧩 The mods
 
@@ -71,14 +72,23 @@ These are built around my own tools and rules. Fork them and change the rules to
 | 📱 | **reels** | YouTube Shorts while Claude works, pauses when it's done | `/reels` |
 | 🐍 | **snake** | Snake while Claude works | `/snake` |
 
-## 📦 Install any mod
+<a id="mission-control"></a>
 
-Same two commands, with the mod's name in place of `mission-control`. Or try one without installing:
+## 🛰️ Flagship: mission-control
 
-```sh
-git clone https://github.com/hamzafer/claude-code-mods && cd claude-code-mods
-claude --plugin-dir mods/token-weather
-```
+Every subagent, every tool call and every file they touch, in a pane next to the chat. Shown at 4x: two subagents building a logout feature across four files.
+
+![mission-control at 4x: two subagents and a logout feature landing across four files](images/mission-control.gif)
+
+Install it like any mod, restart, and type `/mission` (or `/mission code` to open the code map). `q` closes it.
+
+- 🤖 `w` shows the agents and every tool call, live
+- 🗺️ `c` shows the code map, with import arrows
+- 🔵 **Blue** while the agent reads a file
+- 🟠 **Orange** while it writes
+- 🟢 **Green** when done, with one line on what changed
+
+> The Code view also needs macOS, Google Chrome and a terminal that shows images (Ghostty, kitty, iTerm2). The Who view works everywhere.
 
 ## 📚 More
 

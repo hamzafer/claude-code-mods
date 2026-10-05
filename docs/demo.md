@@ -8,6 +8,30 @@ Shown at 4x: two subagents building a logout feature across four files.
 
 ![mission-control](../images/mission-control.gif)
 
+## 📊 context-bar
+
+What fills the context window, one color per category.
+
+![context-bar](../images/context-bar.png)
+
+## 🔍 review-watch
+
+A Codex review and a review subagent running at once.
+
+![review-watch](../images/review-watch.png)
+
+## 📝 md-preview
+
+The diff Claude wrote on the left, the page rendered like GitHub on the right.
+
+![md-preview](../images/md-preview.png)
+
+## 🕌 prayer-times
+
+The current prayer, the time left, and the next one.
+
+![prayer-times](../images/prayer-times.png)
+
 ## 📱 reels
 
 Plays Shorts while Claude works and pauses when it's done.
