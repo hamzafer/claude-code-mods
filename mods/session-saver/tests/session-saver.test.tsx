@@ -63,6 +63,36 @@ describe('session-saver', () => {
     expect(toasts).toHaveLength(1)
   })
 
+  test('a task notification after a typed prompt leaves the typed one as "you asked"', async ($, on) => {
+    const { store } = engine(on, { turns: 1 })
+    const notice = '<task-notification> <task-id>b03z186zb</task-id> <tool-use-id>t1</tool-use-id> done </task-notification>'
+    await $.prompt.submit({ text: 'fix the login test', origin: { kind: 'composer' } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await $.prompt.submit({ text: notice, origin: { kind: 'task-notification' } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect((store.get('last:sess-1') as any).leftOff).toBe('you asked: fix the login test')
+
+    // Other sessions, schedules and wrapped commands do not count either.
+    await $.prompt.submit({ text: 'Another Claude session sent a message: hi', origin: { kind: 'peer' } } as any)
+    await $.prompt.submit({ text: 'run the nightly sweep', origin: { kind: 'scheduled-trigger' } } as any)
+    await $.prompt.submit({ text: '<local-command-caveat>Caveat</local-command-caveat>', origin: { kind: 'composer' } } as any)
+    await $.prompt.submit({ text: '<command-name>/clear</command-name>' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect((store.get('last:sess-1') as any).leftOff).toBe('you asked: fix the login test')
+
+    // A mod sending the person's words as theirs counts.
+    await $.prompt.submit({ text: 'open a draft PR', origin: { kind: 'plugin', name: 'next-steps', asUser: true } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect((store.get('last:sess-1') as any).leftOff).toBe('you asked: open a draft PR')
+  })
+
+  test('a notification before anything typed saves no "you asked"', async ($, on) => {
+    const { store } = engine(on, { turns: 1 })
+    await $.prompt.submit({ text: '<task-notification>done</task-notification>', origin: { kind: 'task-notification' } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(store.has('last:sess-1')).toBe(false)
+  })
+
   test('/park saves a summary, and a resume shows it until you type', async ($, on) => {
     const { store, toasts } = engine(on, { reply: '{"leftOff":"3 mods tested, Merge Gate needs a PR repo","next":"install"}' })
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
