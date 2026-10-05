@@ -5,6 +5,8 @@
 //   GitHub renders it (gh api /markdown) when the file is in a GitHub repo and gh is
 //   signed in; a small built-in renderer does otherwise. Headless Chrome draws the
 //   page to PNG for the terminal; without Chrome or an image terminal, a text view.
+//   A file Claude edits is drawn ahead, in the background, so /md opens on a page that
+//   is already drawn; drawings are kept by what they show, so n/p back to a file is instant.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -37,6 +39,8 @@ const PART_ROWS = 250 // an Image is at most 255 rows: taller pages come in part
 const SIDE_BY_SIDE_COLUMNS = 120 // narrower panes stack a compare
 const MAX_FILES = 30
 const GH_TIMEOUT_MS = 10_000
+const CACHE_SIZE = 20 // drawings kept, the least recently shown dropped first
+const AHEAD_FILES = 5 // files waiting to be drawn ahead; older ones are dropped
 
 // Draws page.html into part-N.png, PART_ROWS rows each; prints "<rows> <parts>".
 // Headless Chrome writes its output but does not always exit: wait for the file, then
@@ -73,6 +77,13 @@ const note = atom({ plugin: 'md-preview', key: 'note' } as const, '')
 
 // The module's own bookkeeping; a reload starts it over.
 const draw = { pending: false, dirty: false, n: 0, columns: 100, failed: '', drawing: '', opened: 0, force: false }
+// One drawing, in its own folder (frame-<slot>), kept until it is the least recently shown.
+type Drawn = { slot: number; columns: number; parts: { file: string; rows: number }[]; n: number; via: 'GitHub' | 'built-in' }
+const cache = new Map<string, Drawn>() // by what it shows (see cacheKey); oldest first
+const ahead = new Set<string>() // files to draw before /md asks for them; newest last
+const repos = new Map<string, string | null>() // each folder's GitHub repo, from its remotes
+const ghFailed = new Set<string>() // repos whose last GitHub render failed
+const turn = { isOn: false } // the main turn is under way: draw ahead once it ends
 const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
@@ -147,13 +158,17 @@ export const register: Register = on => {
       toasted.clear()
       turnBefore.clear()
       resetSnapshot()
+      turn.isOn = true
     }
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
-    if (!e.agentId && shot.taken) await compareSnapshot($).catch(() => {}) // after next(e): the turn is already over
+    if (e.agentId) return r
+    if (shot.taken) await compareSnapshot($).catch(() => {}) // after next(e): the turn is already over
+    turn.isOn = false
+    await startAhead($).catch(() => {}) // the files the turn changed, each drawn once, as it left them
     return r
   })
 
@@ -285,14 +300,15 @@ function sameView(a: string, b: string) {
 
 // What to show now, without reading any file.
 async function plan($: EngineInterface): Promise<Plan | null> {
-  const list = await read($, files)
+  return planFor(await read($, files), await read($, shown), await read($, pair), await read($, compare))
+}
+
+function planFor(list: MdFile[], path: string | null, two: MdPair, isCompare: boolean): Plan | null {
   const at = (p: string) => list.find(f => f.path === p)?.at ?? 0
-  const two = await read($, pair)
   if (two) return { key: `pair:${two.a}\u0001${at(two.a)}|${two.b}\u0001${at(two.b)}`, title: `${base(two.a)} | ${base(two.b)}`, parts: [{ label: base(two.a), path: two.a }, { label: base(two.b), path: two.b }] }
-  const path = await read($, shown)
   if (!path) return null
   const file = list.find(f => f.path === path)
-  if ((await read($, compare)) && file?.before !== undefined) {
+  if (isCompare && file?.before !== undefined) {
     return { key: `cmp:${path}\u0001${at(path)}`, title: `${base(path)}: before | after`, parts: [{ label: 'Before', path, isBefore: true }, { label: 'After', path }] }
   }
   return { key: `one:${path}\u0001${at(path)}`, title: base(path), parts: [{ path }] }
@@ -330,6 +346,7 @@ async function command($: EngineInterface, args: string) {
     }
     await update($, pair, () => ({ a, b }))
     await update($, files, list => list.map(f => (f.path === a || f.path === b ? { ...f, at: Date.now() } : f)))
+    await fromCache($).catch(() => false) // already drawn: the pane opens on the page
     await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
     void renderSoon($).catch(() => {})
     return { text: `${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
@@ -349,6 +366,7 @@ async function command($: EngineInterface, args: string) {
   if (!target) return { text: `no Markdown edits yet this session. /${session.command} <path> opens a file.` }
   await update($, shown, () => target)
   await update($, pair, () => null)
+  await fromCache($).catch(() => false) // drawn ahead: the pane opens on the page
   await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
   void renderSoon($).catch(() => {})
   return { text: `${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
@@ -435,6 +453,7 @@ async function changed($: EngineInterface, path: string, before: string | null) 
     await renderSoon($)
     return
   }
+  await drawAhead($, path).catch(() => {}) // quick: it queues the drawing, never waits for it
   if (toasted.has(path)) return
   toasted.add(path)
   $.ui.toast(`${base(path)} changed · /${session.command} to preview`)
@@ -456,6 +475,8 @@ async function again($: EngineInterface) {
   session.noChrome = false
   session.chrome = ''
   session.ghDownUntil = 0
+  repos.clear()
+  ghFailed.clear()
   draw.force = true
   await renderSoon($) // the current picture stays up until the new one is ready
 }
@@ -485,17 +506,73 @@ async function renderSoon($: EngineInterface) {
   }
   draw.pending = true
   draw.dirty = false
-  $.clock.after(300, () => {
-    void renderFile($)
-      .catch(async () => {
-        draw.failed = draw.drawing // no retry loop: r tries again
-        await update($, note, () => 'Could not draw the page. Showing text; r tries again.')
-      })
-      .finally(() => {
-        draw.pending = false // only now: two Chromes must never share the profile
-        if (draw.dirty) void drawAgainIfStale($).catch(() => {})
-      })
-  })
+  // Drawn before (ahead, or earlier this session): shown now, no Chrome.
+  if (!draw.force && (await fromCache($).catch(() => false))) {
+    draw.pending = false
+    void afterDraw($).catch(() => {})
+    return
+  }
+  $.clock.after(300, () => void run($, true))
+}
+
+// Draws a file Claude changed, in the background once the turn ends, so /md opens on it drawn.
+// One file waits once: edited again before it is drawn, it is drawn once, as it is then.
+async function drawAhead($: EngineInterface, path: string) {
+  if (!session.canImage || session.noChrome || (await read($, view)) !== 'page') return
+  ahead.delete(path)
+  ahead.add(path)
+  for (const old of ahead) if (ahead.size > AHEAD_FILES) ahead.delete(old)
+  if (!turn.isOn) await startAhead($) // mid-turn, the file may change again: wait for the end
+}
+
+async function startAhead($: EngineInterface) {
+  if (ahead.size === 0 || draw.pending) return // the drawing under way picks it up when done
+  draw.pending = true
+  draw.dirty = false
+  $.clock.after(300, () => void run($, false)) // edits close together wait for each other
+}
+
+// The one drawing at a time, for the pane or ahead: two Chromes must never share the profile.
+// The pane comes first; then the newest file waiting to be drawn ahead.
+async function run($: EngineInterface, forPane: boolean) {
+  let isPane = forPane
+  try {
+    if (!isPane) isPane = await paneNeeds($)
+    if (isPane) await renderFile($)
+    else {
+      const path = turn.isOn ? undefined : [...ahead].pop() // a new turn began: wait for its end
+      if (path !== undefined) {
+        ahead.delete(path)
+        await renderAhead($, path)
+      }
+    }
+  } catch {
+    if (isPane) {
+      draw.failed = draw.drawing // no retry loop: r tries again
+      await update($, note, () => 'Could not draw the page. Showing text; r tries again.').catch(() => {})
+    }
+  } finally {
+    draw.pending = false
+    void afterDraw($).catch(() => {})
+  }
+}
+
+// After a drawing: the pane again if it went stale meanwhile, else the next file to draw ahead.
+async function afterDraw($: EngineInterface) {
+  if (draw.dirty) await drawAgainIfStale($)
+  if (draw.pending || ahead.size === 0 || turn.isOn) return
+  draw.pending = true
+  draw.dirty = false
+  void run($, false)
+}
+
+// Whether the open pane shows something other than what it should.
+async function paneNeeds($: EngineInterface) {
+  const p = await plan($)
+  if (!p || (await read($, view)) !== 'page' || !session.canImage || session.noChrome || !(await paneUp($))) return false
+  const f = await read($, frame)
+  const isStale = (f === null || f.key !== p.key || f.columns !== draw.columns) && draw.failed !== `${p.key}@${draw.columns}`
+  return draw.force || isStale
 }
 
 // After a drawing: once more only if what is on screen is no longer what to show.
@@ -508,19 +585,129 @@ async function drawAgainIfStale($: EngineInterface) {
 
 // GitHub's own renderer, through the person's gh; null when it cannot be used.
 async function github($: EngineInterface, md: string, dir: string): Promise<string | null> {
-  if (Date.now() < session.ghDownUntil) return null
+  if ((await $.clock.now()) < session.ghDownUntil) return null
   if (new TextEncoder().encode(md).length > GH_MAX_BYTES) return null // too large for the API: built-in, no penalty
-  const remotes = await $.process.run(['git', '-C', dir, 'remote', '-v'], { timeoutMs: 5000 }).catch(() => null)
-  const repo = remotes && remotes.exitCode === 0 ? githubRepo(remotes.stdout) : null
+  const repo = await repoOf($, dir)
   if (!repo) return null // not in a GitHub repo: the Markdown stays on this machine
   const r = await $.process
     .run(['gh', 'api', '-X', 'POST', '/markdown', '--input', '-'], { stdin: JSON.stringify({ text: md, mode: 'markdown', context: repo }), timeoutMs: GH_TIMEOUT_MS })
     .catch(() => null)
   if (!r || r.exitCode !== 0 || !r.stdout.trim()) {
-    session.ghDownUntil = Date.now() + 60_000 // offline or signed out: built-in for a minute
+    session.ghDownUntil = (await $.clock.now()) + 60_000 // offline or signed out: built-in for a minute
+    ghFailed.add(repo)
     return null
   }
+  ghFailed.delete(repo)
   return r.stdout
+}
+
+// A folder's GitHub repo, asked of git once (r asks again).
+async function repoOf($: EngineInterface, dir: string): Promise<string | null> {
+  if (repos.has(dir)) return repos.get(dir) ?? null
+  const remotes = await $.process.run(['git', '-C', dir, 'remote', '-v'], { timeoutMs: 5000 }).catch(() => null)
+  const repo = remotes && remotes.exitCode === 0 ? githubRepo(remotes.stdout) : null
+  if (remotes) repos.set(dir, repo) // a git that could not run is asked again next time
+  return repo
+}
+
+// The renderer html() would use now, without asking GitHub. A repo whose last GitHub
+// render failed counts as built-in until one works (or r), so kept drawings stay found.
+async function renderer($: EngineInterface, sides: Loaded[]): Promise<'GitHub' | 'built-in'> {
+  if ((await $.clock.now()) < session.ghDownUntil) return 'built-in'
+  for (const s of sides) {
+    if (new TextEncoder().encode(withMarks(s.text, s.marks)).length > GH_MAX_BYTES) return 'built-in'
+    const repo = await repoOf($, folder(s.path))
+    if (!repo || ghFailed.has(repo)) return 'built-in'
+  }
+  return 'GitHub'
+}
+
+// What a drawing shows: the files, their texts and marks, single or compare, the width, the renderer.
+async function cacheKey(p: Plan, sides: Loaded[], columns: number, via: string) {
+  const what = JSON.stringify([p.key.slice(0, p.key.indexOf(':')), p.title, sides.map(s => [s.label ?? '', s.path, s.text, s.marks]), columns, via])
+  const sum = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(what))
+  return Array.from(new Uint8Array(sum), b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// A kept drawing, now the most recently shown.
+function cached(key: string) {
+  const d = cache.get(key)
+  if (d) {
+    cache.delete(key)
+    cache.set(key, d)
+  }
+  return d
+}
+
+// A folder for a new drawing: one no kept drawing uses and not the one on screen.
+function freeSlot(onScreen: string) {
+  const used = new Set([...cache.values()].map(d => d.slot))
+  let slot = 0
+  while (used.has(slot) || onScreen.includes(`/frame-${slot}/`)) slot++
+  return slot
+}
+
+function keep(key: string, d: Drawn, onScreen: string) {
+  cache.delete(key)
+  cache.set(key, d)
+  for (const [k, old] of cache) {
+    if (cache.size <= CACHE_SIZE) break
+    if (!onScreen.includes(`/frame-${old.slot}/`)) cache.delete(k) // its folder is reused later
+  }
+}
+
+// Draws a plan to PNG parts, or hands back the drawing kept for the same content.
+// null when Chrome could not draw it.
+async function drawPage($: EngineInterface, chrome: string, p: Plan, loaded: Loaded[], columns: number, force: boolean): Promise<Drawn | null> {
+  const want = await renderer($, loaded)
+  const hit = force ? undefined : cached(await cacheKey(p, loaded, columns, want))
+  if (hit) return hit
+  const { sides, via } = await html($, loaded)
+  const root = await tmpRoot($)
+  const f = await read($, frame)
+  const onScreen = f?.parts[0]?.file ?? ''
+  // Never the folder on screen: the script empties its folder first.
+  const slot = freeSlot(onScreen)
+  const pagePath = `${root}/page-${slot}.html`
+  const out = `${root}/frame-${slot}`
+  const width = columns * CELL_PX
+  await $.fs.write(pagePath, page(sides, { title: p.title, width, stacked: columns < SIDE_BY_SIDE_COLUMNS }))
+  const r = await $.process.run(['sh', '-c', SCRIPT, 'md-preview', chrome, fileUrl(pagePath), out, `${root}/chrome`, String(width), '2'], { timeoutMs: 120_000 })
+  const m = r.stdout.match(/(\d+) (\d+)/)
+  if (r.exitCode !== 0 || !m) return null
+  const rows = Number(m[1])
+  const parts = Array.from({ length: Number(m[2]) }, (_, k) => ({ file: `${out}/part-${k}.png`, rows: Math.min(PART_ROWS, rows - k * PART_ROWS) }))
+  draw.n = Math.max(draw.n, f?.n ?? -1) + 1 // a new picture in a folder: a new generation
+  const d: Drawn = { slot, columns, parts, n: draw.n, via }
+  keep(await cacheKey(p, loaded, columns, via), d, onScreen) // kept by the renderer it got
+  return d
+}
+
+// Shows the kept drawing of what the pane should show, when there is one; no Chrome.
+async function fromCache($: EngineInterface) {
+  if ((await read($, view)) !== 'page' || !session.canImage || session.noChrome) return false
+  const p = await plan($)
+  if (!p) return false
+  const columns = draw.columns
+  const loaded = await load($, p)
+  if (loaded.length === 0) return false
+  const d = cached(await cacheKey(p, loaded, columns, await renderer($, loaded)))
+  if (!d) return false
+  await update($, note, () => '')
+  await update($, frame, () => ({ key: p.key, columns, parts: d.parts, n: d.n, via: d.via }))
+  return true
+}
+
+// A file drawn ahead, as /md would show it, at the pane's last width; errors stay quiet.
+async function renderAhead($: EngineInterface, path: string) {
+  if ((await read($, view)) !== 'page' || !session.canImage || session.noChrome) return
+  const chrome = await findChrome($)
+  if (!chrome) return // the pane says so when it opens
+  const p = planFor(await read($, files), path, null, await read($, compare))
+  if (!p) return
+  const loaded = await load($, p)
+  if (loaded.length === 0) return
+  await drawPage($, chrome, p, loaded, draw.columns, false)
 }
 
 // Each side's HTML, from GitHub where it can.
@@ -548,6 +735,7 @@ async function renderFile($: EngineInterface) {
   const columns = draw.columns
   const key = `${p.key}@${columns}`
   draw.drawing = key
+  const force = draw.force // r: draw it again, kept drawing or not
   draw.force = false
   const chrome = await findChrome($)
   if (!chrome) {
@@ -561,28 +749,14 @@ async function renderFile($: EngineInterface) {
     await update($, note, () => `Cannot read ${p.title}. r tries again.`)
     return
   }
-  const { sides, via } = await html($, loaded)
-  const root = await tmpRoot($)
-  // Never the folder on screen: the script empties its folder first.
-  const shownN = (await read($, frame))?.n ?? -1
-  let n = Math.max(draw.n, shownN) + 1
-  if (n % 2 === ((shownN % 2) + 2) % 2) n++
-  draw.n = n
-  const pagePath = `${root}/page-${n % 2}.html`
-  const out = `${root}/frame-${n % 2}`
-  const width = columns * CELL_PX
-  await $.fs.write(pagePath, page(sides, { title: p.title, width, stacked: columns < SIDE_BY_SIDE_COLUMNS }))
-  const r = await $.process.run(['sh', '-c', SCRIPT, 'md-preview', chrome, fileUrl(pagePath), out, `${root}/chrome`, String(width), '2'], { timeoutMs: 120_000 })
-  const m = r.stdout.match(/(\d+) (\d+)/)
-  if (r.exitCode !== 0 || !m) {
+  const d = await drawPage($, chrome, p, loaded, columns, force)
+  if (!d) {
     draw.failed = key
     await update($, note, () => 'Chrome could not draw the page. Showing text; r tries again.')
     return
   }
-  const rows = Number(m[1])
-  const parts = Array.from({ length: Number(m[2]) }, (_, k) => ({ file: `${out}/part-${k}.png`, rows: Math.min(PART_ROWS, rows - k * PART_ROWS) }))
   await update($, note, () => '')
-  await update($, frame, () => ({ key: p.key, columns, parts, n, via }))
+  await update($, frame, () => ({ key: p.key, columns, parts: d.parts, n: d.n, via: d.via }))
 }
 
 async function findChrome($: EngineInterface) {

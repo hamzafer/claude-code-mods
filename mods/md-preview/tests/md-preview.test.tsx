@@ -271,6 +271,93 @@ describe('md-preview', () => {
     await pane.unmount()
   })
 
+  test('an edited file is drawn ahead, so /md opens on the page without drawing again', async ($, on) => {
+    const { runs, writes, clock } = engine(on)
+    await start($)
+    const sh = () => runs.filter(x => x.argv[0] === 'sh').length
+    const gh = () => runs.filter(x => x.argv[0] === 'gh').length
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'Drawn ahead.' } as any)
+    await clock.advance(400)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'one', new_string: 'uno' } as any)
+    await clock.advance(400)
+    expect(sh()).toBe(0) // nothing is drawn while the turn goes on
+    expect(gh()).toBe(0)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await clock.advance(400)
+    expect(sh()).toBe(1) // one drawing, of the text the turn left
+    expect(gh()).toBe(1)
+    const sent = JSON.parse(runs.find(x => x.argv[0] === 'gh')?.stdin ?? '{}').text ?? ''
+    expect(sent).toContain('Drawn ahead.')
+    expect(sent).toContain('uno')
+    expect(Object.keys(writes).filter(p => p.endsWith('.html'))).toHaveLength(1)
+    await $.command.run({ command: 'md', args: '' } as any)
+    const pane = await mount($)
+    expect(await pane.findAll({ type: 'Image' })).toHaveLength(2) // the page, at once
+    expect(await pane.find({ type: 'Text', text: /Rendering/ })).toBeUndefined()
+    await clock.advance(400)
+    expect(sh()).toBe(1) // no new drawing for the same content
+    expect(gh()).toBe(1)
+    await pane.unmount()
+  })
+
+  test('n/p back to a file reuses its drawing; a changed file is drawn again', async ($, on) => {
+    const { runs, writes, clock } = engine(on, { gh: 'missing' })
+    await start($)
+    await $.tool.call({ tool: 'Write', file_path: '/repo/docs/guide.md', content: '# Guide\n\nNew.\n' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    await clock.advance(400)
+    const sh = () => runs.filter(x => x.argv[0] === 'sh').length
+    const drawn = sh() // README for the pane, guide.md ahead
+    expect(drawn).toBe(2)
+    await pane.press({ key: 'next' })
+    await clock.advance(400)
+    await pane.press({ key: 'prev' })
+    await clock.advance(400)
+    await pane.press({ key: 'next' })
+    await clock.advance(400)
+    expect(sh()).toBe(drawn) // back and forth: no Chrome
+    expect(await pane.findAll({ type: 'Image' })).toHaveLength(2)
+    await pane.press({ key: 'close' })
+    await pane.unmount()
+    // Changed while the pane is closed: drawn again, ahead, with the new text, once the turn ends.
+    await $.turn.start({ text: 'more', turnId: 't2' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/docs/guide.md', old_string: 'New.', new_string: 'Newer.' } as any)
+    await clock.advance(400)
+    expect(sh()).toBe(drawn)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await clock.advance(400)
+    expect(sh()).toBe(drawn + 1)
+    expect(Object.values(writes).some(t => t.includes('Newer.'))).toBe(true)
+    await $.command.run({ command: 'md', args: '' } as any)
+    const again = await mount($)
+    await clock.advance(400)
+    expect(sh()).toBe(drawn + 1)
+    expect(await again.findAll({ type: 'Image' })).toHaveLength(2)
+    await again.unmount()
+  })
+
+  test('gh signed out: the built-in drawing is still found after the one-minute wait', async ($, on) => {
+    const { runs, clock } = engine(on, { gh: 'fail' })
+    await start($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    await clock.advance(400)
+    expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1)
+    expect(runs.filter(x => x.argv[0] === 'gh')).toHaveLength(1)
+    await pane.press({ key: 'close' })
+    await pane.unmount()
+    await clock.advance(61_000) // past the wait after gh failed
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const again = await mount($)
+    await clock.advance(400)
+    expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1) // the kept built-in drawing
+    expect(runs.filter(x => x.argv[0] === 'gh')).toHaveLength(1)
+    expect(await again.find({ type: 'Text', text: /built-in/ })).toBeDefined()
+    await again.unmount()
+  })
+
   test('b shows the file before the last edit next to it, stacked when narrow', async ($, on) => {
     const { writes, clock } = engine(on, { gh: 'missing' })
     await start($)
