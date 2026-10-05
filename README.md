@@ -1,27 +1,42 @@
-# <img src="images/claude-wave.gif" alt="" height="40" align="top"> Claude Code mods
+<p align="center"><img src="images/claude-wave.gif" alt="" width="96"></p>
 
-[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml)
+<h1 align="center">Claude Code mods</h1>
 
-**A collection of mods that make Claude Code show what it's doing: live lines above the prompt, guards, panes and games.**
+<p align="center"><b>Make Claude Code show what it's doing.</b><br>Live lines above the prompt, guards, panes and games. Install only the ones you want.</p>
 
-Mods add live UI to Claude Code. Install only the ones you want. [What are mods?](https://claude.dev/blog/getting-started-with-claude-code-mods/)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+  <a href="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml"><img src="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+</p>
+
+<p align="center">
+  <a href="#-install">Install</a> · <a href="#-the-mods">All mods</a> · <a href="docs/mods.md">Docs</a> · <a href="https://claude.dev/blog/getting-started-with-claude-code-mods/">What are mods?</a>
+</p>
 
 | | | |
 | :---: | :---: | :---: |
 | [<img src="images/context-bar.png" alt="context-bar" width="280">](docs/mods.md#-context-bar)<br>📊 **context-bar**<br>what fills your context | [<img src="images/review-watch.png" alt="review-watch" width="280">](docs/mods.md#-review-watch)<br>🔍 **review-watch**<br>running code reviews, live | [<img src="images/md-preview.png" alt="md-preview" width="280">](docs/mods.md#-md-preview)<br>📝 **md-preview**<br>Markdown rendered like GitHub |
 | [<img src="images/blast-radius.png" alt="blast-radius" width="280">](docs/mods.md#-blast-radius)<br>💥 **blast-radius**<br>see what `rm -rf` would delete | [<img src="images/replay-theater.png" alt="replay-theater" width="280">](docs/mods.md#-replay-theater)<br>🎬 **replay-theater**<br>step through the last turn's edits | [<img src="images/reels-demo.gif" alt="reels" width="280">](docs/mods.md#-reels-and-snake)<br>📱 **reels**<br>Shorts while Claude works |
 | [<img src="images/where-am-i.png" alt="where-am-i" width="280">](docs/mods.md#-where-am-i)<br>📍 **where-am-i**<br>goal, now, waiting on you | [<img src="images/bands.png" alt="lines above the prompt" width="280">](docs/mods.md#-lines-above-the-prompt)<br>🌦️ **token-weather** and friends<br>lines above the prompt | [<img src="images/mission-control.gif" alt="mission-control" width="280">](#mission-control)<br>🛰️ **mission-control**<br>agents and the code they touch |
-| [<img src="images/prayer-times.png" alt="prayer-times" width="280">](docs/mods.md#-prayer-times)<br>🕌 **prayer-times**<br>the current prayer and time left | | |
 
-## 🚀 Install any mod
+## 🚀 Install
+
+Add the marketplace once, then install any mod by name:
 
 ```sh
 claude plugin marketplace add hamzafer/claude-code-mods
 claude plugin install context-bar@claude-code-mods
 ```
 
-Swap `context-bar` for any mod below, then restart Claude Code. Or try one without installing:
+Or install the general-purpose set in one go:
+
+```sh
+for m in context-bar token-weather usage-meter where-am-i next-steps agent-radar review-watch replay-theater md-preview blast-radius mission-control; do
+  claude plugin install "$m@claude-code-mods"
+done
+```
+
+Restart Claude Code after installing. To try one without installing:
 
 ```sh
 git clone https://github.com/hamzafer/claude-code-mods && cd claude-code-mods
