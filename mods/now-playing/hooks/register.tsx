@@ -103,7 +103,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         <Box paddingX={1} flexDirection="row">
           {/* Narrow, the end of this Text goes first (the lyric, then the bar); the buttons stay. */}
-          <Box flexGrow={1} flexShrink={1}>
+          <Box flexShrink={1}>
             <Text wrap="truncate-end">
               {/* A leading emoji is drawn plain: some terminals shift or clip a bold one. */}
               <Text dimColor={isPaused}>{isPaused ? '⏸' : '🎵'}</Text>
