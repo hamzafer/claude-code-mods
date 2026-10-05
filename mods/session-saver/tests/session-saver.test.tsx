@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { ago, kebab } from '../hooks/register'
+import { ago, isWrapped, kebab } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
@@ -33,6 +33,11 @@ function engine(on: any, opts: { title?: string; reply?: string; turns?: number;
 
 describe('session-saver', () => {
   test('helpers', () => {
+    expect(isWrapped('<task-notification> <task-id>b1</task-id>')).toBe(true)
+    expect(isWrapped('<local-command-caveat>Caveat</local-command-caveat>')).toBe(true)
+    expect(isWrapped('Another Claude session sent a message: hi')).toBe(true)
+    expect(isWrapped('<div> why is this misaligned?')).toBe(false) // a typed prompt that starts with a tag is still the person's
+    expect(isWrapped('<Foo> crashes on load')).toBe(false)
     expect(kebab('"Ship Mods Today Now Please"')).toBe('ship-mods-today-now')
     expect(ago(0, 30 * 60_000)).toBe('30m ago')
     expect(ago(0, 3 * 3_600_000)).toBe('3h ago')

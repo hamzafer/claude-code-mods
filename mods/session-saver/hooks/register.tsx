@@ -164,7 +164,8 @@ export function isTyped(origin: PromptOrigin | undefined, text: string) {
 // `<local-command-caveat>`, `<command-name>`, `<system-reminder>`, a peer session's message.
 export function isWrapped(text: string) {
   const t = text.trimStart()
-  return /^<[a-z][\w-]*>/i.test(t) || t.startsWith('Another Claude session sent a message')
+  // Only the engine's own wrappers: a prompt the person starts with `<div>` is still theirs.
+  return /^<(task-notification|local-command-caveat|local-command-stdout|command-name|command-message|command-args|system-reminder)\b/.test(t) || t.startsWith('Another Claude session sent a message')
 }
 
 export function kebab(text: string) {
