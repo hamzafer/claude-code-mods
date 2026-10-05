@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { adjustFrom, computeTimes, hhmm, status, timesFor, until } from '../hooks/register'
+import { adjustFrom, atHours, computeTimes, hhmm, status, timesFor, until } from '../hooks/register'
 import type { Config, Times } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
@@ -53,7 +53,7 @@ describe('prayer-times', () => {
     expect(until(new Date(2026, 9, 5, 13, 5), at)).toBe('1h 05m')
     expect(until(new Date(2026, 9, 5, 12, 0, 30), at)).toBe('1m') // rounds up: never "0m" before it ends
     expect(hhmm(new Date(2026, 9, 5, 7, 5))).toBe('07:05')
-    expect(adjustFrom('Asr+2 isha -5 dhuhr+1')).toEqual({ asr: 2, isha: -5, noon: 1 })
+    expect(adjustFrom('Asr+2 isha -5 dhuhr+1 fajr 1.5')).toEqual({ asr: 2, isha: -5, dhuhr: 1, fajr: 1.5 })
     expect(adjustFrom('nonsense')).toEqual({})
     const moved = timesFor({ ...LONDON, adjust: { asr: 2 } }, new Date(2026, 9, 5, 12))
     expect(Math.round((moved.asr - timesFor(LONDON, new Date(2026, 9, 5, 12)).asr) * 60)).toBe(2)
@@ -62,7 +62,7 @@ describe('prayer-times', () => {
   // The status tests use this computer's own time zone, so they place `at` by the computed times.
   const day = new Date(2026, 9, 5, 12)
   const t = timesFor(LONDON, day)
-  const at = (h: number) => new Date(new Date(2026, 9, 5).getTime() + Math.round(h * 60) * 60_000)
+  const at = (h: number) => atHours(day, h)
   const text = (s: ReturnType<typeof status>) => s.parts.map(p => p.text).join(' · ')
 
   test('in a prayer: its name, the time left, then the next prayer', () => {
@@ -97,6 +97,35 @@ describe('prayer-times', () => {
     const s = status(LONDON, new Date(2026, 9, 6, 0, 30))
     expect(s.current?.name).toBe('Isha')
     expect(s.next.name).toBe('Fajr')
+  })
+
+  test('adjusting Dhuhr moves its start, not zawal', () => {
+    const plain = timesFor(LONDON, day)
+    const moved = timesFor({ ...LONDON, adjust: { dhuhr: 5 } }, day)
+    expect(moved.noon).toBe(plain.noon)
+    expect(Math.round((moved.dhuhr - plain.dhuhr) * 60)).toBe(5)
+    const s = status({ ...LONDON, adjust: { dhuhr: 5 } }, atHours(day, plain.noon + 3 / 60)) // zawal over, Dhuhr not yet
+    expect(s.current).toBeUndefined()
+    expect(s.next.name).toBe('Dhuhr')
+  })
+
+  test('polar day: no sunrise or sunset, so it estimates from latitude 65° and says so', () => {
+    const north: Config = { ...LONDON, latitude: 69.6, longitude: 18.9 }
+    const t = computeTimes(north, 2026, 6, 21, 2)
+    expect(t.estimated).toBe(true)
+    for (const k of ['fajr', 'sunrise', 'noon', 'dhuhr', 'asr', 'sunset', 'isha'] as const) expect(Number.isFinite(t[k])).toBe(true)
+    const s = status(north, new Date(2026, 5, 21, 12))
+    expect(s.parts.map(p => p.text).join(' · ')).toMatch(/estimated/)
+    expect(s.parts.map(p => p.text).join(' · ')).not.toMatch(/NaN|Invalid/)
+  })
+
+  test('every day of the year shows the wall-clock times of that day\'s own offset', () => {
+    // On a daylight-saving day the times still match that day's clock (checked on any machine time zone).
+    for (let d = new Date(2026, 0, 1, 12); d.getFullYear() === 2026; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 12)) {
+      const zone = -d.getTimezoneOffset() / 60
+      const local = computeTimes(LONDON, d.getFullYear(), d.getMonth() + 1, d.getDate(), zone)
+      expect(hhmm(atHours(d, timesFor(LONDON, d).dhuhr))).toBe(clock(local.dhuhr))
+    }
   })
 
   test('draws the line from its settings', { options: { latitude: 51.5074, longitude: -0.1278 } }, async ($, on) => {

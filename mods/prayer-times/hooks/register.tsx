@@ -25,11 +25,13 @@ export type Config = {
   method: keyof typeof METHODS
   asr: 'hanafi' | 'standard'
   highLatitude: 'angle' | 'seventh' | 'middle'
-  adjust?: Partial<Record<keyof Times, number>> // minutes, to match a mosque's timetable
+  adjust?: Partial<Record<Adjustable, number>> // minutes, to match a mosque's timetable
 }
 
-// Today's times in hours after local midnight (Isha may pass 24).
-export type Times = { fajr: number; sunrise: number; noon: number; asr: number; sunset: number; isha: number }
+type Adjustable = 'fajr' | 'sunrise' | 'dhuhr' | 'asr' | 'sunset' | 'isha'
+
+// A day's times in hours after midnight UTC of that date (some may fall before 0 or past 24).
+export type Times = { fajr: number; sunrise: number; noon: number; dhuhr: number; asr: number; sunset: number; isha: number; estimated?: boolean }
 
 // Held by the host, so the line keeps ticking across a hot reload.
 const now = atom({ plugin: 'prayer-times', key: 'now' } as const, 0)
@@ -69,8 +71,9 @@ export const register: Register = (on, options) => {
     const at = (h: number) => hhmm(atHours(d, h))
     return {
       text:
-        `Fajr ${at(t.fajr)} · Sunrise ${at(t.sunrise)} · Zawal ${at(t.noon - zawal / 60)} · Dhuhr ${at(t.noon + DHUHR_AFTER)} · ` +
-        `Asr ${at(t.asr)} · Maghrib ${at(t.sunset)} · Isha ${at(t.isha)} (${cfg.method}, ${cfg.asr} Asr)`,
+        `Fajr ${at(t.fajr)} · Sunrise ${at(t.sunrise)} · Zawal ${at(t.noon - zawal / 60)} · Dhuhr ${at(t.dhuhr)} · ` +
+        `Asr ${at(t.asr)} · Maghrib ${at(t.sunset)} · Isha ${at(t.isha)} (${cfg.method}, ${cfg.asr} Asr` +
+        `${t.estimated ? ', no sunrise or sunset today: estimated from latitude 65°' : ''})`,
     }
   })
 
@@ -132,6 +135,7 @@ export function status(cfg: Config, at: Date, makruh = 15, zawal = 5) {
   // Before Dhuhr, say when zawal comes.
   const z = windows.find(w => w.name === '!zawal' && w.start > at)
   if (z && next.name === 'Dhuhr' && !blocked) parts.push({ text: `zawal ${hhmm(z.start)}`, dim: true })
+  if (timesFor(cfg, at).estimated) parts.push({ text: 'estimated (no sunrise or sunset today)', dim: true })
   return { parts, current, next, blocked }
 }
 
@@ -144,7 +148,7 @@ function dayWindows(cfg: Config, day: Date, makruh: number, zawal: number): Wind
     { name: 'Fajr', start: at(t.fajr), end: at(t.sunrise) },
     { name: '!sunrise', start: at(t.sunrise), end: at(t.sunrise + makruh / 60) },
     { name: '!zawal', start: at(t.noon - zawal / 60), end: at(t.noon + DHUHR_AFTER) },
-    { name: 'Dhuhr', start: at(t.noon + DHUHR_AFTER), end: at(t.asr) },
+    { name: 'Dhuhr', start: at(t.dhuhr), end: at(t.asr) },
     { name: 'Asr', start: at(t.asr), end: at(t.sunset) },
     { name: '!sunset', start: at(t.sunset - makruh / 60), end: at(t.sunset) },
     { name: 'Maghrib', start: at(t.sunset), end: at(t.isha) },
@@ -153,24 +157,30 @@ function dayWindows(cfg: Config, day: Date, makruh: number, zawal: number): Wind
 }
 
 // The day's times at the computer's own time zone for that date.
+// The times for the computer's local date, as UTC hours, so a daylight-saving change that day can't shift them.
 export function timesFor(cfg: Config, day: Date): Times {
-  const noonLocal = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12)
-  const zone = -noonLocal.getTimezoneOffset() / 60
-  const t = computeTimes(cfg, day.getFullYear(), day.getMonth() + 1, day.getDate(), zone)
-  for (const [k, m] of Object.entries(cfg.adjust ?? {})) t[k as keyof Times] += m / 60
+  const t = computeTimes(cfg, day.getFullYear(), day.getMonth() + 1, day.getDate(), 0)
+  for (const [k, m] of Object.entries(cfg.adjust ?? {})) t[k as Adjustable] += m / 60
   return t
 }
 
-// `asr+2 isha-5` as minutes per time; Dhuhr moves the sun's highest point, Maghrib moves sunset.
+// `asr+2 isha-5` as minutes per time. Dhuhr moves Dhuhr's start only (zawal stays on the sun's highest point); Maghrib moves sunset.
 export function adjustFrom(text: string): Config['adjust'] {
-  const names: Record<string, keyof Times> = { fajr: 'fajr', sunrise: 'sunrise', dhuhr: 'noon', asr: 'asr', maghrib: 'sunset', isha: 'isha' }
-  const out: Partial<Record<keyof Times, number>> = {}
-  for (const m of text.toLowerCase().matchAll(/(fajr|sunrise|dhuhr|asr|maghrib|isha)\s*([+-]\s*\d+)/g)) out[names[m[1]!]!] = Number(m[2]!.replace(/\s/g, ''))
+  const names: Record<string, Adjustable> = { fajr: 'fajr', sunrise: 'sunrise', dhuhr: 'dhuhr', asr: 'asr', maghrib: 'sunset', isha: 'isha' }
+  const out: Partial<Record<Adjustable, number>> = {}
+  for (const m of text.toLowerCase().matchAll(/(fajr|sunrise|dhuhr|asr|maghrib|isha)\s*([+-]?)\s*(\d+(?:\.\d+)?)/g)) out[names[m[1]!]!] = (m[2] === '-' ? -1 : 1) * Number(m[3])
   return out
 }
 
 // The sun's position for the day, then the times it reaches each prayer's angle (the PrayTimes method).
 export function computeTimes(cfg: Config, year: number, month: number, day: number, zone: number): Times {
+  const t = solve(cfg, year, month, day, zone)
+  if (Number.isFinite(t.sunrise) && Number.isFinite(t.sunset)) return t
+  // Polar day or night: no sunrise or sunset at all. Use the nearest latitude that has them (65°), as many scholars advise.
+  return { ...solve({ ...cfg, latitude: Math.sign(cfg.latitude) * 65 }, year, month, day, zone), estimated: true }
+}
+
+function solve(cfg: Config, year: number, month: number, day: number, zone: number): Times {
   const { latitude: lat, longitude: lng } = cfg
   const m = METHODS[cfg.method]
   const jdate = julian(year, month, day) - lng / (15 * 24)
@@ -203,7 +213,7 @@ export function computeTimes(cfg: Config, year: number, month: number, day: numb
     }
   }
   const shift = zone - lng / 15
-  const out = { fajr: h.fajr + shift, sunrise: h.sunrise + shift, noon: h.noon + shift, asr: h.asr + shift, sunset: h.sunset + shift, isha: h.isha + shift }
+  const out: Times = { fajr: h.fajr + shift, sunrise: h.sunrise + shift, noon: h.noon + shift, dhuhr: h.noon + shift + DHUHR_AFTER, asr: h.asr + shift, sunset: h.sunset + shift, isha: h.isha + shift }
   if ('ishaIsMinutes' in m) out.isha = out.sunset + m.isha
 
   // Far from the equator the sun may never get low enough: Fajr and Isha take a share of the night instead.
@@ -256,7 +266,7 @@ function configFrom(options: Record<string, unknown>): Config | null {
   const latitude = Number(options.latitude)
   const longitude = Number(options.longitude)
   const isSet = (v: unknown) => v !== undefined && v !== null && v !== ''
-  if (!isSet(options.latitude) || !isSet(options.longitude) || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (!isSet(options.latitude) || !isSet(options.longitude) || !(Math.abs(latitude) <= 90) || !(Math.abs(longitude) <= 180)) return null
   const method = String(options.method ?? 'karachi') as Config['method']
   return {
     latitude,
@@ -270,17 +280,16 @@ function configFrom(options: Record<string, unknown>): Config | null {
 
 function num(value: unknown, fallback: number) {
   const n = Number(value)
-  return value === undefined || !Number.isFinite(n) ? fallback : n
+  return value === undefined || value === null || value === '' || !Number.isFinite(n) ? fallback : Math.max(0, n)
 }
 
 function addDays(d: Date, n: number) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 12)
 }
 
-// Local wall time `hours` after the day's midnight.
-function atHours(day: Date, hours: number) {
-  const midnight = new Date(day.getFullYear(), day.getMonth(), day.getDate())
-  return new Date(midnight.getTime() + Math.round(hours * 60) * MIN)
+// The instant `hours` after midnight UTC of the day's local date.
+export function atHours(day: Date, hours: number) {
+  return new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()) + Math.round(hours * 60) * MIN)
 }
 
 export function hhmm(d: Date) {

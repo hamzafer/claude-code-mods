@@ -175,7 +175,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
   - Asr: `hanafi` (shadow twice an object's length) or `standard`
   - Fajr and Isha convention: `karachi`, `mwl`, `isna`, `egypt` or `makkah`
   - A rule for far north or south, where in summer the sun never gets low enough for Fajr or Isha
-  - `adjust` to match your mosque or app to the minute, e.g. `asr+2 isha-5`
+  - `adjust` to match your mosque or app to the minute, e.g. `asr+2 isha-5 fajr 1.5`. Adjusting Dhuhr moves its start, not zawal
+- With no sunrise or sunset at all (polar day or night), it uses latitude 65° and marks the line as an estimate
+- Daylight-saving days are handled: every time is computed as an exact moment, then shown on your clock
 - Times are within a minute or two of online tables. Those often add a few minutes to Asr, which `adjust` can match
 - A toast when each prayer begins (turn it off in `/config`). `/prayers` lists today's times
 
