@@ -13,6 +13,7 @@ const PLAYING_POLL_MS = 3_000 // between polls the position moves on with the cl
 const IDLE_POLL_MS = 5_000 // paused or closed
 const LYRICS_TIMEOUT_MS = 5_000
 const BAR = 12
+const LYRIC_LEAD_S = 0.3 // a line shows a moment early, as karaoke apps do
 const LRCLIB = 'https://lrclib.net/api'
 const AGENT = 'now-playing (https://github.com/hamzafer/claude-code-mods)'
 
@@ -56,11 +57,14 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'music', description: 'Spotify: play or pause. /music next, /music prev skip' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     lastPoll = await $.clock.now()
     timers = [
-      $.clock.every(1000, () => {
+      $.clock.every(250, () => {
         void (async () => {
           const t = await $.clock.now()
           const cur = await read($, track)
-          if (cur?.state === 'playing') await update($, now, () => t) // the bar moves each second without running anything
+          // Playing, the line moves on without running anything: 4 times a second while a lyric shows, else each second.
+          const l = cur?.state === 'playing' ? await read($, lyrics) : null
+          const hasLyrics = !!l && l.id === cur?.id && l.lines.length > 0
+          if (cur?.state === 'playing' && (hasLyrics || t - (await read($, now)) >= 1000)) await update($, now, () => t)
           if (t - lastPoll >= (cur?.state === 'playing' ? PLAYING_POLL_MS : IDLE_POLL_MS)) {
             lastPoll = t
             await poll($, wantsLyrics)
@@ -96,13 +100,13 @@ export const register: Register = (on, options) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const press = (action: Action) => () => void control($, action, wantsLyrics).catch(() => false)
     const pos = positionAt(t, Math.max(tick, t.at))
-    const sung = l && l.id === t.id ? lyricAt(l, pos) : ''
+    const sung = l && l.id === t.id ? lyricAt(l, pos + LYRIC_LEAD_S) : ''
     const isPaused = t.state !== 'playing'
     const b = bar(pos, t.duration, BAR)
     return (
       <Box flexDirection="column">
         <Box paddingX={1} flexDirection="row">
-          {/* Narrow, the end of this Text goes first (the lyric, then the bar); the buttons stay. */}
+          {/* Narrow, the end of this Text goes first (the time, then the bar); the buttons stay. */}
           <Box flexShrink={1}>
             <Text wrap="truncate-end">
               {/* A leading emoji is drawn plain: some terminals shift or clip a bold one. */}
@@ -112,7 +116,6 @@ export const register: Register = (on, options) => {
               {!isPaused && <Text color="#1db954">{`  ${b.done}`}</Text>}
               {!isPaused && <Text dimColor>{b.left}</Text>}
               {!isPaused && <Text dimColor>{` ${clock(pos)}/${clock(t.duration)}`}</Text>}
-              {!isPaused && sung !== '' && <Text dimColor italic>{` · ♪ ${sung}`}</Text>}
             </Text>
           </Box>
           <Box flexShrink={0} flexDirection="row" gap={0} marginLeft={2}>
@@ -121,6 +124,12 @@ export const register: Register = (on, options) => {
             <Button key="next" hotkey="n" label="⏭" onPress={press('next')} />
           </Box>
         </Box>
+        {/* The lyric gets a line of its own, so the buttons never cut it. */}
+        {!isPaused && sung !== '' && (
+          <Box paddingX={1}>
+            <Text dimColor italic wrap="truncate-end">{`   ♪ ${sung}`}</Text>
+          </Box>
+        )}
         {rest}
       </Box>
     )
@@ -147,9 +156,11 @@ async function pollOnce($: EngineInterface, wantsLyrics: boolean) {
     const pg = await $.process.run(['pgrep', '-x', 'Spotify'], { timeoutMs: 3_000 }).catch(() => null)
     if (!pg || pg.exitCode !== 0) return
   }
+  const asked = await $.clock.now()
   const out = await $.process.run(['osascript', '-e', READ_SCRIPT], { timeoutMs: 5_000 }).catch(() => null)
   if (!out || out.exitCode !== 0) return
-  const t = parseTrack(out.stdout, await $.clock.now())
+  // Spotify read its position partway through the call, not when the answer arrived.
+  const t = parseTrack(out.stdout, asked + ((await $.clock.now()) - asked) / 2)
   await update($, track, () => t)
   if (t) await update($, now, () => t.at)
   if (t && wantsLyrics && t.id !== before?.id) void loadLyrics($, t).catch(() => {})

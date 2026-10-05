@@ -79,10 +79,10 @@ describe('now-playing', () => {
     expect(await band.find({ type: 'Text', text: ' Paper Lanterns' })).toBeDefined()
     expect(await band.find({ type: 'Text', text: ' · The Night Owls' })).toBeDefined()
     expect(await band.find({ type: 'Text', text: ' 1:01/3:20' })).toBeDefined()
-    expect(await band.find({ type: 'Text', text: ' · ♪ Hold the light up high' })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: '   ♪ Hold the light up high' })).toBeDefined()
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined()
     await clk.advance(4_000) // the clock moves the line on, and polls again
-    expect(await band.find({ type: 'Text', text: ' · ♪ Paper lanterns in the sky' })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: '   ♪ Paper lanterns in the sky' })).toBeDefined()
     await band.unmount()
     await settle()
     expect(e.urls.length).toBe(1) // same track: no second fetch
