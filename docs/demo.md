@@ -32,6 +32,12 @@ The current prayer, the time left, and the next one.
 
 ![prayer-times](../images/prayer-times.png)
 
+## 🎵 now-playing
+
+The Spotify track with its progress, the ⏮ ⏸ ⏭ buttons, and the lyric being sung on the line below.
+
+![now-playing](../images/now-playing.png)
+
 ## 📱 reels
 
 Plays Shorts while Claude works and pauses when it's done.
