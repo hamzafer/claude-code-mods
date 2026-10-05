@@ -82,6 +82,8 @@ type Drawn = { slot: number; columns: number; parts: { file: string; rows: numbe
 const cache = new Map<string, Drawn>() // by what it shows (see cacheKey); oldest first
 const ahead = new Set<string>() // files to draw before /md asks for them; newest last
 const repos = new Map<string, string | null>() // each folder's GitHub repo, from its remotes
+const ghFailed = new Set<string>() // repos whose last GitHub render failed
+const turn = { isOn: false } // the main turn is under way: draw ahead once it ends
 const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
@@ -156,13 +158,17 @@ export const register: Register = on => {
       toasted.clear()
       turnBefore.clear()
       resetSnapshot()
+      turn.isOn = true
     }
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
-    if (!e.agentId && shot.taken) await compareSnapshot($).catch(() => {}) // after next(e): the turn is already over
+    if (e.agentId) return r
+    if (shot.taken) await compareSnapshot($).catch(() => {}) // after next(e): the turn is already over
+    turn.isOn = false
+    await startAhead($).catch(() => {}) // the files the turn changed, each drawn once, as it left them
     return r
   })
 
@@ -470,6 +476,7 @@ async function again($: EngineInterface) {
   session.chrome = ''
   session.ghDownUntil = 0
   repos.clear()
+  ghFailed.clear()
   draw.force = true
   await renderSoon($) // the current picture stays up until the new one is ready
 }
@@ -508,14 +515,18 @@ async function renderSoon($: EngineInterface) {
   $.clock.after(300, () => void run($, true))
 }
 
-// Draws a file Claude just changed, in the background, so /md opens on it drawn.
-// One file waits once: changed again before it is drawn, it is drawn once, as it is then.
+// Draws a file Claude changed, in the background once the turn ends, so /md opens on it drawn.
+// One file waits once: edited again before it is drawn, it is drawn once, as it is then.
 async function drawAhead($: EngineInterface, path: string) {
   if (!session.canImage || session.noChrome || (await read($, view)) !== 'page') return
   ahead.delete(path)
   ahead.add(path)
   for (const old of ahead) if (ahead.size > AHEAD_FILES) ahead.delete(old)
-  if (draw.pending) return // the drawing under way picks it up when done
+  if (!turn.isOn) await startAhead($) // mid-turn, the file may change again: wait for the end
+}
+
+async function startAhead($: EngineInterface) {
+  if (ahead.size === 0 || draw.pending) return // the drawing under way picks it up when done
   draw.pending = true
   draw.dirty = false
   $.clock.after(300, () => void run($, false)) // edits close together wait for each other
@@ -529,7 +540,7 @@ async function run($: EngineInterface, forPane: boolean) {
     if (!isPane) isPane = await paneNeeds($)
     if (isPane) await renderFile($)
     else {
-      const path = [...ahead].pop()
+      const path = turn.isOn ? undefined : [...ahead].pop() // a new turn began: wait for its end
       if (path !== undefined) {
         ahead.delete(path)
         await renderAhead($, path)
@@ -549,7 +560,7 @@ async function run($: EngineInterface, forPane: boolean) {
 // After a drawing: the pane again if it went stale meanwhile, else the next file to draw ahead.
 async function afterDraw($: EngineInterface) {
   if (draw.dirty) await drawAgainIfStale($)
-  if (draw.pending || ahead.size === 0) return
+  if (draw.pending || ahead.size === 0 || turn.isOn) return
   draw.pending = true
   draw.dirty = false
   void run($, false)
@@ -574,7 +585,7 @@ async function drawAgainIfStale($: EngineInterface) {
 
 // GitHub's own renderer, through the person's gh; null when it cannot be used.
 async function github($: EngineInterface, md: string, dir: string): Promise<string | null> {
-  if (Date.now() < session.ghDownUntil) return null
+  if ((await $.clock.now()) < session.ghDownUntil) return null
   if (new TextEncoder().encode(md).length > GH_MAX_BYTES) return null // too large for the API: built-in, no penalty
   const repo = await repoOf($, dir)
   if (!repo) return null // not in a GitHub repo: the Markdown stays on this machine
@@ -582,9 +593,11 @@ async function github($: EngineInterface, md: string, dir: string): Promise<stri
     .run(['gh', 'api', '-X', 'POST', '/markdown', '--input', '-'], { stdin: JSON.stringify({ text: md, mode: 'markdown', context: repo }), timeoutMs: GH_TIMEOUT_MS })
     .catch(() => null)
   if (!r || r.exitCode !== 0 || !r.stdout.trim()) {
-    session.ghDownUntil = Date.now() + 60_000 // offline or signed out: built-in for a minute
+    session.ghDownUntil = (await $.clock.now()) + 60_000 // offline or signed out: built-in for a minute
+    ghFailed.add(repo)
     return null
   }
+  ghFailed.delete(repo)
   return r.stdout
 }
 
@@ -597,12 +610,14 @@ async function repoOf($: EngineInterface, dir: string): Promise<string | null> {
   return repo
 }
 
-// The renderer html() would use now, without asking GitHub.
+// The renderer html() would use now, without asking GitHub. A repo whose last GitHub
+// render failed counts as built-in until one works (or r), so kept drawings stay found.
 async function renderer($: EngineInterface, sides: Loaded[]): Promise<'GitHub' | 'built-in'> {
-  if (Date.now() < session.ghDownUntil) return 'built-in'
+  if ((await $.clock.now()) < session.ghDownUntil) return 'built-in'
   for (const s of sides) {
     if (new TextEncoder().encode(withMarks(s.text, s.marks)).length > GH_MAX_BYTES) return 'built-in'
-    if (!(await repoOf($, folder(s.path)))) return 'built-in'
+    const repo = await repoOf($, folder(s.path))
+    if (!repo || ghFailed.has(repo)) return 'built-in'
   }
   return 'GitHub'
 }
