@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { ago, kebab } from '../hooks/register'
+import { ago, isWrapped, kebab } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
@@ -33,6 +33,11 @@ function engine(on: any, opts: { title?: string; reply?: string; turns?: number;
 
 describe('session-saver', () => {
   test('helpers', () => {
+    expect(isWrapped('<task-notification> <task-id>b1</task-id>')).toBe(true)
+    expect(isWrapped('<local-command-caveat>Caveat</local-command-caveat>')).toBe(true)
+    expect(isWrapped('Another Claude session sent a message: hi')).toBe(true)
+    expect(isWrapped('<div> why is this misaligned?')).toBe(false) // a typed prompt that starts with a tag is still the person's
+    expect(isWrapped('<Foo> crashes on load')).toBe(false)
     expect(kebab('"Ship Mods Today Now Please"')).toBe('ship-mods-today-now')
     expect(ago(0, 30 * 60_000)).toBe('30m ago')
     expect(ago(0, 3 * 3_600_000)).toBe('3h ago')
@@ -61,6 +66,36 @@ describe('session-saver', () => {
     expect(toasts).toEqual(['Last time (just now): tested 7 mods · next: install'])
     await $.classic.SessionStart({ source: 'resume' } as any) // the engine's own signal after: not twice
     expect(toasts).toHaveLength(1)
+  })
+
+  test('a task notification after a typed prompt leaves the typed one as "you asked"', async ($, on) => {
+    const { store } = engine(on, { turns: 1 })
+    const notice = '<task-notification> <task-id>b03z186zb</task-id> <tool-use-id>t1</tool-use-id> done </task-notification>'
+    await $.prompt.submit({ text: 'fix the login test', origin: { kind: 'composer' } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await $.prompt.submit({ text: notice, origin: { kind: 'task-notification' } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect((store.get('last:sess-1') as any).leftOff).toBe('you asked: fix the login test')
+
+    // Other sessions, schedules and wrapped commands do not count either.
+    await $.prompt.submit({ text: 'Another Claude session sent a message: hi', origin: { kind: 'peer' } } as any)
+    await $.prompt.submit({ text: 'run the nightly sweep', origin: { kind: 'scheduled-trigger' } } as any)
+    await $.prompt.submit({ text: '<local-command-caveat>Caveat</local-command-caveat>', origin: { kind: 'composer' } } as any)
+    await $.prompt.submit({ text: '<command-name>/clear</command-name>' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect((store.get('last:sess-1') as any).leftOff).toBe('you asked: fix the login test')
+
+    // A mod sending the person's words as theirs counts.
+    await $.prompt.submit({ text: 'open a draft PR', origin: { kind: 'plugin', name: 'next-steps', asUser: true } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect((store.get('last:sess-1') as any).leftOff).toBe('you asked: open a draft PR')
+  })
+
+  test('a notification before anything typed saves no "you asked"', async ($, on) => {
+    const { store } = engine(on, { turns: 1 })
+    await $.prompt.submit({ text: '<task-notification>done</task-notification>', origin: { kind: 'task-notification' } } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(store.has('last:sess-1')).toBe(false)
   })
 
   test('/park saves a summary, and a resume shows it until you type', async ($, on) => {

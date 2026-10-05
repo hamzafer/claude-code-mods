@@ -4,7 +4,7 @@
 //   - /park [note] saves where you left off and the next step.
 //   - A resumed session shows that note above the prompt until you type, and toasts it.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, PromptOrigin, Register } from 'claude-code'
 
 import type { Parked } from '../types'
 
@@ -34,7 +34,10 @@ export const register: Register = on => {
     return r
   })
 
+  // Only what the person typed counts: task notifications, other sessions' messages and
+  // schedules arrive as prompts too, and must not become "you asked" or hide the note.
   on('prompt.submit', async ($, e, next) => {
+    if (!isTyped(e.origin, e.text)) return next(e)
     prompt = e.text.slice(0, 600)
     if (await read($, resumed)) await update($, resumed, () => null) // the note has done its job
     return next(e)
@@ -45,8 +48,10 @@ export const register: Register = on => {
     if (!e.agentId) {
       const id = await $.session.id()
       // Without a /park, a resume still shows the last thing asked.
-      const last: Parked = { leftOff: `you asked: ${oneLine(prompt, 80)}`, next: '', note: '', at: Date.now() }
-      await $.store.set(`last:${id}`, last)
+      if (prompt) {
+        const last: Parked = { leftOff: `you asked: ${oneLine(prompt, 80)}`, next: '', note: '', at: Date.now() }
+        await $.store.set(`last:${id}`, last)
+      }
       if ((await $.session.turns()) >= NAME_AFTER_TURNS && !(await $.store.get(`named:${id}`))) {
         await $.store.set(`named:${id}`, true) // one try per session, whatever happens
         void autoname($, id).catch(() => {})
@@ -116,7 +121,7 @@ async function autoname($: EngineInterface, id: string) {
 async function summarize($: EngineInterface, note: string, prompt: string): Promise<Parked & { why?: string }> {
   // Only messages with words in them: tool-only turns and tool results carry no text.
   const messages = (await $.session.messages()).filter(m => m.text.trim() !== '').slice(-12)
-  const asked = prompt || messages.filter(m => m.role === 'user').at(-1)?.text || ''
+  const asked = prompt || messages.filter(m => m.role === 'user' && !isWrapped(m.text)).at(-1)?.text || ''
   const fallback = { leftOff: asked ? `you asked: ${oneLine(asked, 70)}` : 'parked', next: '', note, at: Date.now() }
   const r = await $.model.complete({
     model: MODEL,
@@ -142,6 +147,25 @@ async function summarize($: EngineInterface, note: string, prompt: string): Prom
   } catch {
     return { ...fallback, why: `reply was not JSON: ${oneLine(r.text, 60)}` }
   }
+}
+
+// The person's own words: typed at the prompt, from the phone bridge or the SDK host, a Slack
+// ping from the owner, or a mod sending them as the person's (`asUser`). No origin counts as
+// typed (the engine leaves it out for the person's own prompt).
+const TYPED = new Set(['composer', 'bridge', 'sdk', 'slack-ping'])
+
+export function isTyped(origin: PromptOrigin | undefined, text: string) {
+  if (isWrapped(text)) return false
+  if (!origin) return true
+  return TYPED.has(origin.kind) || (origin.kind === 'plugin' && origin.asUser === true)
+}
+
+// Text the engine wraps in tags or frames, not words anyone typed: `<task-notification>`,
+// `<local-command-caveat>`, `<command-name>`, `<system-reminder>`, a peer session's message.
+export function isWrapped(text: string) {
+  const t = text.trimStart()
+  // Only the engine's own wrappers: a prompt the person starts with `<div>` is still theirs.
+  return /^<(task-notification|local-command-caveat|local-command-stdout|command-name|command-message|command-args|system-reminder)\b/.test(t) || t.startsWith('Another Claude session sent a message')
 }
 
 export function kebab(text: string) {

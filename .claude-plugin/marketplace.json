@@ -92,7 +92,7 @@
     {
       "name": "session-saver",
       "description": "Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/session-saver"
     },
     {
