@@ -205,7 +205,7 @@ export const register: Register = on => {
           <Button key="before" label={isCompare ? 'Single' : 'Before'} hotkey="b" onPress={() => toggleCompare($)} />
           <Button key="again" label="Render" hotkey="r" onPress={() => again($)} />
           <Button key="view" label={v === 'page' ? 'Text' : 'Page'} hotkey="t" onPress={() => toggleView($)} />
-          <Button key="open" label="Browser" hotkey="o" onPress={() => void openInBrowser($).then(t => $.ui.toast(t)).catch(() => {})} />
+          <Button key="open" label="Browser" hotkey="o" onPress={() => void openInBrowser($).then(t => $.ui.toast(`md-preview: ${t}`)).catch(() => {})} />
           <Button key="close" label="Close" hotkey="q" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
         </Box>
         {p && (
@@ -322,23 +322,23 @@ async function command($: EngineInterface, args: string) {
   const words = args.trim().split(/\s+/).filter(Boolean)
   if (words[0] === 'open') return { text: await openInBrowser($) }
   if (words[0] === 'compare') {
-    if (words.length !== 3) return { text: `md-preview: /${session.command} compare <fileA> <fileB>` }
+    if (words.length !== 3) return { text: `usage: /${session.command} compare <fileA> <fileB>` }
     const [a, b] = [absolute(words[1] as string), absolute(words[2] as string)]
     for (const f of [a, b]) {
-      if (!MD_FILE.test(f)) return { text: `md-preview: ${base(f)} is not a .md, .mdx or .markdown file.` }
-      if (!(await $.fs.exists(f).catch(() => false))) return { text: `md-preview: no file at ${f}` }
+      if (!MD_FILE.test(f)) return { text: `${base(f)} is not a .md, .mdx or .markdown file.` }
+      if (!(await $.fs.exists(f).catch(() => false))) return { text: `no file at ${f}` }
     }
     await update($, pair, () => ({ a, b }))
     await update($, files, list => list.map(f => (f.path === a || f.path === b ? { ...f, at: Date.now() } : f)))
     await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
     void renderSoon($).catch(() => {})
-    return { text: `md-preview: ${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
+    return { text: `${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
   }
   let target: string | null = null
   if (words.length) {
     const abs = absolute(args.trim())
-    if (!MD_FILE.test(abs)) return { text: 'md-preview: give a .md, .mdx or .markdown file.' }
-    if (!(await $.fs.exists(abs).catch(() => false))) return { text: `md-preview: no file at ${abs}` }
+    if (!MD_FILE.test(abs)) return { text: 'give a .md, .mdx or .markdown file.' }
+    if (!(await $.fs.exists(abs).catch(() => false))) return { text: `no file at ${abs}` }
     await update($, files, list => (list.some(f => f.path === abs) ? list : [{ path: abs, at: Date.now(), marks: [] }, ...list].slice(0, MAX_FILES)))
     target = abs
   } else {
@@ -346,12 +346,12 @@ async function command($: EngineInterface, args: string) {
   }
   // Read again now: it may have changed outside Claude since it was last drawn.
   if (target) await update($, files, list => list.map(f => (f.path === target ? { ...f, at: Date.now() } : f)))
-  if (!target) return { text: `md-preview: no Markdown edits yet this session. /${session.command} <path> opens a file.` }
+  if (!target) return { text: `no Markdown edits yet this session. /${session.command} <path> opens a file.` }
   await update($, shown, () => target)
   await update($, pair, () => null)
   await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
   void renderSoon($).catch(() => {})
-  return { text: `md-preview: ${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
+  return { text: `${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
 }
 
 function resetSnapshot() {
@@ -597,19 +597,20 @@ async function findChrome($: EngineInterface) {
 }
 
 // The same page, full size in the person's own browser: self-contained HTML in a temp file.
+// Its text has no name in front: a command reply gets one from Claude Code, the Browser button's toast adds its own.
 async function openInBrowser($: EngineInterface): Promise<string> {
   if (!(await read($, shown)) && !(await read($, pair))) {
     const latest = (await read($, files))[0]?.path
     if (latest) await update($, shown, () => latest)
   }
   const p = await plan($)
-  if (!p) return `md-preview: nothing to open yet. /${session.command} <path> picks a file.`
+  if (!p) return `nothing to open yet. /${session.command} <path> picks a file.`
   const loaded = await load($, p)
-  if (loaded.length === 0) return `md-preview: cannot read ${p.title}`
+  if (loaded.length === 0) return `cannot read ${p.title}`
   const { sides } = await html($, loaded)
   const file = `${await tmpRoot($)}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
   await $.fs.write(file, page(sides, { title: p.title, width: 0 }))
   const opener = (await $.fs.exists('/usr/bin/open').catch(() => false)) ? 'open' : 'xdg-open'
   const r = await $.process.run([opener, file], { timeoutMs: 10_000 }).catch(() => null)
-  return r && r.exitCode === 0 ? `md-preview: opened ${p.title} in the browser` : `md-preview: could not open the browser. The page is at ${file}`
+  return r && r.exitCode === 0 ? `opened ${p.title} in the browser` : `could not open the browser. The page is at ${file}`
 }
