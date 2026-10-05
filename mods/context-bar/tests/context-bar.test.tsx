@@ -57,11 +57,17 @@ describe('context-bar', () => {
     expect(tokens(950)).toBe('950')
     expect(share(3_400, 1_000_000)).toBe('0.3%')
     expect(share(186_000, 1_000_000)).toBe('19%')
+    expect(share(494, 1_000_000)).toBe('<0.1%')
 
     const r = toReading(BREAKDOWN)
     // Deferred and empty rows are left out; used first, then free, then the buffer.
     expect(r.slices.map(s => s.name)).toEqual(['system prompt', 'system tools', 'mcp tools', 'messages', 'free space', 'autocompact buffer'])
     expect(r.compactsAt).toBe(950_000)
+    // Every used row has its own color, and none matches free space or the buffer.
+    const colors = r.slices.filter(s => s.kind === 'used').map(s => s.color)
+    expect(new Set(colors).size).toBe(colors.length)
+    expect(cells(r, 80).find(c => c.kind === 'buffer')?.text).toMatch(/^░+$/)
+    expect(cells(r, 80).find(c => c.kind === 'free')?.text).toMatch(/^─+$/)
 
     for (const width of [20, 47, 80, 200]) {
       const bar = cells(r, width)

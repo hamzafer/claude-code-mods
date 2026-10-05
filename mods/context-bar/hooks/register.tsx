@@ -10,6 +10,12 @@ import type { Reading, Slice } from '../types'
 
 const MIN_WIDTH = 20 // narrower than this, the bar is not drawn
 const SPLIT = '   '
+// /context's theme gives several rows the same grey, so each used row gets its own color, in order.
+const PALETTE = ['#7aa2f7', '#7dcfff', '#bb9af7', '#9ece6a', '#e0af68', '#f7768e', '#73daca', '#ff9e64', '#c0caf5']
+const MESSAGES = '#d97757' // the row that grows, in the accent color
+const FREE = '#808080' // a mid grey thin line reads as empty on dark and light themes alike
+const BUFFER = '#808080'
+const GLYPH = { used: '█', free: '─', buffer: '░' } as const
 
 // Held by the host, so the bar survives a hot reload of this file.
 const reading = atom({ plugin: 'context-bar', key: 'reading' } as const, null as Reading | null)
@@ -70,7 +76,7 @@ export const register: Register = on => {
           </Box>
           <Text>
             {cells(r, inner).map(c => (
-              <Text color={c.color} dimColor={c.kind === 'buffer'}>{c.text}</Text>
+              <Text color={c.color}>{c.text}</Text>
             ))}
           </Text>
           {legend(r, inner).map(line => (
@@ -78,7 +84,7 @@ export const register: Register = on => {
               {line.map((s, i) => (
                 <Text>
                   {i > 0 && <Text>{SPLIT}</Text>}
-                  <Text color={s.color} dimColor={s.kind === 'buffer'}>{'■ '}</Text>
+                  <Text color={s.color}>{s.kind === 'used' ? '■ ' : `${GLYPH[s.kind]} `}</Text>
                   <Text dimColor={s.kind !== 'used'}>{`${s.name} `}</Text>
                   <Text bold={s.kind === 'used'}>{tokens(s.tokens)}</Text>
                   {s.kind === 'used' && <Text dimColor>{` ${share(s.tokens, r.window)}`}</Text>}
@@ -115,6 +121,10 @@ export function toReading(b: {
     .map(c => ({ name: c.name.toLowerCase(), tokens: c.tokens, color: c.color, kind: c.kind as Slice['kind'] }))
   const order = { used: 0, free: 1, buffer: 2 }
   slices.sort((x, y) => order[x.kind] - order[y.kind]) // stable: used rows keep /context's order
+  let next = 0
+  for (const s of slices) {
+    s.color = s.kind === 'free' ? FREE : s.kind === 'buffer' ? BUFFER : s.name === 'messages' ? MESSAGES : PALETTE[next++ % PALETTE.length]!
+  }
   return {
     slices,
     total: b.totalTokens,
@@ -137,7 +147,7 @@ export function cells(r: Reading, width: number) {
     diff -= size - sizes[i]!
     sizes[i] = size
   }
-  return r.slices.map((s, i) => ({ color: s.color, kind: s.kind, text: '█'.repeat(sizes[i]!) })).filter(c => c.text !== '')
+  return r.slices.map((s, i) => ({ color: s.color, kind: s.kind, text: GLYPH[s.kind].repeat(sizes[i]!) })).filter(c => c.text !== '')
 }
 
 // The legend, packed into lines no wider than `width`.
@@ -167,5 +177,6 @@ export function tokens(n: number) {
 
 export function share(n: number, window: number) {
   const p = (n / window) * 100
+  if (p > 0 && p < 0.1) return '<0.1%'
   return `${p >= 10 ? Math.round(p) : +p.toFixed(1)}%`
 }
