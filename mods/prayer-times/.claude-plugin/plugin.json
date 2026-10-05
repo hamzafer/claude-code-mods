@@ -1,0 +1,88 @@
+{
+  "name": "prayer-times",
+  "version": "0.1.0",
+  "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "latitude": {
+      "type": "number",
+      "title": "Latitude",
+      "description": "Your latitude in degrees, north positive (e.g. 51.51). Stays in your local settings.",
+      "min": -90,
+      "max": 90
+    },
+    "longitude": {
+      "type": "number",
+      "title": "Longitude",
+      "description": "Your longitude in degrees, east positive (e.g. -0.13). Stays in your local settings.",
+      "min": -180,
+      "max": 180
+    },
+    "method": {
+      "type": "string",
+      "title": "Fajr and Isha convention",
+      "description": "karachi 18°/18°, mwl 18°/17°, isna 15°/15°, egypt 19.5°/17.5°, makkah 18.5° and Isha 90 min after Maghrib.",
+      "options": [
+        "karachi",
+        "mwl",
+        "isna",
+        "egypt",
+        "makkah"
+      ],
+      "default": "karachi"
+    },
+    "asr": {
+      "type": "string",
+      "title": "Asr",
+      "description": "hanafi: shadow twice an object's length. standard (Shafi'i, Maliki, Hanbali): shadow equal to it.",
+      "options": [
+        "hanafi",
+        "standard"
+      ],
+      "default": "hanafi"
+    },
+    "highLatitude": {
+      "type": "string",
+      "title": "Far north or south",
+      "description": "When the sun never gets low enough for Fajr or Isha: angle (a share of the night by the angle), seventh (a seventh of the night) or middle (half the night).",
+      "options": [
+        "angle",
+        "seventh",
+        "middle"
+      ],
+      "default": "angle"
+    },
+    "adjust": {
+      "type": "string",
+      "title": "Minutes to adjust",
+      "description": "Shift times to match your mosque's timetable, e.g. `asr+2 isha-5`. Names: fajr, sunrise, dhuhr, asr, maghrib, isha.",
+      "default": ""
+    },
+    "makruhMinutes": {
+      "type": "number",
+      "title": "Sunrise and sunset makruh (minutes)",
+      "description": "How long after sunrise, and before sunset, the line shows a makruh warning.",
+      "default": 15,
+      "min": 0,
+      "max": 60
+    },
+    "zawalMinutes": {
+      "type": "number",
+      "title": "Zawal (minutes before Dhuhr)",
+      "description": "How long before the sun's highest point the line shows zawal.",
+      "default": 5,
+      "min": 0,
+      "max": 30
+    },
+    "toasts": {
+      "type": "boolean",
+      "title": "Toast when a prayer begins",
+      "default": true,
+      "description": "A toast when each prayer time begins, saying until when it lasts."
+    }
+  }
+}

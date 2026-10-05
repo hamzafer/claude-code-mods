@@ -60,6 +60,12 @@
       "source": "./mods/next-steps"
     },
     {
+      "name": "prayer-times",
+      "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
+      "version": "0.1.0",
+      "source": "./mods/prayer-times"
+    },
+    {
       "name": "reels",
       "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
       "version": "0.1.2",
