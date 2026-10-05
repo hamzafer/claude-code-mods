@@ -104,9 +104,18 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Text wrap="truncate-end">
-          {s.parts.map((p, i) => (
-            <Text color={p.color} bold={p.bold} dimColor={p.dim}>{(i > 0 ? ' · ' : '') + p.text}</Text>
-          ))}
+          {s.parts.map((p, i) => {
+            // A leading emoji is drawn plain: some terminals shift or clip a bold one.
+            const icon = /^(\p{Extended_Pictographic}\uFE0F?) /u.exec(p.text)?.[1]
+            const label = icon ? p.text.slice(icon.length) : p.text
+            return (
+              <Text>
+                {i > 0 && <Text dimColor>{' · '}</Text>}
+                {icon && <Text>{icon}</Text>}
+                <Text color={p.color} bold={p.bold} dimColor={p.dim}>{label}</Text>
+              </Text>
+            )
+          })}
         </Text>
         {rest}
       </Box>

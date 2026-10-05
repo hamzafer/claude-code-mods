@@ -62,7 +62,7 @@
     {
       "name": "prayer-times",
       "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/prayer-times"
     },
     {
