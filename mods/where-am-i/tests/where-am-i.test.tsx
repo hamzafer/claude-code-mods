@@ -59,6 +59,39 @@ describe('where-am-i', () => {
     await hidden.unmount()
   })
 
+  // Stands for glance: a mod that calls an MCP tool in the background, as `$.mcp.call` does.
+  const glance = {
+    name: 'glance',
+    register(on: any) {
+      on('command.run', { command: 'peek' }, async ($: any) => {
+        await $.tool.call({ tool: 'mcp__claude_ai_Slack__slack_search_public_and_private', query: 'x' })
+        return { text: 'peeked' }
+      })
+    },
+  }
+
+  test('a call another mod makes does not change now; one Claude makes does', { plugins: [glance] }, async ($, on) => {
+    engine(on, '{"goal":"Ship 3 mods","now":"built Where Am I","waiting":"","next":"Rulebook Guard"}')
+    on('command.run', () => ({ text: '' }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+
+    // Idle: glance checks Slack in the background.
+    await $.command.run({ command: 'peek', args: '' } as any)
+    const idle = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await idle.find({ type: 'Text', text: /^built Where Am I$/ })).toBeDefined()
+    expect(await idle.find({ type: 'Text', text: /slack/ })).toBeUndefined()
+    await idle.unmount()
+
+    // Claude's own call shows as now.
+    await $.prompt.submit({ text: 'ship all 3' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/work/a/b.ts' } as any)
+    const busy = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await busy.find({ type: 'Text', text: /^reading a\/b.ts$/ })).toBeDefined()
+    await busy.unmount()
+  })
+
   test('/recap answers with a summary', async ($, on) => {
     engine(on, '- Goal: ship 3 mods')
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)

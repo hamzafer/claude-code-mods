@@ -31,7 +31,10 @@ export const register: Register = on => {
   })
 
   // Observe only: note what is happening, then let the call run untouched.
+  // Only Claude's own calls count: one another mod makes in the background (`$.tool.call`,
+  // `$.mcp.call`) is raised by that plugin, and `next.origin` names it instead of the engine.
   on('tool.call', async ($, e, next) => {
+    if (next.origin.plugin !== 'engine') return next(e)
     const line = describe(e as unknown as Record<string, unknown>)
     log = [...log, e.agentId ? `(agent) ${line}` : line].slice(-MAX_LOG)
     if (!e.agentId) await update($, live, () => line)
