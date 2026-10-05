@@ -166,6 +166,7 @@ describe('prayer-times', () => {
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const band = await $.ui.mount({ plugin: 'prayer-times', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /🕌|⛔/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /^(🕌|⛔)$/ })).toBeDefined() // the icon is its own plain Text
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined()
     await band.unmount()
     expect((await $.command.run({ command: 'prayers', args: '' } as any)).text).toMatch(/^Fajr \d\d:\d\d · Sunrise .* Isha \d\d:\d\d \(karachi, hanafi Asr\)$/)
