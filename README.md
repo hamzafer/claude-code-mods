@@ -1,4 +1,4 @@
-# 🛰️ Claude Code mods
+# <img src="images/claude-wave.gif" alt="" height="40" align="top"> Claude Code mods
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml)
