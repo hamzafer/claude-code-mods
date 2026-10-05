@@ -24,7 +24,18 @@ function engine(on: any, opts: Opts = {}) {
   let isOpen = false
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
-  const clock = mock.clock(on)
+  const mocked = mock.clock(on)
+  // Background drawings chain several awaits per step: advance in small slices with a real
+  // pause between them, so a slow CI machine sees the same order as a fast one.
+  const clock = {
+    ...mocked,
+    advance: async (ms: number) => {
+      for (let left = ms; left > 0; left -= 100) {
+        await mocked.advance(Math.min(100, left))
+        await new Promise(r => (globalThis as any).setTimeout(r, 5))
+      }
+    },
+  }
   on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: 'ok' }))
   on('tool.call', (_$: any, e: any) => {
@@ -64,6 +75,14 @@ function engine(on: any, opts: Opts = {}) {
 }
 
 const settle = async () => {}
+// Background drawings finish on their own schedule: step the clock in small slices until `done`,
+// rather than one fixed wait a slow CI machine can miss.
+async function until(clock: any, done: () => boolean) {
+  for (let i = 0; i < 50 && !done(); i++) {
+    await clock.advance(100)
+    await new Promise(r => (globalThis as any).setTimeout(r, 10))
+  }
+}
 async function start($: any) {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
   await $.turn.start({ text: 'update the docs', turnId: 't1' } as any)
@@ -307,8 +326,10 @@ describe('md-preview', () => {
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
     await $.command.run({ command: 'md', args: 'README.md' } as any)
     const pane = await mount($)
-    await clock.advance(400)
     const sh = () => runs.filter(x => x.argv[0] === 'sh').length
+    // The pane's drawing and the one ahead run one after another in the background: wait for both,
+    // in small steps, rather than a fixed time a slow CI machine can miss.
+    await until(clock, () => sh() >= 2)
     const drawn = sh() // README for the pane, guide.md ahead
     expect(drawn).toBe(2)
     await pane.press({ key: 'next' })
@@ -343,7 +364,7 @@ describe('md-preview', () => {
     await start($)
     await $.command.run({ command: 'md', args: 'README.md' } as any)
     const pane = await mount($)
-    await clock.advance(400)
+    await until(clock, () => runs.some(x => x.argv[0] === 'sh'))
     expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1)
     expect(runs.filter(x => x.argv[0] === 'gh')).toHaveLength(1)
     await pane.press({ key: 'close' })
