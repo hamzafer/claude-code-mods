@@ -100,7 +100,8 @@ export const register: Register = (on, options) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const press = (action: Action) => () => void control($, action, wantsLyrics).catch(() => false)
     const pos = positionAt(t, Math.max(tick, t.at))
-    const sung = l && l.id === t.id ? lyricAt(l, pos + LYRIC_LEAD_S) : ''
+    const line = l && l.id === t.id ? lyricAt(l, pos + LYRIC_LEAD_S) : ''
+    const sung = isRtl(line) ? '' : line // a terminal draws right-to-left scripts garbled, cached lyrics included
     const isPaused = t.state !== 'playing'
     const b = bar(pos, t.duration, BAR)
     return (
