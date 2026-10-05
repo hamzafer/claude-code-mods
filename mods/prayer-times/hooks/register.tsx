@@ -111,7 +111,8 @@ type Window = { name: string; start: Date; end: Date }
 
 // What the line says at `at`: the prayer whose time it is and what is left, or the forbidden window, then the next prayer.
 export function status(cfg: Config, at: Date, makruh = 15, zawal = 5) {
-  const windows = [-1, 0, 1].flatMap(offset => dayWindows(cfg, addDays(at, offset), makruh, zawal))
+  // Times are UTC hours of each local date, so far from UTC (e.g. UTC+13) a day's prayers can sit two dates back.
+  const windows = [-2, -1, 0, 1].flatMap(offset => dayWindows(cfg, addDays(at, offset), makruh, zawal))
   const inside = (w: Window) => w.start <= at && at < w.end
   const prayers = windows.filter(w => !w.name.startsWith('!'))
   const current = prayers.find(inside)
