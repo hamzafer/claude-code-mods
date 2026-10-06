@@ -77,8 +77,9 @@ export function parseJev(text: string): { tier: Tier; confidence: number; probab
   // TypeSafe sends a confidence; the gateway sends only the probabilities, so the pick's own stands in.
   const confidence = typeof a.confidence === 'number' ? a.confidence : typeof probabilities[a.choice] === 'number' ? probabilities[a.choice] : 0
   const tokens = body.usage?.input_tokens ?? body.usage?.inputTokens
-  const billed = Number(body.providerMetadata?.gateway?.cost)
-  const costUsd = Number.isFinite(billed) ? billed : typeof tokens === 'number' ? tokens * JEV_USD_PER_TOKEN : 0
+  const raw = body.providerMetadata?.gateway?.cost
+  const billed = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN // the gateway's billed cost, when it sends one
+  const costUsd = Number.isFinite(billed) && billed >= 0 ? billed : typeof tokens === 'number' ? tokens * JEV_USD_PER_TOKEN : 0
   return { tier: a.choice, confidence, probabilities, costUsd }
 }
 
