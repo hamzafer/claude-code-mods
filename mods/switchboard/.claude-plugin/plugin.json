@@ -1,0 +1,26 @@
+{
+  "name": "switchboard",
+  "version": "0.1.0",
+  "description": "Picks Haiku, Sonnet or Opus for each subagent before it starts, with Jev or simple rules. One line per spawn above the prompt; /route shows each pick and what it cost.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "auto (default) runs each subagent on the picked model. suggest only shows the pick.",
+      "options": ["auto", "suggest"],
+      "default": "auto"
+    },
+    "jevApiKey": {
+      "type": "string",
+      "title": "Jev API key",
+      "description": "TypeSafe API key for Jev. Each spawn sends the task's description and its first 6,000 characters to api.typesafe.ai. Empty uses TYPESAFE_API_KEY, then AI_GATEWAY_API_KEY (Jev through Vercel AI Gateway, zero data retention), else rules only and nothing is sent.",
+      "sensitive": true,
+      "default": ""
+    }
+  }
+}

@@ -130,6 +130,12 @@
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
       "version": "0.1.4",
       "source": "./mods/where-am-i"
+    },
+    {
+      "name": "switchboard",
+      "description": "Picks Haiku, Sonnet or Opus for each subagent before it starts, with Jev or simple rules. One line per spawn above the prompt; /route shows each pick and what it cost.",
+      "version": "0.1.0",
+      "source": "./mods/switchboard"
     }
   ]
 }

@@ -83,6 +83,12 @@ claude --plugin-dir mods/context-bar
 | --- | --- | --- | --- |
 | 💥 | **blast-radius** | Holds `rm -r`, force pushes and migrations, shows what they'd delete, cancels after 60 s with no answer | |
 
+### 💸 Spend less
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 🔀 | **switchboard** | Picks Haiku, Sonnet or Opus for each subagent before it starts, using [Jev](https://docs.typesafe.ai) or simple rules. Shows each pick and what the run cost compared with the model Claude asked for | `/route` |
+
 ### 🔧 My setup (fork and adapt)
 
 These are built around my own tools and rules. Fork them and change the rules to yours.
