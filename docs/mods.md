@@ -7,7 +7,9 @@
 
 ### 📏 Lines above the prompt
 
-![lines above the prompt](../images/bands.png)
+Most mods add a live line above the Claude Code prompt, like extra status lines.
+
+![Several Claude Code mods stacked as live lines above the prompt](../images/bands.png)
 
 - context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
 - They stack
@@ -24,7 +26,9 @@
 
 ### 🛰️ mission-control
 
-![mission-control](../images/mission-control.gif)
+Shows every Claude Code subagent, tool call and touched file in a live pane.
+
+![mission-control: Claude Code subagents and a code map of the files they edit](../images/mission-control.gif)
 
 - Press `w` for Who, `c` for Code and `q` to close
 - `/mission code` opens straight to the code map, `/mission who` to the agents
@@ -35,7 +39,9 @@
 
 ### 📊 context-bar
 
-![context-bar](../images/context-bar.png)
+Shows what fills the Claude Code context window, as one stacked bar.
+
+![context-bar: Claude Code context window usage as a stacked bar with a legend](../images/context-bar.png)
 
 - One bar the width of the band, split by what fills the window: system prompt, tools, MCP tools, memory files, skills, messages, then free space and the compaction buffer. Each used category gets its own color, messages in orange. Free space is a thin grey line (`─`), and the compaction buffer is hatched (`░`)
 - The header shows the tokens in use, the window, where auto-compaction runs, and the percent. The percent turns yellow at 70% of the compaction point and red at 90%
@@ -45,6 +51,8 @@
 - Pairs with token-weather: that one tracks the trend and the cache, this one shows what the tokens are
 
 ### 🌦️ token-weather
+
+Shows how full the Claude Code context window is, and how long the prompt cache stays warm.
 
 - Levels go by percent of the window, so a 1M window stays Clear until 250k tokens
 - `❄ cache 4:15` estimates how long the prompt cache stays warm. It counts down from the end of the last model request. Every request restarts it, including tool steps
@@ -57,12 +65,16 @@
 
 ### 📍 where-am-i
 
-![where-am-i](../images/where-am-i.png)
+Shows the session goal, what Claude Code is doing now and what waits on you.
+
+![where-am-i: goal, current step and next step above the Claude Code prompt](../images/where-am-i.png)
 
 - Makes one Haiku call after each turn to write the summary
 - `/where` gives a few bullets instead
 
 ### ➡️ next-steps
+
+Suggests the prompts you'd likely send Claude Code next.
 
 - After each turn, shows 2 or 3 short prompts you'd likely send next, like `next:  1 run the tests you just wrote  ·  2 open a draft PR  ·  0 dismiss`
 - **Keys** (only while the prompt is empty): `1`, `2` or `3` puts that prompt in the box as a draft. Edit it or press Enter, nothing sends on its own. `0` hides the list
@@ -74,6 +86,8 @@
 
 ### 💰 usage-meter
 
+Shows your Claude Code plan usage and session cost.
+
 - One line: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost
 - Reads the same figures as the status line and updates as your usage changes
 - A window past its reset time hides until the next reading
@@ -83,6 +97,8 @@
 
 ### 📡 agent-radar
 
+Shows one live line per running Claude Code subagent.
+
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes
 - `/radar` lists every agent this session
@@ -90,7 +106,9 @@
 
 ### 🔍 review-watch
 
-![review-watch: a Codex review and a review subagent running](../images/review-watch.png)
+Shows the code reviews running in Claude Code, Codex or a review subagent, live.
+
+![review-watch: a Codex review and a Claude Code review subagent running](../images/review-watch.png)
 
 - Tracks every `codex review` shell command, in the foreground or background, and every subagent whose description says "review"
 - Each line shows the model (from `-c model=...` or `--model`, else your `~/.codex/config.toml`), the `--title` or what's under review, and the elapsed time. Codex reviews also show the last line Codex printed
@@ -101,6 +119,8 @@
 - Needs `ps` and `tail` (macOS and Linux have both)
 
 ### 🌐 browser-lanes
+
+Gives each Claude Code session its own Playwright browser and shows who holds it.
 
 - **Setup:** run the Playwright MCP server with `--isolated`
 - Without it, every session shares one Chrome profile and the second one gets "Browser is already in use"
@@ -118,6 +138,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🚦 merge-gate
 
+A Claude Code hook that holds `gh pr merge` until CI and a Codex review pass.
+
 - **Needs** `gh` and the Codex CLI
 - Holds `gh pr merge` until CI is green and Codex reviewed the PR once
 - If either is missing, it asks you: **Hold** or **Merge anyway**
@@ -134,7 +156,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📏 rulebook-guard
 
-![rulebook-guard](../images/rulebook-guard.png)
+Claude Code hooks that enforce writing and git rules.
+
+![rulebook-guard: a Claude Code hook asks before a rule is broken](../images/rulebook-guard.png)
 
 - Rewrites em dashes in `.md`, `.mdx`, `.markdown` and `.txt` writes, commit messages, PR text and Slack posts (code files are left alone)
 - Asks before `git commit --amend`
@@ -144,7 +168,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 💥 blast-radius
 
-![blast-radius](../images/blast-radius.png)
+A Claude Code hook that holds risky commands and shows what they would delete.
+
+![blast-radius: Claude Code holds rm -rf and lists the files and size it would delete](../images/blast-radius.png)
 
 - Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
 - Lists the files and size an `rm` would delete. It expands `~` and `$HOME`. A path with any other shell variable shows "can't preview" instead of a guess
@@ -158,6 +184,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 💾 session-saver
 
+Saves where you left off in a Claude Code session and shows it on resume.
+
 - **Needs** [unpause](https://github.com/hamzafer/unpause)
 - Run `/park` before you close, then `unpause open <name>`
 - `/park <note>` adds your own note, shown under the summary on resume
@@ -165,6 +193,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - Untitled sessions get a name after their second turn
 
 ### 👀 glance
+
+Shows what needs you in one line above the Claude Code prompt: meetings, PRs, issues and DMs.
 
 - **Needs** `gh`, plus the claude.ai Google Calendar, Linear and Slack connectors. A source that's missing just stays off the line
 - One item per source, the most urgent one, with "+2" for the rest:
@@ -181,7 +211,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🕌 prayer-times
 
-![prayer-times](../images/prayer-times.png)
+Shows the current prayer, the time left and the next one in Claude Code.
+
+![prayer-times: the current prayer and time left above the Claude Code prompt](../images/prayer-times.png)
 
 - **Set it up:** your latitude and longitude in `/config` (prayer-times). They stay in your local settings. The times are computed on your computer from the sun's position, so nothing is sent anywhere
 - In a prayer's time it shows that prayer and the time left to pray it, then the next prayer: `🕌 Asr · 1h 12m left · next Maghrib 19:08`. Under 20 minutes left turns yellow, and under 5 minutes it turns red
@@ -200,7 +232,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🎬 replay-theater
 
-![replay-theater](../images/replay-theater.png)
+Steps through the edits Claude Code made in the last turn, one diff at a time.
+
+![replay-theater: one diff from the last Claude Code turn in a pane](../images/replay-theater.png)
 
 - Run `/replay` after a turn that edited files
 - The first turn with edits shows a toast. After that, the status line shows the last turn's count instead (`▶ /replay: 3 edits`)
@@ -208,7 +242,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 📝 md-preview
 
-![md-preview: a diff on the left, the rendered page on the right](../images/md-preview.png)
+Renders the Markdown files Claude Code edits, like GitHub does.
+
+![md-preview: a Markdown diff on the left, the GitHub-style rendered page on the right](../images/md-preview.png)
 
 - When Claude edits a `.md`, `.mdx` or `.markdown` file, a toast says so (once per file per turn). Files written by shell commands count too. If Claude runs a shell command, md-preview compares the repo's Markdown files before the first command and at the end of the turn
 - `/md` opens a pane on the latest one, `/md <path>` on any file
@@ -229,7 +265,9 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 ### 🎵 now-playing
 
-![now-playing: the track, progress, buttons and the lyric line](../images/now-playing.png)
+Shows Spotify's current track and lyrics in Claude Code.
+
+![now-playing: the Spotify track, progress, buttons and the lyric line in Claude Code](../images/now-playing.png)
 
 - **Needs** macOS and the Spotify desktop app. It reads Spotify through AppleScript, so there is nothing to log in to
 - One line: `🎵 Track · Artist  ━━━━━━────── 1:51/3:14 · ♪ the lyric being sung`
@@ -245,6 +283,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - **Privacy:** for lyrics it sends the track, artist and album names to [LRCLIB](https://lrclib.net), once per track. Turn lyrics off in `/config` (now-playing) and nothing is sent. Songs without synced lyrics show no lyric
 
 ### 📱🐍 reels and snake
+
+YouTube Shorts or a game of Snake in a Claude Code pane while it works.
 
 - Installing them changes nothing until you type `/reels` or `/snake`
 - `stop` turns them off again. For snake, typing `/snake` again does it too
