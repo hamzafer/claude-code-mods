@@ -35,10 +35,19 @@ export function byRules(input: { subagentType: string; description: string }): {
   return { tier: 'sonnet', reason: 'rule: default' }
 }
 
-// The body of one Jev call: the task as state, and one Choice over the three tiers.
-export function jevRequest(input: { subagentType: string; description: string; prompt: string }) {
+// Where a Jev call goes: TypeSafe itself, or Vercel AI Gateway, which serves the same model.
+export type Via = 'typesafe' | 'gateway'
+export const JEV_URL: Record<Via, string> = {
+  typesafe: 'https://api.typesafe.ai/v1/systemone',
+  gateway: 'https://ai-gateway.vercel.sh/v1/evaluate',
+}
+
+// The body of one Jev call: the task as state, and one Choice over the three tiers. Through
+// the gateway it also asks for zero data retention.
+export function jevRequest(input: { subagentType: string; description: string; prompt: string }, via: Via = 'typesafe') {
   return {
-    model: 'jev-latest',
+    model: via === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest',
+    ...(via === 'gateway' ? { providerOptions: { gateway: { zeroDataRetention: true } } } : {}),
     state: {
       agent_type: input.subagentType,
       description: input.description,
@@ -64,9 +73,13 @@ export function parseJev(text: string): { tier: Tier; confidence: number; probab
   }
   const a = body?.answers?.tier
   if (!a || !TIERS.includes(a.choice)) return null
-  const confidence = typeof a.confidence === 'number' ? a.confidence : 0
-  const tokens = typeof body.usage?.input_tokens === 'number' ? body.usage.input_tokens : 0
-  return { tier: a.choice, confidence, probabilities: a.probabilities ?? {}, costUsd: tokens * JEV_USD_PER_TOKEN }
+  const probabilities = a.probabilities ?? {}
+  // TypeSafe sends a confidence; the gateway sends only the probabilities, so the pick's own stands in.
+  const confidence = typeof a.confidence === 'number' ? a.confidence : typeof probabilities[a.choice] === 'number' ? probabilities[a.choice] : 0
+  const tokens = body.usage?.input_tokens ?? body.usage?.inputTokens
+  const billed = Number(body.providerMetadata?.gateway?.cost)
+  const costUsd = Number.isFinite(billed) ? billed : typeof tokens === 'number' ? tokens * JEV_USD_PER_TOKEN : 0
+  return { tier: a.choice, confidence, probabilities, costUsd }
 }
 
 // Which tier a model name or id belongs to, if any of ours.

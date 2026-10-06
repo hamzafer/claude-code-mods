@@ -13,13 +13,13 @@ function jevAnswer(choice: string, confidence: number) {
 }
 
 // Stands for the engine beneath the mod; records what each spawn ran on and what Jev was sent.
-function engine(on: any, jev: { status: number; text: string } | null) {
+function engine(on: any, jev: { status: number; text: string } | null, env: Record<string, string> = {}) {
   const spawned: (string | undefined)[] = []
   const sent: any[] = []
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('clock.sleep', () => new Promise(() => {})) // Jev's timeout never fires here: the fetch answers first
-  on('env.get', () => ({ value: undefined }))
+  on('env.get', (_$: any, e: any) => ({ value: env[e.name] }))
   on('http.fetch', (_$: any, e: any) => {
     sent.push({ url: e.url, headers: e.init?.headers, body: JSON.parse(e.init?.body ?? '{}') })
     return jev ? { value: { status: jev.status, ok: jev.status < 300, headers: {}, text: jev.text } } : { value: { status: 500, ok: false, headers: {}, text: '' } }
@@ -132,6 +132,21 @@ describe('switchboard', () => {
     expect(spawned).toEqual(['opus', undefined])
     const band = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /own model · try haiku/ })).toBeDefined()
+    await band.unmount()
+  })
+
+  test('with only a gateway key, Jev is asked through Vercel AI Gateway with zero retention', async ($, on) => {
+    const answer = JSON.stringify({ model: 'typesafe-ai/jev', answers: { tier: { type: 'choice', choice: 'haiku', probabilities: { haiku: 0.9, sonnet: 0.1, opus: 0 } } }, usage: { inputTokens: 700, outputTokens: 20 }, providerMetadata: { gateway: { cost: '0.0000294' } } })
+    const { spawned, sent } = engine(on, { status: 200, text: answer }, { AI_GATEWAY_API_KEY: 'gw-test' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn(SPAWN as any)
+    expect(sent[0].url).toBe('https://ai-gateway.vercel.sh/v1/evaluate')
+    expect(sent[0].headers.Authorization).toBe('Bearer gw-test')
+    expect(sent[0].body.model).toBe('typesafe-ai/jev')
+    expect(sent[0].body.providerOptions.gateway.zeroDataRetention).toBe(true)
+    expect(spawned).toEqual(['haiku'])
+    const band = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /jev 90%/ })).toBeDefined() // the pick's probability stands in for confidence
     await band.unmount()
   })
 

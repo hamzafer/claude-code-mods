@@ -18,7 +18,7 @@
     "jevApiKey": {
       "type": "string",
       "title": "Jev API key",
-      "description": "TypeSafe API key for Jev. Each spawn sends the task's description and its first 6,000 characters to api.typesafe.ai. Empty uses TYPESAFE_API_KEY, else rules only and nothing is sent.",
+      "description": "TypeSafe API key for Jev. Each spawn sends the task's description and its first 6,000 characters to api.typesafe.ai. Empty uses TYPESAFE_API_KEY, then AI_GATEWAY_API_KEY (Jev through Vercel AI Gateway, zero data retention), else rules only and nothing is sent.",
       "sensitive": true,
       "default": ""
     }

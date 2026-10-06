@@ -1,6 +1,7 @@
 // Switchboard: the cheapest Claude model that can do each subagent's job.
 //   Before a subagent starts, Jev (TypeSafe's routing model, about $0.00003 a call) picks
-//   Haiku, Sonnet or Opus for its task; with no key, or no answer in time, simple rules do.
+//   Haiku, Sonnet or Opus for its task, called directly or through Vercel AI Gateway; with
+//   no key, or no answer in time, simple rules do.
 //   In auto mode the pick replaces the model the caller asked for; in suggest mode it is
 //   only shown. The band has one line per spawn; /route lists every pick, its reason and
 //   what each run cost at API prices, against what the asked model would have cost.
@@ -8,10 +9,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Route, Tier } from '../types'
-import { PRICES_AS_OF, addUsage, byRules, costOf, jevRequest, parseJev, tierOf, usd } from './route'
+import { JEV_URL, PRICES_AS_OF, addUsage, byRules, costOf, jevRequest, parseJev, tierOf, usd } from './route'
+import type { Via } from './route'
 
 const PANE = 'switchboard'
-const JEV_URL = 'https://api.typesafe.ai/v1/systemone'
 const JEV_TIMEOUT_MS = 2_500 // the spawn waits this long for Jev at most
 const MIN_CONFIDENCE = 0.5 // below this, Jev's pick is shown but not applied
 const SHOW_DONE_MS = 30_000 // a finished spawn stays in the band this long
@@ -41,7 +42,9 @@ export const register: Register = (on, options) => {
   on('agent.spawn', async ($, e, next) => {
     if (e.fork || e.isTeammate) return next(e) // a fork runs on its parent's model; a teammate keeps the one it was given
     const asked = baseline(e)
-    const pick = await decide($, e, key || ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()).catch(() => null)
+    const pick = await credential($, key)
+      .then(c => decide($, e, c))
+      .catch(() => null)
     if (!pick) return next(e) // routing broke: the spawn goes ahead as asked
     const sure = pick.confidence === undefined || pick.confidence >= MIN_CONFIDENCE
     const apply = mode === 'auto' && sure && asked !== undefined && pick.tier !== tierOf(asked)
@@ -155,17 +158,27 @@ export const register: Register = (on, options) => {
 }
 
 type Pick = { tier: Tier; by: 'jev' | 'rules'; confidence?: number; reason: string; jevUsd?: number }
+type Credential = { via: Via; key: string } | null
+
+// A TypeSafe key (the setting, then TYPESAFE_API_KEY) goes straight to TypeSafe; else an
+// AI_GATEWAY_API_KEY goes through Vercel AI Gateway; else no Jev at all.
+async function credential($: EngineInterface, setting: string): Promise<Credential> {
+  const typesafe = setting || ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()
+  if (typesafe) return { via: 'typesafe', key: typesafe }
+  const gateway = ((await $.env.get('AI_GATEWAY_API_KEY').catch(() => undefined)) ?? '').trim()
+  return gateway ? { via: 'gateway', key: gateway } : null
+}
 
 // Jev when there is a key and it answers in time; the rules otherwise.
-async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, key: string): Promise<Pick> {
+async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, c: Credential): Promise<Pick> {
   const rules = byRules(e)
-  if (!key) return { ...rules, by: 'rules' }
+  if (!c) return { ...rules, by: 'rules' }
   const timeout = $.clock.sleep(JEV_TIMEOUT_MS).then(() => null)
   const asked = $.http
-    .fetch(JEV_URL, {
+    .fetch(JEV_URL[c.via], {
       method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(jevRequest(e)),
+      headers: { Authorization: `Bearer ${c.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(jevRequest(e, c.via)),
     })
     .then(r => (r.ok ? parseJev(r.text) : null))
     .catch(() => null)
