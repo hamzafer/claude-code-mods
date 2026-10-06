@@ -2,7 +2,7 @@
 
 <h1 align="center">Claude Code mods</h1>
 
-<p align="center"><b>Make Claude Code show what it's doing.</b><br>Live lines above the prompt, guards, panes and games. Install only the ones you want.</p>
+<p align="center"><b>Make Claude Code show what it's doing.</b><br>Plugins for Claude Code, built on function hooks: live lines above the prompt, guards, panes and games. Install only the ones you want.</p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
@@ -15,19 +15,19 @@
 
 <table>
   <tr>
-    <td align="center" width="33%"><a href="docs/mods.md#-context-bar"><img src="images/context-bar.png" alt="context-bar" width="260"></a><br>📊 <b>context-bar</b><br>what fills your context</td>
-    <td align="center" width="33%"><a href="docs/mods.md#-review-watch"><img src="images/review-watch.png" alt="review-watch" width="260"></a><br>🔍 <b>review-watch</b><br>running code reviews, live</td>
-    <td align="center" width="33%"><a href="docs/mods.md#-md-preview"><img src="images/md-preview.png" alt="md-preview" width="260"></a><br>📝 <b>md-preview</b><br>Markdown rendered like GitHub</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-context-bar"><img src="images/context-bar.png" alt="context-bar: Claude Code context window usage as a stacked bar, a color per category" width="260"></a><br>📊 <b>context-bar</b><br>what fills your context</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-review-watch"><img src="images/review-watch.png" alt="review-watch: live lines for running Codex and subagent code reviews in Claude Code" width="260"></a><br>🔍 <b>review-watch</b><br>running code reviews, live</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-md-preview"><img src="images/md-preview.png" alt="md-preview: Markdown that Claude Code edits, rendered like GitHub next to the diff" width="260"></a><br>📝 <b>md-preview</b><br>Markdown rendered like GitHub</td>
   </tr>
   <tr>
-    <td align="center" width="33%"><a href="docs/mods.md#-blast-radius"><img src="images/gallery/blast-radius.png" alt="blast-radius" width="260"></a><br>💥 <b>blast-radius</b><br>see what <code>rm -rf</code> would delete</td>
-    <td align="center" width="33%"><a href="docs/mods.md#-now-playing"><img src="images/now-playing.png" alt="now-playing" width="260"></a><br>🎵 <b>now-playing</b><br>Spotify and its lyrics, live</td>
-    <td align="center" width="33%"><a href="docs/mods.md#-reels-and-snake"><img src="images/reels-demo.gif" alt="reels" width="260"></a><br>📱 <b>reels</b><br>Shorts while Claude works</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-blast-radius"><img src="images/gallery/blast-radius.png" alt="blast-radius: a Claude Code hook holds rm -rf and lists the files it would delete" width="260"></a><br>💥 <b>blast-radius</b><br>see what <code>rm -rf</code> would delete</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-now-playing"><img src="images/now-playing.png" alt="now-playing: Spotify track, progress bar and synced lyrics inside Claude Code" width="260"></a><br>🎵 <b>now-playing</b><br>Spotify and its lyrics, live</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-reels-and-snake"><img src="images/reels-demo.gif" alt="reels: YouTube Shorts in a Claude Code pane while it works" width="260"></a><br>📱 <b>reels</b><br>Shorts while Claude works</td>
   </tr>
   <tr>
-    <td align="center" width="33%"><a href="docs/mods.md#-where-am-i"><img src="images/gallery/where-am-i.png" alt="where-am-i" width="260"></a><br>📍 <b>where-am-i</b><br>goal, now, waiting on you</td>
-    <td align="center" width="33%"><a href="docs/mods.md#-lines-above-the-prompt"><img src="images/gallery/lines.png" alt="token-weather and friends" width="260"></a><br>🌦️ <b>token-weather and friends</b><br>lines above the prompt</td>
-    <td align="center" width="33%"><a href="#mission-control"><img src="images/gallery/mission-control.png" alt="mission-control" width="260"></a><br>🛰️ <b>mission-control</b><br>agents and the code they touch</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-where-am-i"><img src="images/gallery/where-am-i.png" alt="where-am-i: the session goal, current step and what waits on you, above the Claude Code prompt" width="260"></a><br>📍 <b>where-am-i</b><br>goal, now, waiting on you</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-lines-above-the-prompt"><img src="images/gallery/lines.png" alt="token-weather, usage-meter and other Claude Code status lines stacked above the prompt" width="260"></a><br>🌦️ <b>token-weather and friends</b><br>lines above the prompt</td>
+    <td align="center" width="33%"><a href="#mission-control"><img src="images/gallery/mission-control.png" alt="mission-control: Claude Code subagents, tool calls and the files they touch, live" width="260"></a><br>🛰️ <b>mission-control</b><br>agents and the code they touch</td>
   </tr>
 </table>
 
