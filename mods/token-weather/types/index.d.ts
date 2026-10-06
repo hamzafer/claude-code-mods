@@ -9,6 +9,8 @@ declare module 'claude-code' {
       lastRequestAt: number | null
       // The cache lifetime Claude's responses last showed; null until one wrote to the cache.
       detectedTtl: CacheTtl | null
+      // Whether the cache-clock mod's status line is set up; its countdown replaces this one.
+      cacheClockOn: boolean
     }
   }
 }

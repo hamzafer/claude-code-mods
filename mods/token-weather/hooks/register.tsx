@@ -32,6 +32,8 @@ const readings = atom({ plugin: 'token-weather', key: 'readings' } as const, [] 
 const lastRequestAt = atom({ plugin: 'token-weather', key: 'lastRequestAt' } as const, null as number | null)
 // The cache lifetime Claude's responses last showed; null until one wrote to the cache.
 const detectedTtl = atom({ plugin: 'token-weather', key: 'detectedTtl' } as const, null as CacheTtl | null)
+// Whether the cache-clock mod draws the cache on the status line, from Claude Code's own figures.
+const cacheClockOn = atom({ plugin: 'token-weather', key: 'cacheClockOn' } as const, false)
 
 export const register: Register = (on, options) => {
   // `5m` or `1h` set by hand wins; `auto` (the default) goes by what was detected.
@@ -40,6 +42,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await takeReading($)
+    await checkCacheClock($)
     if ((await read($, detectedTtl)) === null) {
       const known = await $.store.get('detectedTtl').catch(() => undefined) // the last session's, until this one's first response says
       if (known === '5m' || known === '1h') await update($, detectedTtl, () => known)
@@ -75,6 +78,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (!e.agentId) {
       await takeReading($) // main-loop turns only, not subagents
+      await checkCacheClock($) // set up or removed mid-session
       if (override === null) {
         // The last response's usage in the transcript says which lifetime it wrote to the cache with.
         const found = ttlFromTranscript(await readTail($))
@@ -100,7 +104,7 @@ export const register: Register = (on, options) => {
     const since = await read($, lastRequestAt)
     const ttlMs = await ttlMsFor($, override)
     let cache: ReturnType<typeof cachePart> | null = null
-    if (since !== null) {
+    if (since !== null && !(await read($, cacheClockOn))) {
       const clockNow = await $.clock.now()
       if (armedFor !== since) restart($, since, clockNow, ttlMs) // its timer was lost (a reload): pick it up
       cache = cachePart(since + ttlMs - clockNow)
@@ -126,6 +130,14 @@ export const register: Register = (on, options) => {
       </Box>
     )
   })
+}
+
+// cache-clock's status line shows the exact countdown, so this one steps aside.
+async function checkCacheClock($: EngineInterface) {
+  const settings = await $.settings.read().catch(() => ({}) as Record<string, unknown>)
+  const line = settings.statusLine as { command?: unknown } | undefined
+  const isOn = typeof line?.command === 'string' && line.command.includes('cache-clock/cache-clock.mjs')
+  if ((await read($, cacheClockOn)) !== isOn) await update($, cacheClockOn, () => isOn)
 }
 
 async function ttlMsFor($: EngineInterface, override: CacheTtl | null) {

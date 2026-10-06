@@ -182,4 +182,14 @@ describe('token-weather cache countdown', () => {
     expect(await desk.find({ type: 'Text', text: '  ❄ cache 5:00' })).toBeDefined()
     await desk.unmount()
   })
+
+  test('steps aside when cache-clock shows the cache on the status line', async ($, on) => {
+    on('settings.read', () => ({ value: { statusLine: { command: 'node "/h/.claude/cache-clock/cache-clock.mjs"' } } }) as any)
+    await start($, on)
+    await request($, 0)
+    const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeUndefined()
+    await ui.unmount()
+  })
 })
