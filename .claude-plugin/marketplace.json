@@ -110,8 +110,14 @@
     {
       "name": "token-weather",
       "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "source": "./mods/token-weather"
+    },
+    {
+      "name": "cache-clock",
+      "description": "A prompt-cache line under your status line, from Claude Code's own cache figures: time left while warm, hit rate and misses, and how many tokens the next message re-caches once cold. /cache-clock setup adds it.",
+      "version": "0.1.0",
+      "source": "./mods/cache-clock"
     },
     {
       "name": "usage-meter",

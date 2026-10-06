@@ -1,0 +1,9 @@
+{
+  "name": "cache-clock",
+  "version": "0.1.0",
+  "description": "A prompt-cache line under your status line: minutes left while warm, and how many tokens the next message re-caches once cold. /cache-clock setup adds it.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  }
+}
