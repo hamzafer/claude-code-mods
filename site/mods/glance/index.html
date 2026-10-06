@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>glance: meetings, PRs, Linear and Slack above the Claude Code prompt</title>
+<meta name="description" content="One line above the Claude Code prompt with what needs you: the next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/glance/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="glance: meetings, PRs, Linear and Slack above the Claude Code prompt">
+<meta property="og:description" content="One line above the Claude Code prompt with what needs you: the next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/glance/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="glance: meetings, PRs, Linear and Slack above the Claude Code prompt">
+<meta name="twitter:description" content="One line above the Claude Code prompt with what needs you: the next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "glance", "description": "One line above the Claude Code prompt with what needs you: the next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.", "url": "https://hamzafer.github.io/claude-code-mods/mods/glance/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/glance", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.0", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "glance", "item": "https://hamzafer.github.io/claude-code-mods/mods/glance/"}]}</script>
+</head>
+<body class="mod c-setup">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-setup">Fork and adapt</a> <span aria-hidden="true">/</span> <span aria-current="page">glance</span></nav>
+<header class="mod-head">
+  <h1>glance</h1>
+  <p class="lede">One line above the prompt with what needs you: next meeting, PRs, Linear issues and Slack DMs.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> Fork and adapt</span> <span>Version 0.1.0</span></p>
+</header>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install glance" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install glance@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install glance@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/glance</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<dl class="keys">
+<div><dt><code>/glance</code></dt><dd>Refreshes and lists everything behind the line</dd></div>
+</dl>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>One item per source, the most urgent one, with &quot;+2&quot; for the rest.</li>
+<li>Calendar: the meeting on now, or the next one. Skips all-day events, ones you declined, and blocks over 3 hours already running.</li>
+<li>PRs: a review asked of you, then your PR with failing CI, then one with changes requested.</li>
+<li>Linear: your issues In Progress or In Review, last touched first.</li>
+<li>Slack: DMs and channel @mentions from people (no bots) in the last 2 hours.</li>
+<li>Fetches at start, then every 5 minutes. Connector calls cost no model tokens.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+<li>gh</li>
+<li>The claude.ai Google Calendar, Linear and Slack connectors. A source that&#x27;s missing just stays off the line</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-glance">Full notes for glance</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/glance">Source folder: mods/glance</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-see"><a href="../../mods/usage-meter/"><span class="row-text"><span class="row-name">usage-meter</span><span class="row-desc">5-hour and 7-day plan usage, the reset countdown and the session&#x27;s cost</span></span></a></li>
+<li class="row c-see"><a href="../../mods/where-am-i/"><span class="row-text"><span class="row-name">where-am-i</span><span class="row-desc">Goal, doing now, waiting on you, next step</span></span></a></li>
+<li class="row c-setup"><a href="../../mods/session-saver/"><span class="row-text"><span class="row-name">session-saver</span><span class="row-desc">Saves where you left off and shows it on resume</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 20 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

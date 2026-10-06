@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code mods: plugins for context, usage, reviews and more</title>
+<meta name="description" content="Claude Code plugins built on function hooks: live lines above the prompt, guards for risky commands, panes and games. Install only the ones you want.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="Claude Code mods: plugins for context, usage, reviews and more">
+<meta property="og:description" content="Claude Code plugins built on function hooks: live lines above the prompt, guards for risky commands, panes and games. Install only the ones you want.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Claude Code mods: plugins for context, usage, reviews and more">
+<meta name="twitter:description" content="Claude Code plugins built on function hooks: live lines above the prompt, guards for risky commands, panes and games. Install only the ones you want.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<!-- google-site-verification -->
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "CollectionPage", "name": "Claude Code mods", "description": "Claude Code plugins built on function hooks: live lines above the prompt, guards for risky commands, panes and games. Install only the ones you want.", "url": "https://hamzafer.github.io/claude-code-mods/", "isPartOf": {"@type": "WebSite", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}, "mainEntity": {"@type": "ItemList", "itemListElement": [{"@type": "ListItem", "position": 1, "url": "https://hamzafer.github.io/claude-code-mods/mods/mission-control/", "name": "mission-control"}, {"@type": "ListItem", "position": 2, "url": "https://hamzafer.github.io/claude-code-mods/mods/context-bar/", "name": "context-bar"}, {"@type": "ListItem", "position": 3, "url": "https://hamzafer.github.io/claude-code-mods/mods/token-weather/", "name": "token-weather"}, {"@type": "ListItem", "position": 4, "url": "https://hamzafer.github.io/claude-code-mods/mods/where-am-i/", "name": "where-am-i"}, {"@type": "ListItem", "position": 5, "url": "https://hamzafer.github.io/claude-code-mods/mods/next-steps/", "name": "next-steps"}, {"@type": "ListItem", "position": 6, "url": "https://hamzafer.github.io/claude-code-mods/mods/usage-meter/", "name": "usage-meter"}, {"@type": "ListItem", "position": 7, "url": "https://hamzafer.github.io/claude-code-mods/mods/agent-radar/", "name": "agent-radar"}, {"@type": "ListItem", "position": 8, "url": "https://hamzafer.github.io/claude-code-mods/mods/review-watch/", "name": "review-watch"}, {"@type": "ListItem", "position": 9, "url": "https://hamzafer.github.io/claude-code-mods/mods/browser-lanes/", "name": "browser-lanes"}, {"@type": "ListItem", "position": 10, "url": "https://hamzafer.github.io/claude-code-mods/mods/prayer-times/", "name": "prayer-times"}, {"@type": "ListItem", "position": 11, "url": "https://hamzafer.github.io/claude-code-mods/mods/replay-theater/", "name": "replay-theater"}, {"@type": "ListItem", "position": 12, "url": "https://hamzafer.github.io/claude-code-mods/mods/md-preview/", "name": "md-preview"}, {"@type": "ListItem", "position": 13, "url": "https://hamzafer.github.io/claude-code-mods/mods/blast-radius/", "name": "blast-radius"}, {"@type": "ListItem", "position": 14, "url": "https://hamzafer.github.io/claude-code-mods/mods/glance/", "name": "glance"}, {"@type": "ListItem", "position": 15, "url": "https://hamzafer.github.io/claude-code-mods/mods/merge-gate/", "name": "merge-gate"}, {"@type": "ListItem", "position": 16, "url": "https://hamzafer.github.io/claude-code-mods/mods/rulebook-guard/", "name": "rulebook-guard"}, {"@type": "ListItem", "position": 17, "url": "https://hamzafer.github.io/claude-code-mods/mods/session-saver/", "name": "session-saver"}, {"@type": "ListItem", "position": 18, "url": "https://hamzafer.github.io/claude-code-mods/mods/reels/", "name": "reels"}, {"@type": "ListItem", "position": 19, "url": "https://hamzafer.github.io/claude-code-mods/mods/snake/", "name": "snake"}, {"@type": "ListItem", "position": 20, "url": "https://hamzafer.github.io/claude-code-mods/mods/now-playing/", "name": "now-playing"}]}}</script>
+</head>
+<body class="home">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href=""><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="#mods">Mods</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<section class="hero">
+  <div class="hero-copy">
+    <h1>Mods for Claude Code</h1>
+    <p class="lede">Make Claude Code show what it's doing. Live lines above the prompt, guards, panes and games. Each mod is a small plugin built on Claude Code's function hooks. Install only the ones you want.</p>
+    <p class="hero-links"><a class="btn" href="#install">Install a mod</a> <a class="btn btn-quiet" href="https://github.com/hamzafer/claude-code-mods">View on GitHub</a></p>
+  </div>
+  <figure class="term hero-term" aria-label="Example: several mods stacked above the Claude Code prompt">
+    <div class="term-lines">
+<a class="tl" href="mods/token-weather/"><span class="tl-text"><span class="t-cyan">☁ Cloudy</span> 44% of context <span class="t-dim">442.9k / 1M</span>  <span class="t-dim">▲ +20.9k last turn</span></span><span class="tl-tag">token-weather</span></a>
+<a class="tl" href="mods/where-am-i/"><span class="tl-text"><span class="t-cyan">◆ Goal:</span> test the new mods one by one</span><span class="tl-tag">where-am-i</span></a>
+<a class="tl" href="mods/review-watch/"><span class="tl-text">⌛ <span class="t-cyan">codex</span> · demo-model · dummy review  <span class="t-dim">6s</span></span><span class="tl-tag">review-watch</span></a>
+<a class="tl" href="mods/prayer-times/"><span class="tl-text">🕌 Asr · <span class="t-green">1h 12m left</span> · <span class="t-dim">next Maghrib 19:08</span></span><span class="tl-tag">prayer-times</span></a>
+<a class="tl" href="mods/now-playing/"><span class="tl-text">🎵 Track · <span class="t-dim">Artist</span>  <span class="t-green">━━━━━━</span><span class="t-dim">──────</span> 1:51/3:14</span><span class="tl-tag">now-playing</span></a>
+<a class="tl" href="mods/next-steps/"><span class="tl-text"><span class="t-dim">next:</span>  1 run the tests you just wrote  <span class="t-dim">·</span>  2 open a draft PR  <span class="t-dim">·</span>  0 dismiss</span><span class="tl-tag">next-steps</span></a>
+    </div>
+    <div class="term-prompt"><span class="t-dim">❯</span> /context-bar<span class="caret" aria-hidden="true"></span></div>
+    <figcaption>Lines from six mods, stacked above the prompt. Each hides when it has nothing to show. Pick a line to read about its mod.</figcaption>
+  </figure>
+</section>
+
+<section class="install" id="install" aria-labelledby="install-h">
+  <h2 id="install-h">Install</h2>
+  <ol class="steps">
+    <li><p>Add the marketplace once.</p>
+<div class="code">
+  <pre id="c-add" aria-label="Add the marketplace" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-add">Copy</button>
+</div>
+    </li>
+    <li><p>Install any mod by name.</p>
+<div class="code">
+  <pre id="c-inst" aria-label="Install a mod" data-cmd="claude plugin install context-bar@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin install context-bar@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+    </li>
+    <li><p>Restart Claude Code.</p></li>
+  </ol>
+  <p class="aside">Needs Claude Code 2.1.287 or newer. A few mods need more, like Chrome, <code>gh</code> or a connector. Each mod's page says which. To try one without installing, clone the repo and run <code>claude --plugin-dir mods/context-bar</code>.</p>
+</section>
+
+<section class="mods" id="mods" aria-labelledby="mods-h">
+  <h2 id="mods-h">All 20 mods</h2>
+  <section class="cat c-see" aria-labelledby="cat-see">
+    <h3 id="cat-see"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</h3>
+    <p class="cat-desc">Lines above the prompt and panes that show what Claude is doing.</p>
+    <ul class="rows">
+      <li class="row has-thumb"><a href="mods/mission-control/"><span class="row-text"><span class="row-name">mission-control</span><span class="row-desc">Live map of agents, tool calls and the code they touch</span><code class="cmd">/mission</code></span><span class="row-thumb"><img style="max-width:252px" src="images/gallery/mission-control.png" width="505" height="158" alt="mission-control code map: logout.ts, login.tsx, client.ts, session.ts and users.ts linked by import arrows" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/context-bar/"><span class="row-text"><span class="row-name">context-bar</span><span class="row-desc">Your context window as one stacked bar, a color per category</span><code class="cmd">/context-bar</code></span><span class="row-thumb"><img style="max-width:889px" src="images/context-bar.png" width="1778" height="234" alt="context-bar: 273k of 1M tokens used, compacts at 967k, 27 percent. A stacked bar splits system prompt, tools, MCP instructions, agents, memory files, skills and messages" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/token-weather/"><span class="row-text"><span class="row-name">token-weather</span><span class="row-desc">Context fill from Clear to Compact soon, plus a prompt-cache countdown</span></span><span class="row-thumb"><img style="max-width:659px" src="images/gallery/lines.png" width="1318" height="100" alt="Two lines above the prompt: browser-lanes says the browser is not attached, token-weather says Cloudy, 44% of context" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/where-am-i/"><span class="row-text"><span class="row-name">where-am-i</span><span class="row-desc">Goal, doing now, waiting on you, next step</span><code class="cmd">/where</code></span><span class="row-thumb"><img style="max-width:530px" src="images/gallery/where-am-i.png" width="1061" height="132" alt="where-am-i lines: the goal, what Claude is doing now, and what is waiting on you" decoding="async" loading="lazy"></span></a></li>
+      <li class="row"><a href="mods/next-steps/"><span class="row-text"><span class="row-name">next-steps</span><span class="row-desc">2 or 3 likely next prompts after each turn, one key to draft one</span></span></a></li>
+      <li class="row"><a href="mods/usage-meter/"><span class="row-text"><span class="row-name">usage-meter</span><span class="row-desc">5-hour and 7-day plan usage, the reset countdown and the session&#x27;s cost</span></span></a></li>
+      <li class="row"><a href="mods/agent-radar/"><span class="row-text"><span class="row-name">agent-radar</span><span class="row-desc">One live line per running subagent</span><code class="cmd">/radar</code></span></a></li>
+      <li class="row has-thumb"><a href="mods/review-watch/"><span class="row-text"><span class="row-name">review-watch</span><span class="row-desc">One live line per running code review, Codex or a review subagent</span></span><span class="row-thumb"><img style="max-width:556px" src="images/review-watch.png" width="1112" height="116" alt="review-watch: an agent review on haiku at 5s and a codex review at 6s, with Codex&#x27;s latest line, starting review of 3 files" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/browser-lanes/"><span class="row-text"><span class="row-name">browser-lanes</span><span class="row-desc">Whether this session has a browser, and who holds it</span><code class="cmd">/browser</code></span><span class="row-thumb"><img style="max-width:883px" src="images/bands.png" width="1766" height="180" alt="browser-lanes line in red: browser NOT attached, another Claude holds the shared profile, above token-weather and where-am-i" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/prayer-times/"><span class="row-text"><span class="row-name">prayer-times</span><span class="row-desc">The current prayer and how long is left, the next one, and zawal</span><code class="cmd">/prayers</code></span><span class="row-thumb"><img style="max-width:330px" src="images/prayer-times.png" width="660" height="35" alt="prayer-times line: Dhuhr, 1h 26m left, next Asr 16:32" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/replay-theater/"><span class="row-text"><span class="row-name">replay-theater</span><span class="row-desc">Steps through the last turn&#x27;s edits, one diff at a time</span><code class="cmd">/replay</code></span><span class="row-thumb"><img style="max-width:340px" src="images/gallery/replay-theater.png" width="680" height="326" alt="replay-theater on step 1 of 3, with Prev, Next and Close buttons and a diff that adds a greet function" decoding="async" loading="lazy"></span></a></li>
+      <li class="row has-thumb"><a href="mods/md-preview/"><span class="row-text"><span class="row-name">md-preview</span><span class="row-desc">Markdown rendered like GitHub, before and after side by side</span><code class="cmd">/md</code></span><span class="row-thumb"><img style="max-width:800px" src="images/md-preview.png" width="1600" height="530" alt="md-preview: Claude&#x27;s Markdown diff on the left, the README rendered like GitHub on the right, with a green bar on the changed blocks" decoding="async" loading="lazy"></span></a></li>
+    </ul>
+  </section>
+  <section class="cat c-guard" aria-labelledby="cat-guard">
+    <h3 id="cat-guard"><span class="sq" aria-hidden="true">■</span> Guard your repo</h3>
+    <p class="cat-desc">Stops a risky command and shows what it would change first.</p>
+    <ul class="rows">
+      <li class="row has-thumb"><a href="mods/blast-radius/"><span class="row-text"><span class="row-name">blast-radius</span><span class="row-desc">Holds rm -r, force pushes and migrations, and shows what they&#x27;d delete</span></span><span class="row-thumb"><img style="max-width:384px" src="images/gallery/blast-radius.png" width="768" height="169" alt="blast-radius held a command: rm -rf would delete 9 files (252 KB), with Cancel and Proceed buttons" decoding="async" loading="lazy"></span></a></li>
+    </ul>
+  </section>
+  <section class="cat c-setup" aria-labelledby="cat-setup">
+    <h3 id="cat-setup"><span class="sq" aria-hidden="true">■</span> Fork and adapt</h3>
+    <p class="cat-desc">Built around one person&#x27;s tools and rules. Fork them and change the rules to yours.</p>
+    <ul class="rows">
+      <li class="row"><a href="mods/glance/"><span class="row-text"><span class="row-name">glance</span><span class="row-desc">Next meeting, PRs, Linear issues and Slack DMs in one line</span><code class="cmd">/glance</code></span></a></li>
+      <li class="row"><a href="mods/merge-gate/"><span class="row-text"><span class="row-name">merge-gate</span><span class="row-desc">Holds gh pr merge until CI is green and Codex reviewed once</span><code class="cmd">/gate</code></span></a></li>
+      <li class="row has-thumb"><a href="mods/rulebook-guard/"><span class="row-text"><span class="row-name">rulebook-guard</span><span class="row-desc">Rewrites em dashes, asks before --amend, unformatted pushes and personal info</span></span><span class="row-thumb"><img style="max-width:893px" src="images/rulebook-guard.png" width="1786" height="281" alt="Rulebook Guard asks: This is git commit --amend. Your rule: make a new commit instead. Allow it anyway? Options: Block it, Allow once, Type something" decoding="async" loading="lazy"></span></a></li>
+      <li class="row"><a href="mods/session-saver/"><span class="row-text"><span class="row-name">session-saver</span><span class="row-desc">Saves where you left off and shows it on resume</span><code class="cmd">/park</code></span></a></li>
+    </ul>
+  </section>
+  <section class="cat c-fun" aria-labelledby="cat-fun">
+    <h3 id="cat-fun"><span class="sq" aria-hidden="true">■</span> For fun</h3>
+    <p class="cat-desc">Opt-in. Nothing opens until you ask.</p>
+    <ul class="rows">
+      <li class="row has-thumb"><a href="mods/reels/"><span class="row-text"><span class="row-name">reels</span><span class="row-desc">YouTube Shorts while Claude works, paused when it&#x27;s done</span><code class="cmd">/reels</code></span><span class="row-thumb"><img style="max-width:104px" src="images/reels-poster.png" width="208" height="392" alt="The reels pane playing a YouTube Short next to the chat" decoding="async" loading="lazy"></span></a></li>
+      <li class="row"><a href="mods/snake/"><span class="row-text"><span class="row-name">snake</span><span class="row-desc">Snake while Claude works</span><code class="cmd">/snake</code></span></a></li>
+      <li class="row has-thumb"><a href="mods/now-playing/"><span class="row-text"><span class="row-name">now-playing</span><span class="row-desc">Spotify&#x27;s track, progress and the lyric being sung, with buttons</span><code class="cmd">/music</code></span><span class="row-thumb"><img style="max-width:480px" src="images/now-playing.png" width="960" height="67" alt="now-playing: the track and artist, a green progress bar at 2:39 of 3:05, previous, pause and next buttons, and the lyric line below" decoding="async" loading="lazy"></span></a></li>
+    </ul>
+  </section>
+</section>
+
+<section class="build" aria-labelledby="build-h">
+  <h2 id="build-h">Build your own</h2>
+  <p>A mod is a plugin made of function hooks: it can draw a line above the prompt, open a pane, show a toast or stop a tool call. Start from <a href="https://claude.dev/blog/getting-started-with-claude-code-mods/">Getting started with Claude Code mods</a>. The checks and the new-mod checklist are in <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hamzafer.github.io/claude-code-mods/sitemap.xml
