@@ -110,10 +110,10 @@ Runs each Claude Code subagent on the cheapest model that can do its job.
 
 - Before a subagent starts, it picks Haiku, Sonnet or Opus for the task. A line above the prompt shows the switch: `⇄ find auth middleware  opus → haiku  jev 82%`
 - **With a Jev key** it asks [Jev](https://docs.typesafe.ai), TypeSafe's routing model (about $0.00003 a pick). Set the key in `/config` (switchboard), or as `TYPESAFE_API_KEY`. If Jev doesn't answer within 2.5 s, the rules decide
-- **Without a key** simple rules decide: Explore agents get Haiku, Plan agents get Opus, lookup tasks Haiku, hard tasks (security, architecture, root cause) Opus, everything else Sonnet
+- **Without a key** simple rules decide: Explore agents get Haiku, Plan agents get Opus, then words in the task's short description: lookups (find, search, list) Haiku, hard tasks (security, architecture, root cause) Opus, everything else Sonnet
 - If Jev is less than 50% sure, it shows the pick but keeps the model Claude asked for
 - **Mode** in `/config`: `auto` (default) switches the model, `suggest` only shows the pick
-- Forks always run on their parent's model, so it leaves them alone
+- It leaves forks (they always run on their parent's model) and teammates alone. When Claude names no model and the agent type has its own, it only suggests, since a mod can't see that model
 - `/route` lists every pick with its reason, the model it ran on and what it cost. The total compares that with what the same tokens would have cost on the model Claude asked for, and shows what Jev cost
 - Costs are estimates at API prices (as of 2026-09-25), not what your plan charges. `?` means not known yet
 - **Privacy:** with a key, each spawn sends the task's description and its first 6,000 characters to api.typesafe.ai. Without one, nothing leaves your machine

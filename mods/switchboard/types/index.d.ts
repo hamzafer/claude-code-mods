@@ -13,7 +13,7 @@ export type Route = {
   agentId?: string
   description: string
   type: string
-  asked: string // the model the caller asked for, or the parent's when it asked for none
+  asked?: string // what it would run on without us; undefined when its own agent definition decides
   picked: Tier
   by: 'jev' | 'rules'
   confidence?: number // Jev's, 0 to 1

@@ -39,12 +39,12 @@ export const register: Register = (on, options) => {
   })
 
   on('agent.spawn', async ($, e, next) => {
-    if (e.fork) return next(e) // a fork always runs on its parent's model
-    const asked = e.model ?? e.parentModel
+    if (e.fork || e.isTeammate) return next(e) // a fork runs on its parent's model; a teammate keeps the one it was given
+    const asked = baseline(e)
     const pick = await decide($, e, key || ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()).catch(() => null)
     if (!pick) return next(e) // routing broke: the spawn goes ahead as asked
     const sure = pick.confidence === undefined || pick.confidence >= MIN_CONFIDENCE
-    const apply = mode === 'auto' && sure && pick.tier !== tierOf(asked)
+    const apply = mode === 'auto' && sure && asked !== undefined && pick.tier !== tierOf(asked)
     const r = await next(apply ? { ...e, model: pick.tier } : e)
     if (r.deny !== undefined) return r
     const one: Route = {
@@ -63,7 +63,7 @@ export const register: Register = (on, options) => {
       model: r.model,
       jevUsd: pick.jevUsd,
     }
-    await update($, routes, list => [one, ...list.filter(x => x.id !== one.id)].slice(0, 50)).catch(() => {})
+    await update($, routes, list => trim([one, ...list.filter(x => x.id !== one.id)])).catch(() => {})
     return r
   })
 
@@ -85,7 +85,8 @@ export const register: Register = (on, options) => {
           model,
           usage,
           costUsd: usage ? costOf(model, usage) : x.costUsd,
-          askedUsd: usage ? costOf(x.asked, usage) : x.askedUsd,
+          // Not switched, it ran on what was asked; switched, the same tokens at the asked model's prices.
+          askedUsd: !usage ? x.askedUsd : x.applied && x.asked ? costOf(x.asked, usage) : costOf(model, usage),
         }
       }),
     )
@@ -173,6 +174,20 @@ async function decide($: EngineInterface, e: { subagentType: string; description
   return { tier: jev.tier, by: 'jev', confidence: jev.confidence, reason: `Jev ${pct(jev.probabilities[jev.tier] ?? jev.confidence)} ${jev.tier}`, jevUsd: jev.costUsd }
 }
 
+// The model the spawn would run on without us, when we can know it: what the caller named,
+// or the parent's for an agent that inherits. Undefined when the agent's own definition
+// decides, which a hook can't see; such a spawn gets a suggestion, never a switch.
+export function baseline(e: { model?: string; parentModel: string; subagentType: string }): string | undefined {
+  if (e.model && e.model !== 'inherit') return e.model
+  if (e.model === 'inherit' || e.subagentType === 'general-purpose') return e.parentModel
+  return undefined
+}
+
+// The newest 50, but never a running one: its cost and status are still to come.
+export function trim(list: Route[]) {
+  return list.filter((r, i) => i < 50 || r.status === 'running')
+}
+
 // Running, or finished in the last 30 s.
 export function isShown(r: Route, at = Date.now()) {
   return r.status === 'running' || (r.endedAt !== undefined && at - r.endedAt < SHOW_DONE_MS)
@@ -180,6 +195,7 @@ export function isShown(r: Route, at = Date.now()) {
 
 // "opus → haiku", "haiku (kept)" or, in suggest mode, "opus · try haiku".
 export function move(r: Route, mode: 'auto' | 'suggest') {
+  if (r.asked === undefined) return `own model · try ${r.picked}`
   const from = tierOf(r.asked) ?? r.asked
   if (r.applied) return `${from} → ${r.picked}`
   if (tierOf(r.asked) === r.picked) return `${r.picked} (kept)`

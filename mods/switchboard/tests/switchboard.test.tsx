@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { move, totals } from '../hooks/register'
+import { baseline, move, totals, trim } from '../hooks/register'
 import { byRules, costOf, jevRequest, parseJev, tierOf } from '../hooks/route'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
@@ -33,11 +33,17 @@ function engine(on: any, jev: { status: number; text: string } | null) {
 
 describe('switchboard', () => {
   test('rules, Jev parsing and prices', () => {
-    expect(byRules({ subagentType: 'Explore', description: 'x', prompt: '' }).tier).toBe('haiku')
-    expect(byRules({ subagentType: 'Plan', description: 'x', prompt: '' }).tier).toBe('opus')
-    expect(byRules({ subagentType: 'general-purpose', description: 'find the config loader', prompt: '' }).tier).toBe('haiku')
-    expect(byRules({ subagentType: 'general-purpose', description: 'security review of login', prompt: '' }).tier).toBe('opus')
-    expect(byRules({ subagentType: 'general-purpose', description: 'add a logout button', prompt: '' }).tier).toBe('sonnet')
+    expect(byRules({ subagentType: 'Explore', description: 'x' }).tier).toBe('haiku')
+    expect(byRules({ subagentType: 'Plan', description: 'x' }).tier).toBe('opus')
+    expect(byRules({ subagentType: 'general-purpose', description: 'find the config loader' }).tier).toBe('haiku')
+    expect(byRules({ subagentType: 'general-purpose', description: 'security review of login' }).tier).toBe('opus')
+    expect(byRules({ subagentType: 'general-purpose', description: 'add a logout button' }).tier).toBe('sonnet')
+    expect(byRules({ subagentType: 'general-purpose', description: 'add the export endpoint' }).tier).toBe('sonnet') // the prompt's words don't count
+
+    expect(baseline({ model: 'haiku', parentModel: 'claude-opus-5-5', subagentType: 'Explore' })).toBe('haiku')
+    expect(baseline({ model: 'inherit', parentModel: 'claude-opus-5-5', subagentType: 'Explore' })).toBe('claude-opus-5-5')
+    expect(baseline({ parentModel: 'claude-opus-5-5', subagentType: 'general-purpose' })).toBe('claude-opus-5-5')
+    expect(baseline({ parentModel: 'claude-opus-5-5', subagentType: 'Explore' })).toBeUndefined() // its own definition decides
 
     expect(jevRequest(SPAWN).questions.tier.type).toBe('choice')
     expect(jevRequest({ ...SPAWN, prompt: 'x'.repeat(20_000) }).state.task.length).toBe(6_000)
@@ -56,6 +62,9 @@ describe('switchboard', () => {
     expect(move({ ...r, applied: false }, 'suggest')).toBe('opus · try haiku')
     expect(move({ ...r, applied: false, picked: 'opus' }, 'auto')).toBe('opus (kept)')
     expect(totals([r])).toEqual({ count: 1, switched: 1, cost: 0.02, asked: 0.08, jev: 0 })
+    expect(move({ ...r, asked: undefined, applied: false }, 'auto')).toBe('own model · try haiku')
+    const many = Array.from({ length: 60 }, (_, i) => ({ ...r, id: `r${i}`, status: i === 55 ? ('running' as const) : ('done' as const) }))
+    expect(trim(many).map(x => x.id)).toEqual([...many.slice(0, 50).map(x => x.id), 'r55'])
   })
 
   test('with a Jev key, the spawn runs on Jev\'s pick and the cost is counted once per turn', { options: { jevApiKey: 'k-test' } }, async ($, on) => {
@@ -89,7 +98,7 @@ describe('switchboard', () => {
   test('with no key, rules decide and nothing is sent', async ($, on) => {
     const { spawned, sent } = engine(on, null)
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
-    await $.agent.spawn({ ...SPAWN, subagentType: 'Explore', model: undefined } as any)
+    await $.agent.spawn({ ...SPAWN, model: undefined } as any) // general-purpose inherits opus; 'find' is a lookup
     expect(sent).toEqual([])
     expect(spawned).toEqual(['haiku'])
   })
@@ -111,6 +120,18 @@ describe('switchboard', () => {
     expect(spawned).toEqual(['opus', undefined])
     const band = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /opus · try haiku/ })).toBeDefined()
+    await band.unmount()
+  })
+
+  test('teammates and agents with their own model are not switched', { options: { jevApiKey: 'k-test' } }, async ($, on) => {
+    const { spawned, sent } = engine(on, { status: 200, text: jevAnswer('haiku', 0.9) })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn({ ...SPAWN, isTeammate: true, name: 'scout' } as any)
+    expect(sent).toEqual([]) // a teammate's task is not sent anywhere
+    await $.agent.spawn({ ...SPAWN, tool_use_id: 't2', subagentType: 'Explore', model: undefined } as any)
+    expect(spawned).toEqual(['opus', undefined])
+    const band = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /own model · try haiku/ })).toBeDefined()
     await band.unmount()
   })
 

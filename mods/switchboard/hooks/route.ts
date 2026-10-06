@@ -23,12 +23,13 @@ const JEV_USD_PER_TOKEN = 0.042 / 1_000_000 // input only; Jev's output tokens a
 
 const STATE_CHARS = 6_000 // enough of the task for Jev to judge it, well under its 32k state limit
 
-// The fallback when Jev has no key or does not answer: the agent type first, then words in the task.
-export function byRules(input: { subagentType: string; description: string; prompt: string }): { tier: Tier; reason: string } {
+// The fallback when Jev has no key or does not answer: the agent type first, then words in the
+// short description. The prompt is left out: a coding task often says "search" or "list" too.
+export function byRules(input: { subagentType: string; description: string }): { tier: Tier; reason: string } {
   const type = input.subagentType.toLowerCase()
   if (type === 'explore') return { tier: 'haiku', reason: 'rule: Explore agent' }
   if (type === 'plan') return { tier: 'opus', reason: 'rule: Plan agent' }
-  const text = `${input.description} ${input.prompt.slice(0, 2_000)}`.toLowerCase()
+  const text = input.description.toLowerCase()
   if (/\b(architect\w*|design doc|plan the|root cause|race condition|deadlock|security|threat model|refactor across|migrat\w+)\b/.test(text)) return { tier: 'opus', reason: 'rule: hard task words' }
   if (/\b(find|search|locate|list|look up|summari[sz]e|grep|where is|which files|read through)\b/.test(text)) return { tier: 'haiku', reason: 'rule: lookup words' }
   return { tier: 'sonnet', reason: 'rule: default' }
