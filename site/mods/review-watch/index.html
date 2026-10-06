@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>review-watch: watch Codex and subagent code reviews in Claude Code</title>
+<meta name="description" content="A live line above the Claude Code prompt for each running code review, Codex or a review subagent, with its model, target and time. A toast lists the findings.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/review-watch/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="review-watch: watch Codex and subagent code reviews in Claude Code">
+<meta property="og:description" content="A live line above the Claude Code prompt for each running code review, Codex or a review subagent, with its model, target and time. A toast lists the findings.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/review-watch/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/review-watch.png">
+<meta property="og:image:alt" content="review-watch: an agent review on haiku at 5s and a codex review at 6s, with Codex&#x27;s latest line, starting review of 3 files">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="review-watch: watch Codex and subagent code reviews in Claude Code">
+<meta name="twitter:description" content="A live line above the Claude Code prompt for each running code review, Codex or a review subagent, with its model, target and time. A toast lists the findings.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/review-watch.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "review-watch", "description": "A live line above the Claude Code prompt for each running code review, Codex or a review subagent, with its model, target and time. A toast lists the findings.", "url": "https://hamzafer.github.io/claude-code-mods/mods/review-watch/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/review-watch", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.0", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/review-watch.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "review-watch", "item": "https://hamzafer.github.io/claude-code-mods/mods/review-watch/"}]}</script>
+</head>
+<body class="mod c-see">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-see">See what&#x27;s happening</a> <span aria-hidden="true">/</span> <span aria-current="page">review-watch</span></nav>
+<header class="mod-head">
+  <h1>review-watch</h1>
+  <p class="lede">A live line above the prompt for each running code review: Codex or a review subagent, its model, what it reviews, time, and Codex&#x27;s latest output. A toast with the findings when it ends.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.0</span></p>
+</header>
+<figure class="shot shot-wide"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:556px" src="../../images/review-watch.png" width="1112" height="116" alt="review-watch: an agent review on haiku at 5s and a codex review at 6s, with Codex&#x27;s latest line, starting review of 3 files" decoding="async" fetchpriority="high"></div><figcaption>A Codex review and a review subagent running at once.</figcaption></figure>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install review-watch"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install review-watch@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/review-watch</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<p>Nothing to type. Install it and the line shows above the prompt. It hides when it has nothing to show.</p>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>Tracks every codex review shell command, in the foreground or background, and every subagent whose description says &quot;review&quot;.</li>
+<li>Each line shows the model (from -c model=... or --model, else your ~/.codex/config.toml), the --title or what&#x27;s under review, and the elapsed time.</li>
+<li>When a review ends, a toast says so. For Codex it also counts the [P1] and [P2] findings, when the output goes to a file or the review runs in the background.</li>
+<li>If it can&#x27;t read a Codex review&#x27;s output, the toast has no findings count. It never guesses &quot;no findings&quot;.</li>
+<li>A finished review shows a ✅ line for 30 s, then goes away.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+<li>ps and tail (macOS and Linux have both)</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-review-watch">Full notes for review-watch</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/review-watch">Source folder: mods/review-watch</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-setup"><a href="../../mods/merge-gate/"><span class="row-text"><span class="row-name">merge-gate</span><span class="row-desc">Holds gh pr merge until CI is green and Codex reviewed once</span></span></a></li>
+<li class="row c-see"><a href="../../mods/agent-radar/"><span class="row-text"><span class="row-name">agent-radar</span><span class="row-desc">One live line per running subagent</span></span></a></li>
+<li class="row c-see"><a href="../../mods/mission-control/"><span class="row-text"><span class="row-name">mission-control</span><span class="row-desc">Live map of agents, tool calls and the code they touch</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 20 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

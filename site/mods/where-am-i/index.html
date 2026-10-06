@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>where-am-i: a live recap of your Claude Code session</title>
+<meta name="description" content="A live recap above the Claude Code prompt: your goal, what Claude is doing now, what waits on you, and the next step. /where gives a longer one.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/where-am-i/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="where-am-i: a live recap of your Claude Code session">
+<meta property="og:description" content="A live recap above the Claude Code prompt: your goal, what Claude is doing now, what waits on you, and the next step. /where gives a longer one.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/where-am-i/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/where-am-i.png">
+<meta property="og:image:alt" content="where-am-i below token-weather: Goal: test the new mods one by one, a now line, and waiting on you: type /gate command and say install when ready">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="where-am-i: a live recap of your Claude Code session">
+<meta name="twitter:description" content="A live recap above the Claude Code prompt: your goal, what Claude is doing now, what waits on you, and the next step. /where gives a longer one.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/where-am-i.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "where-am-i", "description": "A live recap above the Claude Code prompt: your goal, what Claude is doing now, what waits on you, and the next step. /where gives a longer one.", "url": "https://hamzafer.github.io/claude-code-mods/mods/where-am-i/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/where-am-i", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.4", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/where-am-i.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "where-am-i", "item": "https://hamzafer.github.io/claude-code-mods/mods/where-am-i/"}]}</script>
+</head>
+<body class="mod c-see">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-see">See what&#x27;s happening</a> <span aria-hidden="true">/</span> <span aria-current="page">where-am-i</span></nav>
+<header class="mod-head">
+  <h1>where-am-i</h1>
+  <p class="lede">A live recap above the prompt: goal, doing now, waiting on you, next.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.4</span></p>
+</header>
+<figure class="shot shot-wide"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:901px" src="../../images/where-am-i.png" width="1802" height="256" alt="where-am-i below token-weather: Goal: test the new mods one by one, a now line, and waiting on you: type /gate command and say install when ready" decoding="async" fetchpriority="high"></div><figcaption>Shown with token-weather above it.</figcaption></figure>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install where-am-i"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install where-am-i@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/where-am-i</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<dl class="keys">
+<div><dt><code>/where</code></dt><dd>A few bullets instead of one line</dd></div>
+</dl>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>Makes one Haiku call after each turn to write the summary.</li>
+<li>next-steps hides where-am-i&#x27;s own next part while its list shows, and restores it when the list clears.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-where-am-i">Full notes for where-am-i</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/where-am-i">Source folder: mods/where-am-i</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-see"><a href="../../mods/next-steps/"><span class="row-text"><span class="row-name">next-steps</span><span class="row-desc">2 or 3 likely next prompts after each turn, one key to draft one</span></span></a></li>
+<li class="row c-see"><a href="../../mods/token-weather/"><span class="row-text"><span class="row-name">token-weather</span><span class="row-desc">Context fill from Clear to Compact soon, plus a prompt-cache countdown</span></span></a></li>
+<li class="row c-setup"><a href="../../mods/session-saver/"><span class="row-text"><span class="row-name">session-saver</span><span class="row-desc">Saves where you left off and shows it on resume</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 20 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

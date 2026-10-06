@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>md-preview: preview Markdown like GitHub inside Claude Code</title>
+<meta name="description" content="See the Markdown files Claude Code edits rendered like GitHub, in a pane next to the chat, with before and after side by side. /md opens it.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/md-preview/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="md-preview: preview Markdown like GitHub inside Claude Code">
+<meta property="og:description" content="See the Markdown files Claude Code edits rendered like GitHub, in a pane next to the chat, with before and after side by side. /md opens it.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/md-preview/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/md-preview.png">
+<meta property="og:image:alt" content="md-preview: Claude&#x27;s Markdown diff on the left, the README rendered like GitHub on the right, with a green bar on the changed blocks">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="md-preview: preview Markdown like GitHub inside Claude Code">
+<meta name="twitter:description" content="See the Markdown files Claude Code edits rendered like GitHub, in a pane next to the chat, with before and after side by side. /md opens it.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/md-preview.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "md-preview", "description": "See the Markdown files Claude Code edits rendered like GitHub, in a pane next to the chat, with before and after side by side. /md opens it.", "url": "https://hamzafer.github.io/claude-code-mods/mods/md-preview/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/md-preview", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.3", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/md-preview.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "md-preview", "item": "https://hamzafer.github.io/claude-code-mods/mods/md-preview/"}]}</script>
+</head>
+<body class="mod c-see">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-see">See what&#x27;s happening</a> <span aria-hidden="true">/</span> <span aria-current="page">md-preview</span></nav>
+<header class="mod-head">
+  <h1>md-preview</h1>
+  <p class="lede">Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. Before and after side by side.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.3</span></p>
+</header>
+<figure class="shot"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:800px" src="../../images/md-preview.png" width="1600" height="530" alt="md-preview: Claude&#x27;s Markdown diff on the left, the README rendered like GitHub on the right, with a green bar on the changed blocks" decoding="async" fetchpriority="high"></div><figcaption>The diff Claude wrote on the left, the page rendered like GitHub on the right.</figcaption></figure>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install md-preview"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install md-preview@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/md-preview</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<dl class="keys">
+<div><dt><code>/md</code></dt><dd>Opens a pane on the latest file</dd></div>
+<div><dt><code>/md &lt;path&gt;</code></dt><dd>Opens any file</dd></div>
+<div><dt><code>/md compare &lt;a&gt; &lt;b&gt;</code></dt><dd>Two files side by side</dd></div>
+<div><dt><code>/md open or o</code></dt><dd>Opens the page full size in your browser</dd></div>
+<div><dt><code>n / p</code></dt><dd>Next and previous file</dd></div>
+<div><dt><code>b</code></dt><dd>Before and after side by side</dd></div>
+<div><dt><code>t</code></dt><dd>Page or text view</dd></div>
+<div><dt><code>r</code></dt><dd>Render again</dd></div>
+<div><dt><code>q</code></dt><dd>Closes it</dd></div>
+</dl>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>When Claude edits a .md, .mdx or .markdown file, a toast says so, once per file per turn. Files written by shell commands count too.</li>
+<li>Renders with GitHub&#x27;s own renderer through gh api /markdown when gh is signed in, else a small built-in renderer, else a text view.</li>
+<li>A green bar marks the blocks the last edit changed.</li>
+<li>It renders the files Claude edits ahead, in the background when the turn ends, so /md opens fast.</li>
+<li>Scripts in the Markdown never run.</li>
+<li>With the GitHub renderer, the file&#x27;s text goes to GitHub&#x27;s API under your own gh login. Nothing else is sent anywhere.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+<li>Google Chrome or Chromium</li>
+<li>A terminal that shows images (Ghostty, kitty, iTerm2, WezTerm). Not through tmux</li>
+<li>Built and tested on macOS</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-md-preview">Full notes for md-preview</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/md-preview">Source folder: mods/md-preview</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-see"><a href="../../mods/replay-theater/"><span class="row-text"><span class="row-name">replay-theater</span><span class="row-desc">Steps through the last turn&#x27;s edits, one diff at a time</span></span></a></li>
+<li class="row c-see"><a href="../../mods/mission-control/"><span class="row-text"><span class="row-name">mission-control</span><span class="row-desc">Live map of agents, tool calls and the code they touch</span></span></a></li>
+<li class="row c-setup"><a href="../../mods/rulebook-guard/"><span class="row-text"><span class="row-name">rulebook-guard</span><span class="row-desc">Rewrites em dashes, asks before --amend, unformatted pushes and personal info</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 20 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>
