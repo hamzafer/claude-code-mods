@@ -9,7 +9,7 @@ import { render } from './render.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-const stdin = readStdin()
+const stdin = await readStdin()
 const lines = []
 
 const wrapped = readWrapped()
@@ -31,18 +31,20 @@ if (cache) lines.push(cache)
 
 if (lines.length) process.stdout.write(lines.join('\n') + '\n')
 
-function readStdin() {
-  try {
-    return readFileSync(0, 'utf8')
-  } catch {
-    return ''
-  }
+// Read as a stream: a sync read of a non-blocking pipe can fail with EAGAIN.
+async function readStdin() {
+  let text = ''
+  process.stdin.setEncoding('utf8')
+  for await (const chunk of process.stdin) text += chunk
+  return text
 }
 
-// The command this one wraps, saved by setup; null when there was none.
+// The command this one wraps, saved by setup under the key it was given; null when there was none.
 function readWrapped() {
+  const key = process.argv[2]
+  if (!key || !/^[0-9a-f]{8}$/.test(key)) return null
   try {
-    const saved = JSON.parse(readFileSync(join(here, 'setup.json'), 'utf8'))
+    const saved = JSON.parse(readFileSync(join(here, `setup-${key}.json`), 'utf8'))
     return typeof saved.wrapped === 'string' && saved.wrapped.trim() ? saved.wrapped : null
   } catch {
     return null

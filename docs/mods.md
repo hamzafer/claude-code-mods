@@ -78,9 +78,9 @@ cache ○ cold · next message re-caches 82k tokens · ttl expired 5m
 - Green while warm, with a bar and the time left. Yellow under 20% of the lifetime. Red once cold, with how many tokens the next message re-caches, and the last miss's cause when Claude Code knows it
 - `hit` is the share of input tokens read from cache this session. `misses` counts requests that re-processed what the cache already held
 - Shows nothing until Claude Code's first reply, and skips any figure your version doesn't send
-- `/cache-clock setup` keeps the status line you have and puts the cache line under it. With no status line, the cache line becomes it. `/cache-clock remove` puts your settings back as they were. `/cache-clock` alone says whether it's on
+- `/cache-clock setup` keeps the status line you have and puts the cache line under it. With no status line, the cache line becomes it. `/cache-clock remove` puts your settings back as they were (if you changed the status line by hand since, it leaves yours alone). `/cache-clock` alone says whether it's on
 - Plugins can't add a status line on their own, so setup points `statusLine` at a small Node script in your Claude config folder (`cache-clock/`), which runs your status line first. It also sets `refreshInterval` to 30 seconds so the countdown keeps moving
-- Setup writes to the settings file your status line comes from. A project's shared `.claude/settings.json` gets an override in `.claude/settings.local.json` instead. A status line from managed settings is left alone
+- Setup writes to the settings file your status line comes from, and keeps each file's original separately, so the user settings and several projects can each have it. A project's shared `.claude/settings.json` gets an override in `.claude/settings.local.json` instead. A status line from managed settings is left alone
 - Needs Node on your PATH and Claude Code 2.1.251+ (setup warns if either is missing)
 
 ### 📍 where-am-i

@@ -16,6 +16,8 @@ const MIN_VERSION = [2, 1, 251]
 type StatusLine = { type?: string; command?: string; refreshInterval?: number; [key: string]: unknown }
 // What setup leaves for remove and for the script: the settings file it wrote,
 // the statusLine that file had before, and the command the script runs first.
+// One per settings file (setup-<key>.json), so setups in several projects and
+// in the user settings each keep their own original.
 type Saved = { file: string; previous: StatusLine | null; wrapped: string | null }
 
 export const register: Register = on => {
@@ -60,15 +62,16 @@ async function setup($: EngineInterface) {
   const current = found.statusLine
   const wrapped = typeof current?.command === 'string' && current.command.trim() ? current.command : null
   const saved: Saved = { file, previous: asStatusLine(settings.statusLine), wrapped }
+  const key = keyFor(file)
 
   await copyScripts($, dir)
-  await $.fs.write(`${dir}/setup.json`, JSON.stringify(saved, null, 2) + '\n')
+  await $.fs.write(`${dir}/setup-${key}.json`, JSON.stringify(saved, null, 2) + '\n')
 
   const { command: _command, refreshInterval, ...kept } = current ?? {}
   settings.statusLine = {
     ...kept,
     type: 'command',
-    command: `node "${dir}/cache-clock.mjs"`,
+    command: `node "${shellQuoted(`${dir}/cache-clock.mjs`)}" ${key}`,
     refreshInterval: typeof refreshInterval === 'number' && refreshInterval < REFRESH_SECONDS ? refreshInterval : REFRESH_SECONDS,
   }
   await $.fs.write(file, JSON.stringify(settings, null, 2) + '\n')
@@ -83,20 +86,24 @@ async function setup($: EngineInterface) {
   return lines.join('\n')
 }
 
+// Takes out the setup in force here: the user settings', or this project's local one.
 async function remove($: EngineInterface) {
   const dir = await clockDir($)
-  const saved = await readSaved($, dir)
-  if (!saved) return 'cache-clock is not set up. Nothing changed.'
+  const found = await inForce($)
+  const file = await targetFile($, isOurs(found.statusLine) ? found.source : 'user')
+  const key = keyFor(file)
+  const saved = await readSaved($, `${dir}/setup-${key}.json`)
+  if (!saved) return 'cache-clock is not set up here. Nothing changed.'
 
   const settings = await readJson($, saved.file)
   if (!isOurs(asStatusLine(settings.statusLine))) {
-    await $.fs.write(`${dir}/setup.json`, '{}\n')
+    await $.fs.write(`${dir}/setup-${key}.json`, '{}\n')
     return `The status line in ${saved.file} was changed since setup, so it was left as it is.`
   }
   if (saved.previous) settings.statusLine = saved.previous
   else delete settings.statusLine
   await $.fs.write(saved.file, JSON.stringify(settings, null, 2) + '\n')
-  await $.fs.write(`${dir}/setup.json`, '{}\n')
+  await $.fs.write(`${dir}/setup-${key}.json`, '{}\n')
   return saved.previous
     ? `cache-clock removed. Your status line in ${saved.file} is back as it was.`
     : `cache-clock removed from ${saved.file}.`
@@ -151,15 +158,17 @@ async function inForce($: EngineInterface) {
 // The file setup writes: where the status line lives, except that a project's
 // shared settings get a local override instead of a path from this machine.
 async function targetFile($: EngineInterface, source: string | null) {
-  const cwd = await $.session.cwd()
-  if (source === 'local' || source === 'project') return `${cwd}/.claude/settings.local.json`
+  const root = await $.session.root() // where Claude Code reads a project's settings from
+  if (source === 'local' || source === 'project') return `${root}/.claude/settings.local.json`
   return `${await configDir($)}/settings.json`
 }
 
 async function configDir($: EngineInterface) {
   const custom = await $.env.get('CLAUDE_CONFIG_DIR')
   if (custom) return custom.replace(/\/+$/, '')
-  return `${await $.env.get('HOME')}/.claude`
+  const home = await $.env.get('HOME')
+  if (!home) throw new Error('HOME is not set, so the Claude config folder is unknown.')
+  return `${home}/.claude`
 }
 
 async function clockDir($: EngineInterface) {
@@ -180,8 +189,8 @@ async function readJson($: EngineInterface, file: string): Promise<Record<string
   return parsed as Record<string, unknown>
 }
 
-async function readSaved($: EngineInterface, dir: string): Promise<Saved | null> {
-  const text = await $.fs.read(`${dir}/setup.json`).catch(() => null)
+async function readSaved($: EngineInterface, path: string): Promise<Saved | null> {
+  const text = await $.fs.read(path).catch(() => null)
   if (!text) return null
   try {
     const saved = JSON.parse(text)
@@ -189,6 +198,18 @@ async function readSaved($: EngineInterface, dir: string): Promise<Saved | null>
   } catch {
     return null
   }
+}
+
+// A short stable name for a settings file's saved state: FNV-1a of its path, in hex.
+function keyFor(file: string) {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < file.length; i++) hash = Math.imul(hash ^ file.charCodeAt(i), 0x01000193) >>> 0
+  return hash.toString(16).padStart(8, '0')
+}
+
+// Safe inside double quotes for sh.
+function shellQuoted(path: string) {
+  return path.replace(/["\\$`]/g, c => `\\${c}`)
 }
 
 function asStatusLine(value: unknown): StatusLine | null {

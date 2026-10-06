@@ -12,16 +12,20 @@ type World = {
   sources: Record<string, Record<string, unknown>>
   version?: string
   hasNode?: boolean
+  root?: string
+  cwd?: string
+  env?: Record<string, string>
 }
 
 // Stands for the host: files in memory, settings per source read from those files,
 // and the plugin's own scripts.
 async function start($: Engine, on: On, world: World) {
   const { files } = world
-  mock.env(on, { HOME: '/home/me' })
+  mock.env(on, { HOME: '/home/me', ...world.env })
   on('session.start', (_$, e: any) => ({ cwd: e.cwd }) as any)
   on('command.register', () => ({ value: undefined }) as any)
-  on('session.cwd', () => ({ value: '/work' }) as any)
+  on('session.cwd', () => ({ value: world.cwd ?? '/work' }) as any)
+  on('session.root', () => ({ value: world.root ?? '/work' }) as any)
   on('session.version', () => ({ value: { version: world.version ?? '2.1.291', base: world.version ?? '2.1.291' } }) as any)
   on('process.run', () => {
     if (world.hasNode === false) throw new Error('not found')
@@ -45,6 +49,14 @@ async function start($: Engine, on: On, world: World) {
 
 const run = async ($: Engine, args: string) => (await $.command.run({ command: 'cache-clock', args } as any)).text ?? ''
 const json = (world: World, file: string) => JSON.parse(world.files.get(file)!)
+// The state setup saved for `file`, found among the setup-<key>.json files.
+function saved(world: World, file: string) {
+  for (const [path, text] of world.files) {
+    if (/\/cache-clock\/setup-[0-9a-f]{8}\.json$/.test(path) && JSON.parse(text).file === file) return JSON.parse(text)
+  }
+  return undefined
+}
+const OUR_COMMAND = new RegExp(`^node "${SCRIPT}" [0-9a-f]{8}$`)
 
 describe('cache-clock setup', () => {
   test('wraps an existing status line and keeps its other keys', async ($, on) => {
@@ -57,8 +69,8 @@ describe('cache-clock setup', () => {
     expect(await run($, 'setup')).toMatch(/stays as it is/)
     const settings = json(world, USER_FILE)
     expect(settings.model).toBe('opus')
-    expect(settings.statusLine).toEqual({ type: 'command', command: `node "${SCRIPT}"`, padding: 0, refreshInterval: 30 })
-    expect(json(world, `${CONFIG}/cache-clock/setup.json`)).toEqual({
+    expect(settings.statusLine).toEqual({ type: 'command', command: expect.stringMatching(OUR_COMMAND), padding: 0, refreshInterval: 30 })
+    expect(saved(world, USER_FILE)).toEqual({
       file: USER_FILE,
       previous: { type: 'command', command: 'my-line.sh', padding: 0 },
       wrapped: 'my-line.sh',
@@ -83,7 +95,7 @@ describe('cache-clock setup', () => {
     await start($, on, world)
 
     expect(await run($, 'setup')).toMatch(/The cache line is your status line/)
-    expect(json(world, `${CONFIG}/cache-clock/setup.json`).wrapped).toBeNull()
+    expect(saved(world, USER_FILE).wrapped).toBeNull()
     await run($, 'remove')
     expect(json(world, USER_FILE)).toEqual({ theme: 'dark' })
   })
@@ -92,7 +104,7 @@ describe('cache-clock setup', () => {
     const world: World = { files: new Map(), sources: {} }
     await start($, on, world)
     await run($, 'setup')
-    expect(json(world, USER_FILE).statusLine.command).toBe(`node "${SCRIPT}"`)
+    expect(json(world, USER_FILE).statusLine.command).toMatch(OUR_COMMAND)
   })
 
   test('keeps a shorter refresh interval', async ($, on) => {
@@ -110,8 +122,8 @@ describe('cache-clock setup', () => {
     await start($, on, world)
 
     await run($, 'setup')
-    expect(json(world, LOCAL_FILE).statusLine.command).toBe(`node "${SCRIPT}"`)
-    expect(json(world, `${CONFIG}/cache-clock/setup.json`).wrapped).toBe('team-line.sh')
+    expect(json(world, LOCAL_FILE).statusLine.command).toMatch(OUR_COMMAND)
+    expect(saved(world, LOCAL_FILE).wrapped).toBe('team-line.sh')
     await run($, 'remove')
     expect(json(world, LOCAL_FILE)).toEqual({})
   })
@@ -128,7 +140,7 @@ describe('cache-clock setup', () => {
     await start($, on, world)
     await run($, 'setup')
     expect(await run($, 'setup')).toMatch(/already set up/)
-    expect(json(world, `${CONFIG}/cache-clock/setup.json`).wrapped).toBe('my-line.sh')
+    expect(saved(world, USER_FILE).wrapped).toBe('my-line.sh')
   })
 
   test('remove leaves a status line changed since setup', async ($, on) => {
@@ -161,5 +173,42 @@ describe('cache-clock setup', () => {
     expect(await run($, '')).toMatch(/off/)
     await run($, 'setup')
     expect(await run($, '')).toMatch(/is on/)
+  })
+
+  test('setups in the user settings and in a project each keep their own original', async ($, on) => {
+    const world: World = { files: new Map([[USER_FILE, JSON.stringify({ statusLine: { command: 'mine.sh' } })]]), sources: {} }
+    await start($, on, world)
+    await run($, 'setup')
+    const userCommand = json(world, USER_FILE).statusLine.command
+
+    // Later a project brings its own status line, and setup runs there too.
+    world.sources.project = { statusLine: { command: 'team-line.sh' } }
+    await run($, 'setup')
+    const localCommand = json(world, LOCAL_FILE).statusLine.command
+    expect(localCommand).not.toBe(userCommand)
+    expect(saved(world, USER_FILE).wrapped).toBe('mine.sh')
+    expect(saved(world, LOCAL_FILE).wrapped).toBe('team-line.sh')
+
+    // Removing in the project leaves the user setup whole.
+    await run($, 'remove')
+    expect(json(world, LOCAL_FILE)).toEqual({})
+    expect(saved(world, USER_FILE).wrapped).toBe('mine.sh')
+    await run($, 'remove')
+    expect(json(world, USER_FILE)).toEqual({ statusLine: { command: 'mine.sh' } })
+  })
+
+  test("a session started in a subfolder writes the project root's local settings", async ($, on) => {
+    const world: World = { files: new Map(), sources: { project: { statusLine: { command: 'team-line.sh' } } }, root: '/work', cwd: '/work/packages/x' }
+    await start($, on, world)
+    await run($, 'setup')
+    expect(world.files.has(LOCAL_FILE)).toBe(true)
+  })
+
+  test('quotes a config path for the shell', async ($, on) => {
+    const world: World = { files: new Map(), sources: {}, env: { CLAUDE_CONFIG_DIR: '/odd "dir"/$x' } }
+    await start($, on, world)
+    await run($, 'setup')
+    const file = '/odd "dir"/$x/settings.json'
+    expect(json(world, file).statusLine.command).toMatch(/^node "\/odd \\"dir\\"\/\\\$x\/cache-clock\/cache-clock\.mjs" [0-9a-f]{8}$/)
   })
 })
