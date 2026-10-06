@@ -45,12 +45,13 @@
   <p class="lede">The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location. Nothing is sent anywhere.</p>
   <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.3</span></p>
 </header>
-<figure class="shot"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:330px" src="../../images/prayer-times.png" width="660" height="35" alt="prayer-times line: Dhuhr, 1h 26m left, next Asr 16:32" decoding="async" fetchpriority="high"></div><figcaption>The current prayer, the time left, and the next one.</figcaption></figure>
+<figure class="shot"><div class="shot-frame"><img style="--w:330px" src="../../images/prayer-times.png" width="660" height="35" alt="prayer-times line: Dhuhr, 1h 26m left, next Asr 16:32" decoding="async" fetchpriority="high"></div><figcaption>The current prayer, the time left, and the next one.</figcaption></figure>
 <div class="mod-body">
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install prayer-times"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install prayer-times" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install prayer-times@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install prayer-times@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -104,7 +105,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

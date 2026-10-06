@@ -64,13 +64,13 @@
   <ol class="steps">
     <li><p>Add the marketplace once.</p>
 <div class="code">
-  <pre id="c-add" aria-label="Add the marketplace"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods</code></pre>
+  <pre id="c-add" aria-label="Add the marketplace" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-add">Copy</button>
 </div>
     </li>
     <li><p>Install any mod by name.</p>
 <div class="code">
-  <pre id="c-inst" aria-label="Install a mod"><code><span class="ps" aria-hidden="true">$ </span>claude plugin install context-bar@claude-code-mods</code></pre>
+  <pre id="c-inst" aria-label="Install a mod" data-cmd="claude plugin install context-bar@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin install context-bar@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
     </li>
@@ -139,7 +139,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

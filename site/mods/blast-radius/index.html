@@ -45,12 +45,13 @@
   <p class="lede">Holds risky Bash commands and shows what they would change before they run.</p>
   <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> Guard your repo</span> <span>Version 0.2.2</span></p>
 </header>
-<figure class="shot"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:384px" src="../../images/gallery/blast-radius.png" width="768" height="169" alt="blast-radius held a command: rm -rf would delete 9 files (252 KB), with Cancel and Proceed buttons" decoding="async" fetchpriority="high"></div><figcaption>Holds an rm -rf and shows what it would delete.</figcaption></figure>
+<figure class="shot"><div class="shot-frame"><img style="--w:384px" src="../../images/gallery/blast-radius.png" width="768" height="169" alt="blast-radius held a command: rm -rf would delete 9 files (252 KB), with Cancel and Proceed buttons" decoding="async" fetchpriority="high"></div><figcaption>Holds an rm -rf and shows what it would delete.</figcaption></figure>
 <div class="mod-body">
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install blast-radius"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install blast-radius" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install blast-radius@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install blast-radius@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -104,7 +105,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

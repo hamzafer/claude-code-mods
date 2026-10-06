@@ -45,12 +45,13 @@
   <p class="lede">A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.</p>
   <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.2.0</span></p>
 </header>
-<figure class="shot shot-wide"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:883px" src="../../images/bands.png" width="1766" height="180" alt="Lines stacked above the prompt: browser-lanes, token-weather at Cloudy 44% of context with a sparkline of the last turns, and where-am-i with the goal, now, next and waiting on you" decoding="async" fetchpriority="high"></div><figcaption>browser-lanes, token-weather and where-am-i stacked above the prompt.</figcaption></figure>
+<figure class="shot shot-wide"><div class="shot-frame"><img style="--w:883px" src="../../images/bands.png" width="1766" height="180" alt="Lines stacked above the prompt: browser-lanes, token-weather at Cloudy 44% of context with a sparkline of the last turns, and where-am-i with the goal, now, next and waiting on you" decoding="async" fetchpriority="high"></div><figcaption>browser-lanes, token-weather and where-am-i stacked above the prompt.</figcaption></figure>
 <div class="mod-body">
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install token-weather"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install token-weather" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install token-weather@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install token-weather@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -102,7 +103,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

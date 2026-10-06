@@ -14,18 +14,18 @@
 <meta property="og:title" content="reels: YouTube Shorts while Claude Code works">
 <meta property="og:description" content="YouTube Shorts in a Claude Code terminal pane. They play while Claude works and pause when Claude is done. Opt-in: nothing opens until /reels.">
 <meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/reels/">
-<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/reels-demo.gif">
-<meta property="og:image:alt" content="reels: a YouTube Short plays in a pane on the right while Claude works in the chat on the left">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="reels: YouTube Shorts while Claude Code works">
 <meta name="twitter:description" content="YouTube Shorts in a Claude Code terminal pane. They play while Claude works and pause when Claude is done. Opt-in: nothing opens until /reels.">
-<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/reels-demo.gif">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="../../style.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "reels", "description": "YouTube Shorts in a Claude Code terminal pane. They play while Claude works and pause when Claude is done. Opt-in: nothing opens until /reels.", "url": "https://hamzafer.github.io/claude-code-mods/mods/reels/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/reels", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.2", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/reels-demo.gif", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "reels", "description": "YouTube Shorts in a Claude Code terminal pane. They play while Claude works and pause when Claude is done. Opt-in: nothing opens until /reels.", "url": "https://hamzafer.github.io/claude-code-mods/mods/reels/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/reels", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.2", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "reels", "item": "https://hamzafer.github.io/claude-code-mods/mods/reels/"}]}</script>
 </head>
 <body class="mod c-fun">
@@ -45,12 +45,13 @@
   <p class="lede">YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.</p>
   <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> For fun</span> <span>Version 0.1.2</span></p>
 </header>
-<figure class="shot"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:400px" src="../../images/reels-demo.gif" width="800" height="503" alt="reels: a YouTube Short plays in a pane on the right while Claude works in the chat on the left" decoding="async" fetchpriority="high"></div><figcaption>Plays Shorts while Claude works and pauses when it&#x27;s done.</figcaption></figure>
+<figure class="shot"><div class="shot-frame"><video style="--w:800px" width="800" height="502" autoplay muted loop playsinline preload="metadata" poster="../../images/reels-video-poster.jpg" aria-label="reels: a YouTube Short plays in a pane on the right while Claude works in the chat on the left"><source src="../../images/reels-demo.mp4" type="video/mp4"></video></div><figcaption>Plays Shorts while Claude works and pauses when it&#x27;s done.</figcaption></figure>
 <div class="mod-body">
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install reels"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install reels" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install reels@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install reels@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -104,7 +105,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

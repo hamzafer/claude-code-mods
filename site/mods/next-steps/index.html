@@ -15,7 +15,7 @@
 <meta property="og:description" content="After each Claude Code turn, 2 or 3 likely next prompts appear above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.">
 <meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/next-steps/">
 <meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
-<meta property="og:image:alt" content="Claude Code mods">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="next-steps: suggested next prompts in Claude Code">
 <meta name="twitter:description" content="After each Claude Code turn, 2 or 3 likely next prompts appear above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.">
@@ -50,7 +50,8 @@
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install next-steps"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install next-steps" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install next-steps@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install next-steps@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -102,7 +103,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

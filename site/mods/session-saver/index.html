@@ -15,7 +15,7 @@
 <meta property="og:description" content="Run /park before you close Claude Code to save where you left off. A resumed session shows it. Names untitled sessions through unpause.">
 <meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/session-saver/">
 <meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
-<meta property="og:image:alt" content="Claude Code mods">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="session-saver: save and resume where you left off in Claude Code">
 <meta name="twitter:description" content="Run /park before you close Claude Code to save where you left off. A resumed session shows it. Names untitled sessions through unpause.">
@@ -49,7 +49,8 @@
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install session-saver"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install session-saver" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install session-saver@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install session-saver@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -100,7 +101,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

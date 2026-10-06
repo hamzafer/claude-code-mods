@@ -14,18 +14,18 @@
 <meta property="og:title" content="mission-control: a live map of Claude Code subagents and tool calls">
 <meta property="og:description" content="See every Claude Code subagent, tool call and file they touch, live, in a pane next to the chat. Type /mission to open the map.">
 <meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/mission-control/">
-<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/mission-control.gif">
-<meta property="og:image:alt" content="mission-control at 4x speed: two subagents building a logout feature across four files, with the code map on the right">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="mission-control: a live map of Claude Code subagents and tool calls">
 <meta name="twitter:description" content="See every Claude Code subagent, tool call and file they touch, live, in a pane next to the chat. Type /mission to open the map.">
-<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/mission-control.gif">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="../../style.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "mission-control", "description": "See every Claude Code subagent, tool call and file they touch, live, in a pane next to the chat. Type /mission to open the map.", "url": "https://hamzafer.github.io/claude-code-mods/mods/mission-control/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/mission-control", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.2", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/mission-control.gif", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "mission-control", "description": "See every Claude Code subagent, tool call and file they touch, live, in a pane next to the chat. Type /mission to open the map.", "url": "https://hamzafer.github.io/claude-code-mods/mods/mission-control/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/mission-control", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.2", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "mission-control", "item": "https://hamzafer.github.io/claude-code-mods/mods/mission-control/"}]}</script>
 </head>
 <body class="mod c-see">
@@ -45,12 +45,13 @@
   <p class="lede">Every subagent, every tool call and every file they touch, in a pane next to the chat.</p>
   <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.2</span></p>
 </header>
-<figure class="shot"><div class="shot-frame" tabindex="0" role="group" aria-label="Screenshot"><img style="--w:550px" src="../../images/mission-control.gif" width="1100" height="619" alt="mission-control at 4x speed: two subagents building a logout feature across four files, with the code map on the right" decoding="async" fetchpriority="high"></div><figcaption>Shown at 4x: two subagents building a logout feature across four files.</figcaption></figure>
+<figure class="shot"><div class="shot-frame"><video style="--w:1100px" width="1100" height="618" autoplay muted loop playsinline preload="metadata" poster="../../images/mission-control-poster.jpg" aria-label="mission-control at 4x speed: two subagents building a logout feature across four files, with the code map on the right"><source src="../../images/mission-control.mp4" type="video/mp4"></video></div><figcaption>Shown at 4x: two subagents building a logout feature across four files.</figcaption></figure>
 <div class="mod-body">
 <div class="mod-main">
 <section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
 <div class="code">
-  <pre id="c-inst" aria-label="Install mission-control"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+  <pre id="c-inst" aria-label="Install mission-control" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install mission-control@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
 <span class="ps" aria-hidden="true">$ </span>claude plugin install mission-control@claude-code-mods</code></pre>
   <button type="button" class="copy" data-copy="c-inst">Copy</button>
 </div>
@@ -106,7 +107,8 @@
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (b) {
   b.addEventListener('click', function () {
-    var t = document.getElementById(b.getAttribute('data-copy')).innerText.trim();
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
     navigator.clipboard.writeText(t).then(function () {
       b.textContent = 'Copied';
       setTimeout(function () { b.textContent = 'Copy'; }, 1600);

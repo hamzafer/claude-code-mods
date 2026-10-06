@@ -313,7 +313,7 @@ a.tl:hover .tl-tag, a.tl:focus-visible .tl-tag { opacity: 1; }
   padding: clamp(10px, 2.5vw, 24px);
   overflow: hidden;
 }
-.shot img { display: block; width: min(100%, var(--w, 100%)); height: auto; margin: 0 auto; border-radius: 3px; }
+.shot img, .shot video { display: block; width: min(100%, var(--w, 100%)); height: auto; margin: 0 auto; border-radius: 3px; }
 .shot figcaption, .sample figcaption { color: var(--muted); font-size: 0.92rem; margin-top: 10px; }
 .sample { margin: 0 0 40px; padding-bottom: 16px; }
 .sample figcaption { color: var(--term-dim); padding: 4px 18px 0; margin: 0; }
