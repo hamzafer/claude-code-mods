@@ -128,16 +128,20 @@ Shows one live line per running Claude Code subagent.
 
 Runs each Claude Code subagent on the cheapest model that can do its job.
 
-- Before a subagent starts, it picks Haiku, Sonnet or Opus for the task. A line above the prompt shows the switch: `⇄ find auth middleware  opus → haiku  jev 82%`
-- **With a Jev key** it asks [Jev](https://docs.typesafe.ai), TypeSafe's routing model (about $0.00003 a pick). Set the key in `/config` (switchboard), or as `TYPESAFE_API_KEY`. If Jev doesn't answer within 2.5 s, the rules decide
-- **Or through Vercel AI Gateway:** with no TypeSafe key, an `AI_GATEWAY_API_KEY` sends the same question to Jev through the [gateway](https://vercel.com/docs/ai-gateway/modalities/decision), billed to your Vercel team, with zero data retention required. If the gateway can't serve it that way, the line says Jev did not answer and the rules decide
-- **Without a key** simple rules decide: Explore agents get Haiku, Plan agents get Opus, then words in the task's short description: lookups (find, search, list) Haiku, hard tasks (security, architecture, root cause) Opus, everything else Sonnet
-- If Jev is less than 50% sure, it shows the pick but keeps the model Claude asked for
+- Before a subagent starts, it picks Haiku, Sonnet or Opus for the task. A line above the prompt shows the switch: `⇄ find auth middleware  opus → haiku  openai 97%`
+- **Picker** in `/config` decides who picks:
+  - `rules` (default): Explore agents get Haiku, Plan agents get Opus, then words in the task's short description: lookups (find, search, list) Haiku, hard tasks (security, architecture, root cause) Opus, everything else Sonnet. Runs on your machine
+  - `openai`: asks [OpenAI's Decisions API](https://developers.openai.com/api/docs/guides/decisions) (`gpt-6-luna`, public beta, about $0.00003 a pick). Uses the OpenAI key in `/config`, else `OPENAI_API_KEY`
+  - `jev`: asks [Jev](https://docs.typesafe.ai), TypeSafe's decision model (about $0.00003 a pick). A TypeSafe key (`/config`, else `TYPESAFE_API_KEY`) calls TypeSafe directly. Without one, a Vercel AI Gateway key (`/config`, else `AI_GATEWAY_API_KEY`) calls Jev through the [gateway](https://vercel.com/docs/ai-gateway/modalities/decision), served by TypeSafe only. The gateway needs paid credit for Jev
+- A key on its own never turns a picker on, since many tools set `OPENAI_API_KEY`. Choose the picker in `/config`
+- If the picker has no key, or doesn't answer within 4 s, the rules decide and the line says so
+- If the picker is less than 50% sure, it shows the pick but keeps the model Claude asked for
+- **Gateway zero data retention** in `/config` asks the gateway not to keep the request. It's off by default, because the gateway refuses it below the Pro plan and every pick would fall back to the rules
 - **Mode** in `/config`: `auto` (default) switches the model, `suggest` only shows the pick
 - It leaves forks (they always run on their parent's model) and teammates alone. When Claude names no model and the agent type has its own, it only suggests, since a mod can't see that model
-- `/route` lists every pick with its reason, the model it ran on and what it cost. The total compares that with what the same tokens would have cost on the model Claude asked for, and shows what Jev cost
+- `/route` lists every pick with its reason, the model it ran on and what it cost. The total compares that with what the same tokens would have cost on the model Claude asked for, and shows what the picks cost
 - Costs are estimates at API prices (as of 2026-09-25), not what your plan charges. `?` means not known yet
-- **Privacy:** with a key, each spawn sends the task's description and its first 6,000 characters to TypeSafe (directly, or through Vercel with the gateway key). Without a key, nothing leaves your machine
+- **Privacy:** with `jev` or `openai`, each spawn sends the task's description and its first 6,000 characters to that company (Jev through the gateway also passes through Vercel). With `rules`, nothing leaves your machine
 
 ### 🔍 review-watch
 

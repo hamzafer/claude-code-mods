@@ -1,7 +1,8 @@
 // Switchboard: the cheapest Claude model that can do each subagent's job.
-//   Before a subagent starts, Jev (TypeSafe's routing model, about $0.00003 a call) picks
-//   Haiku, Sonnet or Opus for its task, called directly or through Vercel AI Gateway; with
-//   no key, or no answer in time, simple rules do.
+//   Before a subagent starts, a picker chooses Haiku, Sonnet or Opus for its task: Jev
+//   (TypeSafe's decision model, directly or through Vercel AI Gateway) or OpenAI's Decisions
+//   API, each about $0.00003 a pick. With no picker set, no key, or no answer in time, simple
+//   rules do.
 //   In auto mode the pick replaces the model the caller asked for; in suggest mode it is
 //   only shown. The band has one line per spawn; /route lists every pick, its reason and
 //   what each run cost at API prices, against what the asked model would have cost.
@@ -9,12 +10,12 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Route, Tier } from '../types'
-import { JEV_URL, PRICES_AS_OF, addUsage, byRules, costOf, jevRequest, parseJev, tierOf, usd } from './route'
+import { PICKER_NAME, PICK_URL, PRICES_AS_OF, addUsage, byRules, costOf, parsePick, pickRequest, tierOf, usd } from './route'
 import type { Via } from './route'
 
 const PANE = 'switchboard'
-const JEV_TIMEOUT_MS = 2_500 // the spawn waits this long for Jev at most
-const MIN_CONFIDENCE = 0.5 // below this, Jev's pick is shown but not applied
+const PICK_TIMEOUT_MS = 4_000 // the spawn waits this long for the picker at most
+const MIN_CONFIDENCE = 0.5 // below this, a picker's pick is shown but not applied
 const SHOW_DONE_MS = 30_000 // a finished spawn stays in the band this long
 const BAND_ROWS = 3
 const PANE_ROWS = 12
@@ -25,7 +26,14 @@ const now = atom({ plugin: 'switchboard', key: 'now' } as const, 0)
 
 export const register: Register = (on, options) => {
   const mode = options.mode === 'suggest' ? 'suggest' : 'auto'
-  const key = typeof options.jevApiKey === 'string' ? options.jevApiKey.trim() : ''
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const settings: Settings = {
+    picker: options.picker === 'jev' || options.picker === 'openai' ? options.picker : 'rules',
+    jev: text(options.jevApiKey),
+    gateway: text(options.gatewayApiKey),
+    openai: text(options.openaiApiKey),
+    zeroRetention: options.gatewayZeroRetention === true,
+  }
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -42,8 +50,8 @@ export const register: Register = (on, options) => {
   on('agent.spawn', async ($, e, next) => {
     if (e.fork || e.isTeammate) return next(e) // a fork runs on its parent's model; a teammate keeps the one it was given
     const asked = baseline(e)
-    const pick = await credential($, key)
-      .then(c => decide($, e, c))
+    const pick = await credential($, settings)
+      .then(c => decide($, e, c, settings.zeroRetention))
       .catch(() => null)
     if (!pick) return next(e) // routing broke: the spawn goes ahead as asked
     const sure = pick.confidence === undefined || pick.confidence >= MIN_CONFIDENCE
@@ -64,7 +72,7 @@ export const register: Register = (on, options) => {
       status: 'running',
       startedAt: Date.now(),
       model: r.model,
-      jevUsd: pick.jevUsd,
+      pickerUsd: pick.pickerUsd,
     }
     await update($, routes, list => trim([one, ...list.filter(x => x.id !== one.id)])).catch(() => {})
     return r
@@ -129,10 +137,10 @@ export const register: Register = (on, options) => {
     const t = totals(list)
     return (
       <Box flexDirection="column">
-        <Text bold>{`${t.count} routed · ${t.switched} switched · mode: ${mode}`}</Text>
+        <Text bold>{`${t.count} routed · ${t.switched} switched · mode: ${mode} · picker: ${settings.picker}`}</Text>
         <Text>
           <Text>{`spent ${usd(t.cost)}`}</Text>
-          <Text dimColor>{` · at the asked models ${usd(t.asked)} · Jev ${usd(t.jev)}`}</Text>
+          <Text dimColor>{` · at the asked models ${usd(t.asked)} · picker ${usd(t.picker)}`}</Text>
         </Text>
         <Text dimColor>{`API price estimates as of ${PRICES_AS_OF}, not plan charges. ? = not known yet.`}</Text>
         <Text dimColor>{'─'.repeat(Math.max(10, e.props.bodyColumns - 2))}</Text>
@@ -157,34 +165,44 @@ export const register: Register = (on, options) => {
   })
 }
 
-type Pick = { tier: Tier; by: 'jev' | 'rules'; confidence?: number; reason: string; jevUsd?: number }
+type Pick = { tier: Tier; by: Route['by']; confidence?: number; reason: string; pickerUsd?: number }
+type Settings = { picker: 'rules' | 'jev' | 'openai'; jev: string; gateway: string; openai: string; zeroRetention: boolean }
 type Credential = { via: Via; key: string } | null
 
-// A TypeSafe key (the setting, then TYPESAFE_API_KEY) goes straight to TypeSafe; else an
-// AI_GATEWAY_API_KEY goes through Vercel AI Gateway; else no Jev at all.
-async function credential($: EngineInterface, setting: string): Promise<Credential> {
-  const typesafe = setting || ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()
+// The picker the settings chose, with its key. Jev: a TypeSafe key (setting, then
+// TYPESAFE_API_KEY) goes straight to TypeSafe, else a gateway key (setting, then
+// AI_GATEWAY_API_KEY) goes through Vercel AI Gateway. OpenAI: the setting, then OPENAI_API_KEY.
+// A key alone never turns a picker on: many tools set these variables.
+async function credential($: EngineInterface, s: Settings): Promise<Credential> {
+  if (s.picker === 'openai') {
+    const key = s.openai || ((await $.env.get('OPENAI_API_KEY').catch(() => undefined)) ?? '').trim()
+    return key ? { via: 'openai', key } : null
+  }
+  if (s.picker !== 'jev') return null
+  const typesafe = s.jev || ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()
   if (typesafe) return { via: 'typesafe', key: typesafe }
-  const gateway = ((await $.env.get('AI_GATEWAY_API_KEY').catch(() => undefined)) ?? '').trim()
+  const gateway = s.gateway || ((await $.env.get('AI_GATEWAY_API_KEY').catch(() => undefined)) ?? '').trim()
   return gateway ? { via: 'gateway', key: gateway } : null
 }
 
-// Jev when there is a key and it answers in time; the rules otherwise.
-async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, c: Credential): Promise<Pick> {
+// The picker when there is one and it answers in time; the rules otherwise.
+async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, c: Credential, zeroRetention: boolean): Promise<Pick> {
   const rules = byRules(e)
   if (!c) return { ...rules, by: 'rules' }
-  const timeout = $.clock.sleep(JEV_TIMEOUT_MS).then(() => null)
+  const name = PICKER_NAME[c.via]
+  const timeout = $.clock.sleep(PICK_TIMEOUT_MS).then(() => null)
   const asked = $.http
-    .fetch(JEV_URL[c.via], {
+    .fetch(PICK_URL[c.via], {
       method: 'POST',
       headers: { Authorization: `Bearer ${c.key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(jevRequest(e, c.via)),
+      body: JSON.stringify(pickRequest(e, c.via, { zeroRetention })),
     })
-    .then(r => (r.ok ? parseJev(r.text) : null))
+    .then(r => (r.ok ? parsePick(r.text, c.via) : null))
     .catch(() => null)
-  const jev = await Promise.race([asked, timeout])
-  if (!jev) return { ...rules, by: 'rules', reason: `${rules.reason} (Jev did not answer)` }
-  return { tier: jev.tier, by: 'jev', confidence: jev.confidence, reason: `Jev ${pct(jev.probabilities[jev.tier] ?? jev.confidence)} ${jev.tier}`, jevUsd: jev.costUsd }
+  const got = await Promise.race([asked, timeout])
+  if (!got) return { ...rules, by: 'rules', reason: `${rules.reason} (${name} did not answer)` }
+  const by: Pick['by'] = c.via === 'openai' ? 'openai' : 'jev'
+  return { tier: got.tier, by, confidence: got.confidence, reason: `${name} ${pct(got.probabilities[got.tier] ?? got.confidence)} ${got.tier}`, pickerUsd: got.costUsd }
 }
 
 // The model the spawn would run on without us, when we can know it: what the caller named,
@@ -220,14 +238,14 @@ export function totals(list: Route[]) {
   return {
     count: list.length,
     switched: list.filter(r => r.applied).length,
-    cost: sum(r => r.costUsd) + sum(r => r.jevUsd),
+    cost: sum(r => r.costUsd) + sum(r => r.pickerUsd),
     asked: sum(r => r.askedUsd),
-    jev: sum(r => r.jevUsd),
+    picker: sum(r => r.pickerUsd),
   }
 }
 
 function source(r: Route) {
-  return r.by === 'jev' ? `jev ${pct(r.confidence ?? 0)}` : 'rules'
+  return r.by === 'rules' ? 'rules' : `${r.by} ${pct(r.confidence ?? 0)}`
 }
 
 function pct(n: number) {

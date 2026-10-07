@@ -87,7 +87,7 @@ claude --plugin-dir mods/context-bar
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
-| 🔀 | **switchboard** | Picks Haiku, Sonnet or Opus for each subagent before it starts, using [Jev](https://docs.typesafe.ai) or simple rules. Shows each pick and what the run cost compared with the model Claude asked for | `/route` |
+| 🔀 | **switchboard** | Picks Haiku, Sonnet or Opus for each subagent before it starts, using simple rules, [Jev](https://docs.typesafe.ai) or [OpenAI's Decisions API](https://developers.openai.com/api/docs/guides/decisions). Shows each pick and what the run cost compared with the model Claude asked for | `/route` |
 
 ### 🔧 My setup (fork and adapt)
 
