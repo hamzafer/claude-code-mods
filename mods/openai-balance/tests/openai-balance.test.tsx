@@ -135,6 +135,12 @@ describe('openai-balance', () => {
     expect((await run($, '')).text).toMatch(/refused the Admin key/)
   })
 
+  test('a first refresh that fails says so instead of showing $0.00', async ($, on) => {
+    engine(on, { todaySpend: () => 0, status: () => 500 })
+    await start($)
+    expect(await band($)).toMatch(/can't reach OpenAI yet/)
+  })
+
   test('an outage keeps the last numbers, marked offline', async ($, on) => {
     let status = 200
     const h = engine(on, { todaySpend: () => 0.04, status: () => status })

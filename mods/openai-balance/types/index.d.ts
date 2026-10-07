@@ -7,6 +7,7 @@ export type Line = {
   top: string | null // today's biggest cost line item, for spend with no usage row (Decisions)
   error: 'no-key' | 'rejected' | 'offline' | null // offline keeps the last numbers, marked
   isLoaded: boolean
+  hasData: boolean // a refresh has succeeded at least once
 }
 
 declare module 'claude-code' {

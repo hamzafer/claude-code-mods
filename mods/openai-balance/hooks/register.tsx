@@ -7,6 +7,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { Line } from '../types'
 
 const EVERY_MS = 10 * 60 * 1000 // spend posts in daily buckets; no need to ask more often
+const TICK_MS = 60 * 1000 // the timer checks every minute; nextTry decides whether to ask
 const RETRY_MS = 60 * 1000 // after a failed refresh
 const STUCK_MS = 2 * 60 * 1000 // a refresh still running after this is given up on (fetch has no timeout)
 const KEYCHAIN_SERVICE = 'openai-admin-key'
@@ -19,7 +20,7 @@ const BRAND = '#c792ea' // soft violet: apart from the green gauge and the other
 // and times show up by themselves once OpenAI adds it. Until then its spend shows through cost line items.
 const USAGE = ['completions', 'decisions', 'embeddings', 'moderations']
 const GAUGE = 10
-const EMPTY: Line = { left: null, start: null, today: 0, last: null, top: null, error: null, isLoaded: false }
+const EMPTY: Line = { left: null, start: null, today: 0, last: null, top: null, error: null, isLoaded: false, hasData: false }
 const SETUP =
   'Needs an OpenAI organization **Admin key** (read-only is enough), from platform.openai.com → Settings → Organization → Admin keys. Put it in `/config` → openai-balance, or in `OPENAI_ADMIN_KEY`, or on macOS in Keychain: `security add-generic-password -a "$USER" -s openai-admin-key -w`.'
 
@@ -59,7 +60,7 @@ export const register: Register = (on, options) => {
       .catch(() => {}) // a name Claude Code already has is refused: start anyway
     void refresh($, true).catch(() => {}) // in the background: a slow API never holds up the session
     for (const t of timers) t.cancel()
-    timers = [$.clock.every(EVERY_MS, () => void refresh($, false).catch(() => {}))]
+    timers = [$.clock.every(TICK_MS, () => void refresh($, false).catch(() => {}))]
     return result
   })
 
@@ -95,6 +96,7 @@ export const register: Register = (on, options) => {
     let body
     if (now.error === 'no-key') body = <Text color="red">no admin key set, see /openai-balance</Text>
     else if (now.error === 'rejected') body = <Text color="red">admin key rejected, see /openai-balance</Text>
+    else if (!now.hasData) body = <Text dimColor>{"can't reach OpenAI yet"}</Text>
     else if (now.left === null) {
       body = (
         <Text>
@@ -159,7 +161,7 @@ async function refresh($: EngineInterface, isForced: boolean) {
     const top = itemsFrom(buckets, dayStart(nowS))[0]?.[0].replace(/, (input|output|cached input)$/, '') ?? null // "gpt-6-luna, input" → "gpt-6-luna"
     if (mine !== generation) return
     nextTry = now + EVERY_MS
-    await update($, line, () => ({ left, start: anchor?.balance ?? null, today, last, top, error: null, isLoaded: true }))
+    await update($, line, () => ({ left, start: anchor?.balance ?? null, today, last, top, error: null, isLoaded: true, hasData: true }))
   } catch (err) {
     if (mine !== generation) return
     nextTry = now + RETRY_MS // a fixed key or a network back shows within a minute
@@ -270,38 +272,55 @@ async function tokens($: EngineInterface, start: number, by: 'model' | 'api_key_
   return [...byName.values()].sort((a, b) => b.input + b.output - (a.input + a.output))
 }
 
-// The newest minute today with a request in it: which model, through which key. Model and key come from two
-// groupings, so with two keys busy in the same minute the pair is a best guess.
+// The newest minute today with a request in it: which model, through which key. The hour first, then its minutes,
+// so no request needs more than 60 buckets. Model and key come from two groupings, so with two keys busy in the
+// same minute the pair is a best guess.
 async function lastCall($: EngineInterface, start: number): Promise<Line['last']> {
-  const [byModel, byKey] = await Promise.all(
-    (['model', 'api_key_id'] as const).map(by => usage($, `start_time=${start}&bucket_width=1m&limit=1440&group_by=${by}`)),
-  )
-  const newest = (d: any) => {
-    let best: { at: number; r: any } | null = null
-    for (const b of d.data ?? []) {
-      for (const r of b.results ?? []) {
-        if ((r.num_model_requests ?? 0) > 0 && (!best || b.start_time > best.at || (b.start_time === best.at && r.num_model_requests > best.r.num_model_requests))) best = { at: b.start_time, r }
-      }
-    }
-    return best
-  }
+  const hour = newest(await usage($, `start_time=${start}&bucket_width=1h&limit=24&group_by=model`))
+  if (!hour) return null
+  const window = `start_time=${hour.at}&end_time=${hour.at + 3600}&bucket_width=1m&limit=60`
+  const [byModel, byKey] = await Promise.all((['model', 'api_key_id'] as const).map(by => usage($, `${window}&group_by=${by}`)))
   const m = newest(byModel)
   if (!m) return null
   const k = newest(byKey)
   return { at: m.at, model: m.r.model ?? '?', key: k ? keyName(await keyNames($), k.r.api_key_id) : '?' }
 }
 
+// The newest bucket with a request in it, and its busiest row.
+function newest(d: { data: any[] }) {
+  let best: { at: number; r: any } | null = null
+  for (const b of d.data) {
+    for (const r of b.results ?? []) {
+      const n = r.num_model_requests ?? 0
+      if (n > 0 && (!best || b.start_time > best.at || (b.start_time === best.at && n > (best.r.num_model_requests ?? 0)))) best = { at: b.start_time, r }
+    }
+  }
+  return best
+}
+
 // The same query over every usage type, buckets merged. Only a type the API doesn't have (404) is skipped.
 async function usage($: EngineInterface, query: string) {
   const answers = await Promise.all(
     USAGE.map(type =>
-      call($, `usage/${type}?${query}`).catch(err => {
-        if (err instanceof HttpError && err.status === 404) return { data: [] }
+      pages($, `usage/${type}?${query}`).catch(err => {
+        if (err instanceof HttpError && err.status === 404) return []
         throw err
       }),
     ),
   )
-  return { data: answers.flatMap(a => a.data ?? []) }
+  return { data: answers.flat() }
+}
+
+// Every bucket of a usage query, following next_page.
+async function pages($: EngineInterface, path: string) {
+  const out: any[] = []
+  let page = ''
+  do {
+    const d = await call($, `${path}${page && `&page=${encodeURIComponent(page)}`}`)
+    out.push(...(d.data ?? []))
+    page = d.has_more && d.next_page ? d.next_page : ''
+  } while (page)
+  return out
 }
 
 // Key id → the name it was given, across every project. One lookup shared by concurrent callers, kept an hour.
@@ -309,20 +328,25 @@ let keyCache: { at: number; names: Promise<Map<string, string>> } | null = null
 async function keyNames($: EngineInterface) {
   const now = await $.clock.now()
   if (!keyCache || now - keyCache.at > 60 * 60 * 1000) {
-    const names = loadKeyNames($)
-    keyCache = { at: now, names }
-    names.catch(() => (keyCache = null)) // a failed lookup is tried again next time
+    const entry = { at: now, names: loadKeyNames($).then(r => {
+      if (!r.isComplete && keyCache === entry) keyCache = null // a lookup that missed some keys is tried again next time
+      return r.names
+    }) }
+    keyCache = entry
   }
   return keyCache.names
 }
 
+// A key without access to the key lists still gets its usage, shown by id (key …abcd).
 async function loadKeyNames($: EngineInterface) {
-  const out = new Map<string, string>()
-  for (const p of await list($, 'projects?limit=100')) {
-    const keys = await list($, `projects/${p.id}/api_keys?limit=100`).catch(() => [])
-    for (const k of keys) out.set(k.id, k.name || k.redacted_value || k.id)
+  const names = new Map<string, string>()
+  let isComplete = true
+  const projects = await list($, 'projects?limit=100').catch(() => ((isComplete = false), []))
+  for (const p of projects) {
+    const keys = await list($, `projects/${p.id}/api_keys?limit=100`).catch(() => ((isComplete = false), []))
+    for (const k of keys) names.set(k.id, k.name || k.redacted_value || k.id)
   }
-  return out
+  return { names, isComplete }
 }
 
 // Every item of a paged list endpoint.
