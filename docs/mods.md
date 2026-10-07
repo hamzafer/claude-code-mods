@@ -119,6 +119,8 @@ Shows your Claude Code plan usage and session cost.
 
 Shows your OpenAI API credit above the Claude Code prompt.
 
+![openai-balance: estimated OpenAI API credit with a gauge, today's spend and the last call's model above the Claude Code prompt](../images/openai-balance.png)
+
 - One line: an estimated balance with a gauge, today's spend, and the model, key name and time of the newest call
 - **The balance is an estimate.** OpenAI has no balance API. Set the balance from your Billing page with `/openai-balance 25.00`; the mod subtracts the spend the Costs API reports since then. Set it again after a top-up
 - Green from $5, yellow under $5, red under $2
