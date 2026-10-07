@@ -94,7 +94,7 @@ describe('switchboard', () => {
 
     const band = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /opus → haiku/ })).toBeDefined()
-    expect(await band.find({ type: 'Text', text: /openai 97%/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /openai 97% sure/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /band below/ })).toBeDefined()
 
     await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1, agentId: 'a1' } as any)
@@ -105,6 +105,7 @@ describe('switchboard', () => {
     const ui = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...PANE } as any)
     expect(await ui.find({ type: 'Text', text: /1 subagents · 1 switched · mode: auto · picker: openai/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /ran on claude-haiku-4-5/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /openai 97% sure · OpenAI picked haiku/ })).toBeDefined() // one number: how sure it is
     await ui.press({ key: 'clear' })
     expect(await ui.find({ type: 'Text', text: /No subagents yet/ })).toBeDefined()
     await ui.unmount()
