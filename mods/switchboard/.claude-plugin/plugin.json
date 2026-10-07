@@ -1,7 +1,7 @@
 {
   "name": "switchboard",
-  "version": "0.2.0",
-  "description": "Picks Haiku, Sonnet or Opus for each subagent before it starts, with Jev, OpenAI's Decisions API or simple rules. One line per spawn above the prompt; /route shows each pick and what it cost.",
+  "version": "0.3.0",
+  "description": "Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"
@@ -21,13 +21,39 @@
     "picker": {
       "type": "string",
       "title": "Picker",
-      "description": "Who picks the model. rules (default) runs on your machine and sends nothing. jev asks TypeSafe's Jev; openai asks OpenAI's Decisions API. Either sends the task's description and its first 6,000 characters to that company.",
+      "description": "Who picks a model for a subagent that names none. off (default) picks nothing and only tracks cost. openai asks OpenAI's Decisions API; jev asks TypeSafe's Jev. Only the subagent's type and short label are sent, never its task text.",
       "options": [
-        "rules",
-        "jev",
-        "openai"
+        "off",
+        "openai",
+        "jev"
       ],
-      "default": "rules"
+      "default": "off"
+    },
+    "models": {
+      "type": "string",
+      "title": "Models",
+      "description": "The models a picker may choose between, cheapest first.",
+      "options": [
+        "haiku-sonnet-opus",
+        "sonnet-opus-fable"
+      ],
+      "default": "haiku-sonnet-opus"
+    },
+    "style": {
+      "type": "string",
+      "title": "Style",
+      "description": "saver (default) picks the cheapest model that will do the job well. quality pays for the better model on anything you will rely on: audits, extra reviews, planning, new features.",
+      "options": [
+        "saver",
+        "quality"
+      ],
+      "default": "saver"
+    },
+    "respectNamed": {
+      "type": "boolean",
+      "title": "Keep a named model",
+      "description": "When the subagent call names a model, keep it and don't ask the picker. On by default.",
+      "default": true
     },
     "jevApiKey": {
       "type": "string",
@@ -46,7 +72,7 @@
     "gatewayZeroRetention": {
       "type": "boolean",
       "title": "Gateway zero data retention",
-      "description": "Ask the gateway for zero data retention. Pro and Enterprise plans only: on Hobby every pick is refused and the rules decide.",
+      "description": "Ask the gateway for zero data retention. Pro and Enterprise plans only: on Hobby every pick is refused and nothing changes.",
       "default": false
     },
     "openaiApiKey": {
