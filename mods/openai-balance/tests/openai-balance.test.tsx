@@ -10,7 +10,7 @@ const ok = (body: object) => ({ value: { status: 200, ok: true, headers: {}, tex
 const fail = (status: number) => ({ value: { status, ok: false, headers: {}, text: '{}' } })
 
 // Stands for the engine, the key's sources and OpenAI beneath the mod.
-function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number }) {
+function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; todayItems?: [string, number][]; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number }) {
   const urls: string[] = []
   const auths: string[] = []
   const from = opts.keyFrom ?? 'keychain'
@@ -46,7 +46,10 @@ function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; k
     }
     if (e.url.includes('/costs')) {
       const start = Number(/start_time=(\d+)/.exec(e.url)![1])
-      return ok({ data: [bucket(TODAY - 86_400, 0.05), bucket(TODAY, opts.todaySpend(), opts.todayItem)].filter(b => b.start_time >= start), has_more: false })
+      const today = opts.todayItems
+        ? { start_time: TODAY, results: opts.todayItems.map(([line_item, value]) => ({ line_item, amount: { value, currency: 'usd' } })) }
+        : bucket(TODAY, opts.todaySpend(), opts.todayItem)
+      return ok({ data: [bucket(TODAY - 86_400, 0.05), today].filter(b => b.start_time >= start), has_more: false })
     }
     return ok({ data: [{ start_time: TODAY + 3600, results: [{ model: 'gpt-5', input_tokens: 7687, output_tokens: 4530, num_model_requests: 5 }] }] })
   })
@@ -87,7 +90,7 @@ describe('openai-balance', () => {
 
     const set = await run($, '13.82')
     expect(set.text).toMatch(/set to \$13\.82/)
-    expect(await band($)).toMatch(/█{10} ~\$13\.82 of \$13\.82 left · \$0\.04 today · last gpt-5 \d\d:\d\d/) // top spend is the last call's model: no "mostly" // today's $0.04 was already in the balance
+    expect(await band($)).toMatch(/█{10} ~\$13\.82 of \$13\.82 left · \$0\.04 today · last gpt-5 \d\d:\d\d/) // $0.04 was already in the balance; top spend is the last call's model, so no "mostly"
 
     spend = 0.54
     const out = await run($, '')
@@ -103,6 +106,14 @@ describe('openai-balance', () => {
     await start($)
     await run($, '13.82')
     expect(await band($)).toMatch(/\$0\.21 today, mostly gpt-6-luna · last gpt-5 \d\d:\d\d/)
+  })
+
+  test('adds up each model\'s input and output before naming where the money went', async ($, on) => {
+    // o3's biggest single item is the largest, but gpt-6-luna's two items add up to more
+    engine(on, { todaySpend: () => 0, todayItems: [['o3, input', 0.1], ['gpt-6-luna, input', 0.08], ['gpt-6-luna, output', 0.06]] })
+    await start($)
+    await run($, '13.82')
+    expect(await band($)).toMatch(/today, mostly gpt-6-luna · last gpt-5/)
   })
 
   test('turns red and says so when the balance is low', async ($, on) => {

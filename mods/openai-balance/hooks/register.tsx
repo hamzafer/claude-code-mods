@@ -110,7 +110,7 @@ export const register: Register = (on, options) => {
     } else {
       // What today's money mostly went to, when that's not the last call's model: spend the Usage API can't
       // attribute to a call (Decisions) still shows.
-      const mostly = now.top && (!now.last || short(now.top) !== short(now.last.model)) ? short(now.top) : null
+      const mostly = isWide && now.top && (!now.last || same(now.top) !== same(now.last.model)) ? short(now.top) : null
       const tone = now.left < LOW ? 'red' : now.left < MID ? 'yellow' : 'green'
       const filled = now.start !== null && now.start > 0 ? Math.max(0, Math.min(GAUGE, Math.round((now.left / now.start) * GAUGE))) : 0
       body = (
@@ -160,7 +160,7 @@ async function refresh($: EngineInterface, isForced: boolean) {
     const today = spentFrom(buckets, dayStart(nowS))
     const left = anchor ? estimate(anchor, buckets) : null
     const last = await lastCall($, dayStart(nowS)).catch(() => null) // a usage hiccup never hides the balance
-    const top = itemsFrom(buckets, dayStart(nowS))[0]?.[0] ?? null
+    const top = topModel(itemsFrom(buckets, dayStart(nowS)))
     if (mine !== generation) return
     nextTry = now + EVERY_MS
     await update($, line, () => ({ left, start: anchor?.balance ?? null, today, last, top, error: null, isLoaded: true, hasData: true }))
@@ -232,6 +232,13 @@ function itemsFrom(buckets: Bucket[], start: number) {
   const sum: Record<string, number> = {}
   for (const b of buckets) if (b.start >= start) for (const [k, v] of Object.entries(b.items)) sum[k] = (sum[k] ?? 0) + v
   return Object.entries(sum).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
+}
+
+// The model today's money mostly went to, its line items (input, output, ...) added up first.
+function topModel(items: [string, number][]) {
+  const byModel = new Map<string, number>()
+  for (const [name, dollars] of items) byModel.set(short(name), (byModel.get(short(name)) ?? 0) + dollars)
+  return [...byModel].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 }
 
 function spentFrom(buckets: Bucket[], start: number) {
@@ -396,8 +403,14 @@ function problem(err: unknown) {
   return `Couldn't reach OpenAI: ${err instanceof Error ? err.message : String(err)}`
 }
 
-// A model or line item without its snapshot date or billing part: "gpt-5-2025-08-07" → "gpt-5", "x, input" → "x".
-const short = (name: string) => name.split(',')[0].trim().replace(/-\d{4}-\d{2}-\d{2}$/, '')
+// A model or line item without its billing part, fine-tune suffix or snapshot date:
+// "x, input" → "x", "ft:gpt-4o-mini-2024-07-18:org::id" → "gpt-4o-mini", "gpt-5-2025-08-07" → "gpt-5".
+const short = (name: string) => {
+  const base = name.split(',')[0].trim()
+  return (base.startsWith('ft:') ? base.split(':')[1] : base).replace(/-\d{4}-\d{2}-\d{2}$/, '')
+}
+// For comparing a Costs line item with a Usage model id: case, spaces and dashes don't count.
+const same = (name: string) => short(name).toLowerCase().replace(/[^a-z0-9]/g, '')
 const dayStart = (s: number) => s - (s % DAY_S)
 const usd = (n: number) => {
   const cents = Math.round(n * 100)
