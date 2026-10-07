@@ -1,17 +1,16 @@
-// Switchboard: the cheapest Claude model that can do each subagent's job.
-//   Before a subagent starts, a picker chooses Haiku, Sonnet or Opus for its task: Jev
-//   (TypeSafe's decision model, directly or through Vercel AI Gateway) or OpenAI's Decisions
-//   API, each about $0.00003 a pick. With no picker set, no key, or no answer in time, simple
-//   rules do.
-//   In auto mode the pick replaces the model the caller asked for; in suggest mode it is
-//   only shown. The band has one line per spawn; /route lists every pick, its reason and
-//   what each run cost at API prices, against what the asked model would have cost.
+// Switchboard: the right Claude model for each subagent, and what each one cost.
+//   Before a subagent starts that names no model, a picker chooses one from a ladder (Haiku,
+//   Sonnet, Opus, or Sonnet, Opus, Fable) by its short label alone: Jev (TypeSafe's decision
+//   model, directly or through Vercel AI Gateway) or OpenAI's Decisions API, each a fraction
+//   of a cent a pick. A model the caller named is kept. With no picker, no key, or no answer
+//   in time, nothing changes. In auto mode the pick replaces the model the spawn would have run
+//   on; in suggest mode it is only shown. /route lists every subagent, its pick and its cost.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Route, Tier } from '../types'
-import { PICKER_NAME, PICK_URL, PRICES_AS_OF, addUsage, byRules, costOf, parsePick, pickRequest, tierOf, usd } from './route'
-import type { Via } from './route'
+import { LADDERS, PICKER_NAME, PICK_URL, PRICES_AS_OF, addUsage, costOf, parsePick, pickRequest, tierOf, usd } from './route'
+import type { Ladder, Style, Via } from './route'
 
 const PANE = 'switchboard'
 const PICK_TIMEOUT_MS = 4_000 // the spawn waits this long for the picker at most
@@ -28,7 +27,10 @@ export const register: Register = (on, options) => {
   const mode = options.mode === 'suggest' ? 'suggest' : 'auto'
   const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
   const settings: Settings = {
-    picker: options.picker === 'jev' || options.picker === 'openai' ? options.picker : 'rules',
+    picker: options.picker === 'jev' || options.picker === 'openai' ? options.picker : 'off',
+    ladder: options.models === 'sonnet-opus-fable' ? 'sonnet-opus-fable' : 'haiku-sonnet-opus',
+    style: options.style === 'quality' ? 'quality' : 'saver',
+    respectNamed: options.respectNamed !== false,
     jev: text(options.jevApiKey),
     gateway: text(options.gatewayApiKey),
     openai: text(options.openaiApiKey),
@@ -50,12 +52,14 @@ export const register: Register = (on, options) => {
   on('agent.spawn', async ($, e, next) => {
     if (e.fork || e.isTeammate) return next(e) // a fork runs on its parent's model; a teammate keeps the one it was given
     const asked = baseline(e)
-    const pick = await credential($, settings)
-      .then(c => decide($, e, c, settings))
-      .catch(() => null)
-    if (!pick) return next(e) // routing broke: the spawn goes ahead as asked
+    const named = settings.respectNamed && !!e.model && e.model !== 'inherit'
+    const pick: Pick = named
+      ? { by: 'none', reason: 'named by the caller, kept' }
+      : await credential($, settings)
+          .then(c => decide($, e, c, settings))
+          .catch(() => ({ by: 'none' as const, reason: 'picker failed, kept' }))
     const sure = pick.confidence === undefined || pick.confidence >= MIN_CONFIDENCE
-    const apply = mode === 'auto' && sure && asked !== undefined && pick.tier !== tierOf(asked)
+    const apply = mode === 'auto' && sure && !!pick.tier && asked !== undefined && pick.tier !== tierOf(asked)
     const r = await next(apply ? { ...e, model: pick.tier } : e)
     if (r.deny !== undefined) return r
     const one: Route = {
@@ -88,7 +92,7 @@ export const register: Register = (on, options) => {
       list.map(x => {
         if (x.agentId !== id) return x
         const usage = r.usage ? addUsage(x.usage, r.usage) : x.usage
-        const model = r.usage?.model ?? x.model ?? x.picked
+        const model = r.usage?.model ?? x.model ?? x.picked ?? x.asked ?? ''
         return {
           ...x,
           status: failed ? 'failed' : 'done',
@@ -107,7 +111,7 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'route' }, async $ => {
     await $.ui.open({ id: PANE, title: 'Switchboard', focus: true })
     const t = totals(await read($, routes))
-    return { text: `${t.count} routed, ${t.switched} switched · ${usd(t.cost)} spent, ${usd(t.asked)} at the asked models` }
+    return { text: `${t.count} subagents, ${t.switched} switched · ${usd(t.cost)} spent, ${usd(t.asked)} at the asked models` }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -135,10 +139,10 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const list = await read($, routes)
     const t = totals(list)
-    const keyless = settings.picker !== 'rules' && !(await credential($, settings).catch(() => null))
+    const keyless = settings.picker !== 'off' && !(await credential($, settings).catch(() => null))
     return (
       <Box flexDirection="column">
-        <Text bold>{`${t.count} routed · ${t.switched} switched · mode: ${mode} · picker: ${settings.picker}${keyless ? ' (no key, rules decide)' : ''}`}</Text>
+        <Text bold>{`${t.count} subagents · ${t.switched} switched · mode: ${mode} · picker: ${settings.picker}${keyless ? ' (no key, nothing changes)' : ''}`}</Text>
         <Text>
           <Text>{`spent ${usd(t.cost)}`}</Text>
           <Text dimColor>{` · at the asked models ${usd(t.asked)} · picker ${usd(t.picker)}`}</Text>
@@ -153,7 +157,7 @@ export const register: Register = (on, options) => {
               <Text>{`  ${move(r, mode)}`}</Text>
               <Text dimColor>{`  ${r.status === 'running' ? 'running' : `${usd(r.costUsd)} (asked ${usd(r.askedUsd)})`}`}</Text>
             </Text>
-            <Text dimColor wrap="truncate-end">{`   ${r.type} · ${source(r)} · ${r.reason}${r.model ? ` · ran on ${r.model}` : ''}`}</Text>
+            <Text dimColor wrap="truncate-end">{`   ${r.type} · ${r.by === 'none' ? r.reason : `${source(r)} · ${r.reason}`}${r.model ? ` · ran on ${r.model}` : ''}`}</Text>
           </Box>
         ))}
         {list.length > PANE_ROWS && <Text dimColor>{`… ${list.length - PANE_ROWS} older`}</Text>}
@@ -166,8 +170,8 @@ export const register: Register = (on, options) => {
   })
 }
 
-type Pick = { tier: Tier; by: Route['by']; confidence?: number; reason: string; pickerUsd?: number }
-type Settings = { picker: 'rules' | 'jev' | 'openai'; jev: string; gateway: string; openai: string; zeroRetention: boolean }
+type Pick = { tier?: Tier; by: Route['by']; confidence?: number; reason: string; pickerUsd?: number }
+type Settings = { picker: 'off' | 'jev' | 'openai'; ladder: Ladder; style: Style; respectNamed: boolean; jev: string; gateway: string; openai: string; zeroRetention: boolean }
 type Credential = { via: Via; key: string } | null
 
 // The picker the settings chose, with its key. A key set in /config wins over one from the
@@ -188,22 +192,21 @@ async function credential($: EngineInterface, s: Settings): Promise<Credential> 
   return gateway ? { via: 'gateway', key: gateway } : null
 }
 
-// The picker when there is one and it answers in time; the rules otherwise.
-async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, c: Credential, s: Settings): Promise<Pick> {
-  const rules = byRules(e)
-  if (!c) return { ...rules, by: 'rules', reason: s.picker === 'rules' ? rules.reason : `${rules.reason} (no ${s.picker === 'openai' ? 'OpenAI' : 'Jev'} key)` }
+// The picker when there is one and it answers in time; otherwise no pick, and nothing changes.
+async function decide($: EngineInterface, e: { subagentType: string; description: string }, c: Credential, s: Settings): Promise<Pick> {
+  if (!c) return { by: 'none', reason: s.picker === 'off' ? 'no picker' : `no ${s.picker === 'openai' ? 'OpenAI' : 'Jev'} key` }
   const name = PICKER_NAME[c.via]
   const timeout = $.clock.sleep(PICK_TIMEOUT_MS).then(() => null)
   const asked = $.http
     .fetch(PICK_URL[c.via], {
       method: 'POST',
       headers: { Authorization: `Bearer ${c.key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(pickRequest(e, c.via, { zeroRetention: s.zeroRetention })),
+      body: JSON.stringify(pickRequest(e, c.via, { ladder: s.ladder, style: s.style, zeroRetention: s.zeroRetention })),
     })
-    .then(r => (r.ok ? parsePick(r.text, c.via) : null))
+    .then(r => (r.ok ? parsePick(r.text, c.via, LADDERS[s.ladder]) : null))
     .catch(() => null)
   const got = await Promise.race([asked, timeout])
-  if (!got) return { ...rules, by: 'rules', reason: `${rules.reason} (${name} did not answer)` }
+  if (!got) return { by: 'none', reason: `${name} did not answer` }
   const by: Pick['by'] = c.via === 'openai' ? 'openai' : 'jev'
   return { tier: got.tier, by, confidence: got.confidence, reason: `${name} ${pct(got.probabilities[got.tier] ?? got.confidence)} ${got.tier}`, pickerUsd: got.costUsd }
 }
@@ -227,10 +230,12 @@ export function isShown(r: Route, at = Date.now()) {
   return r.status === 'running' || (r.endedAt !== undefined && at - r.endedAt < SHOW_DONE_MS)
 }
 
-// "opus → haiku", "haiku (kept)" or, in suggest mode, "opus · try haiku".
+// "opus → sonnet", "sonnet (kept)", "opus · try sonnet" in suggest mode, or, with no pick, the
+// model it runs on and why nothing was picked.
 export function move(r: Route, mode: 'auto' | 'suggest') {
+  const from = r.asked === undefined ? 'own model' : (tierOf(r.asked) ?? r.asked)
+  if (!r.picked) return from
   if (r.asked === undefined) return `own model · try ${r.picked}`
-  const from = tierOf(r.asked) ?? r.asked
   if (r.applied) return `${from} → ${r.picked}`
   if (tierOf(r.asked) === r.picked) return `${r.picked} (kept)`
   return mode === 'suggest' ? `${from} · try ${r.picked}` : `${from} (kept)`
@@ -248,7 +253,7 @@ export function totals(list: Route[]) {
 }
 
 function source(r: Route) {
-  return r.by === 'rules' ? 'rules' : `${r.by} ${pct(r.confidence ?? 0)}`
+  return r.by === 'none' ? r.reason : `${r.by} ${pct(r.confidence ?? 0)}`
 }
 
 function pct(n: number) {

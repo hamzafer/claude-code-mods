@@ -1,4 +1,4 @@
-export type Tier = 'haiku' | 'sonnet' | 'opus'
+export type Tier = 'haiku' | 'sonnet' | 'opus' | 'fable'
 
 export type Usage = {
   input_tokens: number
@@ -14,8 +14,8 @@ export type Route = {
   description: string
   type: string
   asked?: string // what it would run on without us; undefined when its own agent definition decides
-  picked: Tier
-  by: 'jev' | 'openai' | 'rules'
+  picked?: Tier // undefined when nothing picked: a named model, no picker, or no answer
+  by: 'jev' | 'openai' | 'none'
   confidence?: number // the picker's, 0 to 1
   reason: string
   applied: boolean // false in suggest mode, or when the pick matched what was asked
