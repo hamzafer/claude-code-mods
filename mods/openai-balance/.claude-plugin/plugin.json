@@ -1,0 +1,19 @@
+{
+  "name": "openai-balance",
+  "version": "0.1.0",
+  "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, and the model and key of the last call. /openai-balance shows the breakdown.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "adminKey": {
+      "type": "string",
+      "title": "OpenAI Admin key",
+      "description": "An organization Admin key (sk-admin-..., read-only is enough) from platform.openai.com → Settings → Organization → Admin keys. Empty uses OPENAI_ADMIN_KEY, then the macOS Keychain item openai-admin-key.",
+      "sensitive": true,
+      "default": ""
+    }
+  }
+}

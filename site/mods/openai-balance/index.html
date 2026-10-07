@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>openai-balance: OpenAI API credit balance and spend in Claude Code</title>
+<meta name="description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/openai-balance/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="openai-balance: OpenAI API credit balance and spend in Claude Code">
+<meta property="og:description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/openai-balance/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="openai-balance: OpenAI API credit balance and spend in Claude Code">
+<meta name="twitter:description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "openai-balance", "description": "Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today's spend, and the model and key of the last call.", "url": "https://hamzafer.github.io/claude-code-mods/mods/openai-balance/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/openai-balance", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.0", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "openai-balance", "item": "https://hamzafer.github.io/claude-code-mods/mods/openai-balance/"}]}</script>
+</head>
+<body class="mod c-see">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-see">See what&#x27;s happening</a> <span aria-hidden="true">/</span> <span aria-current="page">openai-balance</span></nav>
+<header class="mod-head">
+  <h1>openai-balance</h1>
+  <p class="lede">Your OpenAI API credit above the prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.0</span></p>
+</header>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install openai-balance" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install openai-balance@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install openai-balance@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/openai-balance</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<p>Give it an OpenAI organization Admin key (read-only is enough) in <code>/config</code>, then set your balance once from the Billing page:</p>
+<div class="code">
+  <pre id="c-use" aria-label="Set the balance" data-cmd="/openai-balance 25.00"><code>/openai-balance 25.00</code></pre>
+  <button type="button" class="copy" data-copy="c-use">Copy</button>
+</div>
+<p>Run <code>/openai-balance</code> with no amount for the full breakdown. Set it again after a top-up.</p>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>The balance is an estimate: OpenAI has no balance API, so it is the amount you set minus the spend the Costs API reports since then.</li>
+<li>Green from $5, yellow under $5, red under $2.</li>
+<li>Shows the model, key name and time of the newest call. Decisions API calls show as spend only, until OpenAI&#x27;s Usage API covers them.</li>
+<li>The key comes from <code>/config</code>, else <code>OPENAI_ADMIN_KEY</code>, else the macOS Keychain item <code>openai-admin-key</code>, and stays in memory.</li>
+<li>Refreshes every 10 minutes and after each turn. A failed refresh keeps the last numbers, marked offline.</li>
+<li>Narrow terminals drop the gauge first.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+<li>An OpenAI organization Admin key</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-openai-balance">Full notes for openai-balance</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/openai-balance">Source folder: mods/openai-balance</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-see"><a href="../../mods/usage-meter/"><span class="row-text"><span class="row-name">usage-meter</span><span class="row-desc">5-hour and 7-day plan usage, the reset countdown and the session&#x27;s cost</span></span></a></li>
+<li class="row c-see"><a href="../../mods/token-weather/"><span class="row-text"><span class="row-name">token-weather</span><span class="row-desc">Context fill from Clear to Compact soon, plus a prompt-cache countdown</span></span></a></li>
+<li class="row c-setup"><a href="../../mods/glance/"><span class="row-text"><span class="row-name">glance</span><span class="row-desc">Next meeting, PRs, Linear issues and Slack DMs in one line</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 21 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>
