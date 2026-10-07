@@ -136,6 +136,12 @@
       "description": "Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.",
       "version": "0.3.1",
       "source": "./mods/switchboard"
+    },
+    {
+      "name": "openai-balance",
+      "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, and the model and key of the last call. /openai-balance shows the breakdown.",
+      "version": "0.1.0",
+      "source": "./mods/openai-balance"
     }
   ]
 }

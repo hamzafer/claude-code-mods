@@ -11,7 +11,7 @@ Most mods add a live line above the Claude Code prompt, like extra status lines.
 
 ![Several Claude Code mods stacked as live lines above the prompt](../images/bands.png)
 
-- context-bar, token-weather, usage-meter, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
+- context-bar, token-weather, usage-meter, openai-balance, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -114,6 +114,19 @@ Shows your Claude Code plan usage and session cost.
 - Green under 75%, yellow from 75%, red from 90%, plus one toast per window each time it passes 90%
 - Without a subscription it shows only the cost
 - Narrow terminals drop the 7d part first, then the cost
+
+### 💳 openai-balance
+
+Shows your OpenAI API credit above the Claude Code prompt.
+
+- One line: an estimated balance with a gauge, today's spend, and the model, key name and time of the newest call
+- **The balance is an estimate.** OpenAI has no balance API. Set the balance from your Billing page with `/openai-balance 25.00`; the mod subtracts the spend the Costs API reports since then. Set it again after a top-up
+- Green from $5, yellow under $5, red under $2
+- `/openai-balance` shows the breakdown: today, this month, last 30 days, spend by line item, tokens by model and by key, and the last call
+- **Key:** an organization Admin key (read-only is enough). From the key in `/config`, else `OPENAI_ADMIN_KEY`, else the macOS Keychain item `openai-admin-key`. Kept in memory only
+- Calls to the Decisions API show as spend (`gpt-6-luna`) without a key or time: OpenAI's Usage API has no Decisions data yet. The mod keeps asking, so they fill in once it does
+- "Today" is the UTC day, as OpenAI's billing counts it
+- Refreshes every 10 minutes and after each turn; a minute after a failure. A failed refresh keeps the last numbers, marked offline
 
 ### 📡 agent-radar
 
