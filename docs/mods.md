@@ -121,7 +121,8 @@ Shows your OpenAI API credit above the Claude Code prompt.
 
 ![openai-balance: estimated OpenAI API credit with a gauge, today's spend and the last call's model above the Claude Code prompt](../images/openai-balance.png)
 
-- One line: an estimated balance with a gauge, today's spend, and the model, key name and time of the newest call
+- One line: an estimated balance with a gauge, today's spend, and the model and time of the newest call. When today's money mostly went somewhere else (like Decisions calls, which the Usage API doesn't list), it adds "mostly <model>"
+- Key names are in `/openai-balance`, not the line
 - **The balance is an estimate.** OpenAI has no balance API. Set the balance from your Billing page with `/openai-balance 25.00`; the mod subtracts the spend the Costs API reports since then. Set it again after a top-up
 - Green from $5, yellow under $5, red under $2
 - `/openai-balance` shows the breakdown: today, this month, last 30 days, spend by line item, tokens by model and by key, and the last call

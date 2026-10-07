@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>openai-balance: OpenAI API credit balance and spend in Claude Code</title>
-<meta name="description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.">
+<meta name="description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, where the money mostly went, and the last call.">
 <link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/openai-balance/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
@@ -12,20 +12,20 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Claude Code mods">
 <meta property="og:title" content="openai-balance: OpenAI API credit balance and spend in Claude Code">
-<meta property="og:description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.">
+<meta property="og:description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, where the money mostly went, and the last call.">
 <meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/openai-balance/">
 <meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
 <meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="openai-balance: OpenAI API credit balance and spend in Claude Code">
-<meta name="twitter:description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.">
+<meta name="twitter:description" content="Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today&#x27;s spend, where the money mostly went, and the last call.">
 <meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="../../style.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "openai-balance", "description": "Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today's spend, and the model and key of the last call.", "url": "https://hamzafer.github.io/claude-code-mods/mods/openai-balance/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/openai-balance", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.0", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "openai-balance", "description": "Your OpenAI API credit above the Claude Code prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call.", "url": "https://hamzafer.github.io/claude-code-mods/mods/openai-balance/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/openai-balance", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.1", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "openai-balance", "item": "https://hamzafer.github.io/claude-code-mods/mods/openai-balance/"}]}</script>
 </head>
 <body class="mod c-see">
@@ -42,8 +42,8 @@
 <nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-see">See what&#x27;s happening</a> <span aria-hidden="true">/</span> <span aria-current="page">openai-balance</span></nav>
 <header class="mod-head">
   <h1>openai-balance</h1>
-  <p class="lede">Your OpenAI API credit above the prompt: an estimated balance with a gauge, today&#x27;s spend, and the model and key of the last call.</p>
-  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.0</span></p>
+  <p class="lede">Your OpenAI API credit above the prompt: an estimated balance with a gauge, today&#x27;s spend, where the money mostly went, and the last call.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.1</span></p>
 </header>
 <figure class="shot shot-wide"><div class="shot-frame"><img style="--w:627px" src="../../images/openai-balance.png" width="1254" height="70" alt="openai-balance: about $13.67 of $13.82 left with a green gauge, $0.21 spent today, last call on gpt-5" decoding="async" fetchpriority="high"></div><figcaption>The estimated balance, today&#x27;s spend and the last call&#x27;s model.</figcaption></figure>
 <div class="mod-body">
@@ -69,7 +69,7 @@ claude plugin install openai-balance@claude-code-mods"><code><span class="ps" ar
 <ul class="notes">
 <li>The balance is an estimate: OpenAI has no balance API, so it is the amount you set minus the spend the Costs API reports since then.</li>
 <li>Green from $5, yellow under $5, red under $2.</li>
-<li>Shows the model, key name and time of the newest call. Decisions API calls show as spend only, until OpenAI&#x27;s Usage API covers them.</li>
+<li>Shows the model and time of the newest call, and &quot;mostly &lt;model&gt;&quot; when today&#x27;s money mostly went elsewhere, such as Decisions API calls, which OpenAI&#x27;s Usage API doesn&#x27;t list yet.</li>
 <li>The key comes from <code>/config</code>, else <code>OPENAI_ADMIN_KEY</code>, else the macOS Keychain item <code>openai-admin-key</code>, and stays in memory.</li>
 <li>Refreshes every 10 minutes and after each turn. A failed refresh keeps the last numbers, marked offline.</li>
 <li>Narrow terminals drop the gauge first.</li>
