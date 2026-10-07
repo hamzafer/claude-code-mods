@@ -1,6 +1,6 @@
 {
   "name": "switchboard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.",
   "author": {
     "name": "Hamza Zafar",

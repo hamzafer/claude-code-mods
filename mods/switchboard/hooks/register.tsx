@@ -209,7 +209,7 @@ async function decide($: EngineInterface, e: { subagentType: string; description
   const got = await Promise.race([asked, timeout])
   if (!got) return { by: 'none', reason: `${name} did not answer` }
   const by: Pick['by'] = c.via === 'openai' ? 'openai' : 'jev'
-  return { tier: got.tier, by, confidence: got.confidence, reason: `${name} ${pct(got.probabilities[got.tier] ?? got.confidence)} ${got.tier}`, pickerUsd: got.costUsd }
+  return { tier: got.tier, by, confidence: got.confidence, reason: `${name} picked ${got.tier}`, pickerUsd: got.costUsd }
 }
 
 // The model the spawn would run on without us, when we can know it: what the caller named,
@@ -254,7 +254,7 @@ export function totals(list: Route[]) {
 }
 
 function source(r: Route) {
-  return r.by === 'none' ? r.reason : `${r.by} ${pct(r.confidence ?? 0)}`
+  return r.by === 'none' ? r.reason : `${r.by} ${pct(r.confidence ?? 0)} sure`
 }
 
 function pct(n: number) {
