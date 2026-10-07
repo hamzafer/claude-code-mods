@@ -128,7 +128,7 @@ Shows one live line per running Claude Code subagent.
 
 Picks the model for each Claude Code subagent that doesn't name one, and shows what every subagent cost.
 
-- **A named model is kept.** When you or your CLAUDE.md name a model for a subagent ("Sonnet review", "opus agent"), switchboard leaves it alone. Only a subagent with no model named gets a pick. Turn this off with **Keep a named model** in `/config`
+- **A named model is kept.** When you or your CLAUDE.md name a model for a subagent ("Sonnet review", "opus agent"), switchboard leaves it alone. Only a subagent with no model named gets a pick; `inherit` counts as no model named. Turn this off with **Keep a named model** in `/config`
 - **Picker** in `/config`:
   - `off` (default): picks nothing, sends nothing, and only tracks cost in `/route`
   - `openai`: asks [OpenAI's Decisions API](https://developers.openai.com/api/docs/guides/decisions) (`gpt-6-luna`, about $0.00003 a pick). Uses the OpenAI key in `/config`, else `OPENAI_API_KEY`

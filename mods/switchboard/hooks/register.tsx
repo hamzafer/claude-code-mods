@@ -92,7 +92,8 @@ export const register: Register = (on, options) => {
       list.map(x => {
         if (x.agentId !== id) return x
         const usage = r.usage ? addUsage(x.usage, r.usage) : x.usage
-        const model = r.usage?.model ?? x.model ?? x.picked ?? x.asked ?? ''
+        // What it ran on: the API's word, else the switch we made, else what was asked.
+        const model = r.usage?.model ?? x.model ?? (x.applied ? x.picked : x.asked) ?? x.picked ?? ''
         return {
           ...x,
           status: failed ? 'failed' : 'done',

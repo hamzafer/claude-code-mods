@@ -72,7 +72,7 @@
     "gatewayZeroRetention": {
       "type": "boolean",
       "title": "Gateway zero data retention",
-      "description": "Ask the gateway for zero data retention. Pro and Enterprise plans only: on Hobby every pick is refused and the rules decide.",
+      "description": "Ask the gateway for zero data retention. Pro and Enterprise plans only: on Hobby every pick is refused and nothing changes.",
       "default": false
     },
     "openaiApiKey": {
