@@ -132,10 +132,9 @@ Runs each Claude Code subagent on the cheapest model that can do its job.
 - **Picker** in `/config` decides who picks:
   - `rules` (default): Explore agents get Haiku, Plan agents get Opus, then words in the task's short description: lookups (find, search, list) Haiku, hard tasks (security, architecture, root cause) Opus, everything else Sonnet. Runs on your machine
   - `openai`: asks [OpenAI's Decisions API](https://developers.openai.com/api/docs/guides/decisions) (`gpt-6-luna`, public beta, about $0.00003 a pick). Uses the OpenAI key in `/config`, else `OPENAI_API_KEY`
-  - `jev`: asks [Jev](https://docs.typesafe.ai), TypeSafe's decision model (about $0.00003 a pick). A TypeSafe key (`/config`, else `TYPESAFE_API_KEY`) calls TypeSafe directly. Without one, a Vercel AI Gateway key (`/config`, else `AI_GATEWAY_API_KEY`) calls Jev through the [gateway](https://vercel.com/docs/ai-gateway/modalities/decision), served by TypeSafe only. The gateway needs paid credit for Jev
+  - `jev`: asks [Jev](https://docs.typesafe.ai), TypeSafe's decision model (about $0.00003 a pick). A TypeSafe key calls TypeSafe directly; a Vercel AI Gateway key calls Jev through the [gateway](https://vercel.com/docs/ai-gateway/modalities/decision), served by TypeSafe only (it needs paid gateway credit). The first one set wins: the TypeSafe key in `/config`, the gateway key in `/config`, `TYPESAFE_API_KEY`, then `AI_GATEWAY_API_KEY`
 - A key on its own never turns a picker on, since many tools set `OPENAI_API_KEY`. Choose the picker in `/config`
 - If the picker has no key, or doesn't answer within 4 s, the rules decide. `/route` shows why (`no OpenAI key`, `OpenAI did not answer`)
-- A key set in `/config` wins over one from the environment
 - If the picker is less than 50% sure, it shows the pick but keeps the model Claude asked for
 - **Gateway zero data retention** in `/config` asks the gateway not to keep the request. It's off by default, because the gateway refuses it below the Pro plan and every pick would fall back to the rules
 - **Mode** in `/config`: `auto` (default) switches the model, `suggest` only shows the pick
