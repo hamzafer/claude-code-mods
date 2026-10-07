@@ -139,8 +139,8 @@
     },
     {
       "name": "openai-balance",
-      "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, and the model and key of the last call. /openai-balance shows the breakdown.",
-      "version": "0.1.0",
+      "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. /openai-balance shows the breakdown.",
+      "version": "0.1.1",
       "source": "./mods/openai-balance"
     }
   ]

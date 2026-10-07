@@ -5,12 +5,12 @@ const TODAY = NOW / 1000 - ((NOW / 1000) % 86_400)
 const KEY = 'sk-admin-test'
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 140 } }
 
-const bucket = (start: number, dollars: number) => ({ start_time: start, results: [{ line_item: 'gpt-5, input', amount: { value: dollars, currency: 'usd' } }] })
+const bucket = (start: number, dollars: number, item = 'gpt-5, input') => ({ start_time: start, results: [{ line_item: item, amount: { value: dollars, currency: 'usd' } }] })
 const ok = (body: object) => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } })
 const fail = (status: number) => ({ value: { status, ok: false, headers: {}, text: '{}' } })
 
 // Stands for the engine, the key's sources and OpenAI beneath the mod.
-function engine(on: any, opts: { todaySpend: () => number; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number }) {
+function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number }) {
   const urls: string[] = []
   const auths: string[] = []
   const from = opts.keyFrom ?? 'keychain'
@@ -46,7 +46,7 @@ function engine(on: any, opts: { todaySpend: () => number; keyFrom?: 'env' | 'ke
     }
     if (e.url.includes('/costs')) {
       const start = Number(/start_time=(\d+)/.exec(e.url)![1])
-      return ok({ data: [bucket(TODAY - 86_400, 0.05), bucket(TODAY, opts.todaySpend())].filter(b => b.start_time >= start), has_more: false })
+      return ok({ data: [bucket(TODAY - 86_400, 0.05), bucket(TODAY, opts.todaySpend(), opts.todayItem)].filter(b => b.start_time >= start), has_more: false })
     }
     return ok({ data: [{ start_time: TODAY + 3600, results: [{ model: 'gpt-5', input_tokens: 7687, output_tokens: 4530, num_model_requests: 5 }] }] })
   })
@@ -87,7 +87,7 @@ describe('openai-balance', () => {
 
     const set = await run($, '13.82')
     expect(set.text).toMatch(/set to \$13\.82/)
-    expect(await band($)).toMatch(/█{10} ~\$13\.82 of \$13\.82 left · \$0\.04 today · gpt-5 via ci-bot \d\d:\d\d/) // today's $0.04 was already in the balance
+    expect(await band($)).toMatch(/█{10} ~\$13\.82 of \$13\.82 left · \$0\.04 today · last gpt-5 \d\d:\d\d/) // top spend is the last call's model: no "mostly" // today's $0.04 was already in the balance
 
     spend = 0.54
     const out = await run($, '')
@@ -96,6 +96,13 @@ describe('openai-balance', () => {
     expect(out.text).toMatch(/gpt-5: 7,687 in \/ 4,530 out, 5 requests/)
     expect(out.text).toMatch(/ci-bot: 12,217 tokens, 5 requests/)
     expect(out.text).not.toContain(KEY)
+  })
+
+  test('names where the money mostly went when that is not the last call', async ($, on) => {
+    engine(on, { todaySpend: () => 0.21, todayItem: 'gpt-6-luna, input' })
+    await start($)
+    await run($, '13.82')
+    expect(await band($)).toMatch(/\$0\.21 today, mostly gpt-6-luna · last gpt-5 \d\d:\d\d/)
   })
 
   test('turns red and says so when the balance is low', async ($, on) => {

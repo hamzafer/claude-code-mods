@@ -108,6 +108,9 @@ export const register: Register = (on, options) => {
         </Text>
       )
     } else {
+      // What today's money mostly went to, when that's not the last call's model: spend the Usage API can't
+      // attribute to a call (Decisions) still shows.
+      const mostly = now.top && (!now.last || short(now.top) !== short(now.last.model)) ? short(now.top) : null
       const tone = now.left < LOW ? 'red' : now.left < MID ? 'yellow' : 'green'
       const filled = now.start !== null && now.start > 0 ? Math.max(0, Math.min(GAUGE, Math.round((now.left / now.start) * GAUGE))) : 0
       body = (
@@ -119,13 +122,12 @@ export const register: Register = (on, options) => {
           {sep}
           <Text bold>{usd(now.today)}</Text>
           <Text dimColor>{' today'}</Text>
+          {mostly && <Text dimColor>{', mostly '}</Text>}
+          {mostly && <Text color="cyan">{mostly}</Text>}
           {now.last && sep}
-          {now.last && <Text color="cyan">{now.last.model}</Text>}
-          {now.last && <Text dimColor>{' via '}</Text>}
-          {now.last && <Text>{now.last.key}</Text>}
+          {now.last && <Text dimColor>{'last '}</Text>}
+          {now.last && <Text color="cyan">{short(now.last.model)}</Text>}
           {now.last && <Text dimColor>{` ${clock(now.last.at)}`}</Text>}
-          {!now.last && now.top && sep}
-          {!now.last && now.top && <Text color="cyan">{now.top}</Text>}
           {now.error === 'offline' && <Text dimColor>{' · offline'}</Text>}
         </Text>
       )
@@ -158,7 +160,7 @@ async function refresh($: EngineInterface, isForced: boolean) {
     const today = spentFrom(buckets, dayStart(nowS))
     const left = anchor ? estimate(anchor, buckets) : null
     const last = await lastCall($, dayStart(nowS)).catch(() => null) // a usage hiccup never hides the balance
-    const top = itemsFrom(buckets, dayStart(nowS))[0]?.[0].replace(/, (input|output|cached input)$/, '') ?? null // "gpt-6-luna, input" → "gpt-6-luna"
+    const top = itemsFrom(buckets, dayStart(nowS))[0]?.[0] ?? null
     if (mine !== generation) return
     nextTry = now + EVERY_MS
     await update($, line, () => ({ left, start: anchor?.balance ?? null, today, last, top, error: null, isLoaded: true, hasData: true }))
@@ -394,6 +396,8 @@ function problem(err: unknown) {
   return `Couldn't reach OpenAI: ${err instanceof Error ? err.message : String(err)}`
 }
 
+// A model or line item without its snapshot date or billing part: "gpt-5-2025-08-07" → "gpt-5", "x, input" → "x".
+const short = (name: string) => name.split(',')[0].trim().replace(/-\d{4}-\d{2}-\d{2}$/, '')
 const dayStart = (s: number) => s - (s % DAY_S)
 const usd = (n: number) => {
   const cents = Math.round(n * 100)
