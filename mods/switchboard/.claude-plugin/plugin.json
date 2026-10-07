@@ -32,14 +32,14 @@
     "jevApiKey": {
       "type": "string",
       "title": "TypeSafe API key",
-      "description": "For picker jev, called at api.typesafe.ai. Empty uses TYPESAFE_API_KEY, then the AI Gateway key.",
+      "description": "For picker jev, called at api.typesafe.ai. A key in /config wins over the environment: this one, then the gateway key below, then TYPESAFE_API_KEY, then AI_GATEWAY_API_KEY.",
       "sensitive": true,
       "default": ""
     },
     "gatewayApiKey": {
       "type": "string",
       "title": "Vercel AI Gateway key",
-      "description": "For picker jev with no TypeSafe key: Jev through Vercel AI Gateway, served by TypeSafe only. Needs paid gateway credit. Empty uses AI_GATEWAY_API_KEY.",
+      "description": "For picker jev: Jev through Vercel AI Gateway, served by TypeSafe only. Needs paid gateway credit. Empty uses AI_GATEWAY_API_KEY when no TypeSafe key is set.",
       "sensitive": true,
       "default": ""
     },

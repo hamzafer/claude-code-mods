@@ -188,6 +188,26 @@ describe('switchboard', () => {
     expect(sent).toEqual([]) // picker defaults to rules: nothing leaves the machine
   })
 
+  test('a picker with no key says so, and a /config key beats the environment', { options: { picker: 'openai' } }, async ($, on) => {
+    const { sent } = engine(on, null)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn(SPAWN as any)
+    expect(sent).toEqual([])
+    await $.command.run({ command: 'route', args: '' } as any)
+    const ui = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...PANE } as any)
+    expect(await ui.find({ type: 'Text', text: /picker: openai \(no key, rules decide\)/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /rule: lookup words \(no OpenAI key\)/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a gateway key in /config wins over TYPESAFE_API_KEY', { options: { picker: 'jev', gatewayApiKey: 'gw-set' } }, async ($, on) => {
+    const { sent } = engine(on, { status: 200, text: jevAnswer('haiku', 0.8) }, { TYPESAFE_API_KEY: 'ts-env' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn(SPAWN as any)
+    expect(sent[0].url).toBe('https://ai-gateway.vercel.sh/v1/evaluate')
+    expect(sent[0].headers.Authorization).toBe('Bearer gw-set')
+  })
+
   test('a Jev pick under 50% is shown but not applied', { options: { picker: 'jev', jevApiKey: 'k-test' } }, async ($, on) => {
     const { spawned } = engine(on, { status: 200, text: jevAnswer('haiku', 0.3) })
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)

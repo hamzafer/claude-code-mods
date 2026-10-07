@@ -51,7 +51,7 @@ export const register: Register = (on, options) => {
     if (e.fork || e.isTeammate) return next(e) // a fork runs on its parent's model; a teammate keeps the one it was given
     const asked = baseline(e)
     const pick = await credential($, settings)
-      .then(c => decide($, e, c, settings.zeroRetention))
+      .then(c => decide($, e, c, settings))
       .catch(() => null)
     if (!pick) return next(e) // routing broke: the spawn goes ahead as asked
     const sure = pick.confidence === undefined || pick.confidence >= MIN_CONFIDENCE
@@ -135,9 +135,10 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const list = await read($, routes)
     const t = totals(list)
+    const keyless = settings.picker !== 'rules' && !(await credential($, settings).catch(() => null))
     return (
       <Box flexDirection="column">
-        <Text bold>{`${t.count} routed · ${t.switched} switched · mode: ${mode} · picker: ${settings.picker}`}</Text>
+        <Text bold>{`${t.count} routed · ${t.switched} switched · mode: ${mode} · picker: ${settings.picker}${keyless ? ' (no key, rules decide)' : ''}`}</Text>
         <Text>
           <Text>{`spent ${usd(t.cost)}`}</Text>
           <Text dimColor>{` · at the asked models ${usd(t.asked)} · picker ${usd(t.picker)}`}</Text>
@@ -169,33 +170,35 @@ type Pick = { tier: Tier; by: Route['by']; confidence?: number; reason: string; 
 type Settings = { picker: 'rules' | 'jev' | 'openai'; jev: string; gateway: string; openai: string; zeroRetention: boolean }
 type Credential = { via: Via; key: string } | null
 
-// The picker the settings chose, with its key. Jev: a TypeSafe key (setting, then
-// TYPESAFE_API_KEY) goes straight to TypeSafe, else a gateway key (setting, then
-// AI_GATEWAY_API_KEY) goes through Vercel AI Gateway. OpenAI: the setting, then OPENAI_API_KEY.
-// A key alone never turns a picker on: many tools set these variables.
+// The picker the settings chose, with its key. A key set in /config wins over one from the
+// environment. Jev: a TypeSafe key goes straight to TypeSafe, a gateway key through Vercel AI
+// Gateway. OpenAI: the setting, then OPENAI_API_KEY. A key alone never turns a picker on:
+// many tools set these variables.
 async function credential($: EngineInterface, s: Settings): Promise<Credential> {
   if (s.picker === 'openai') {
     const key = s.openai || ((await $.env.get('OPENAI_API_KEY').catch(() => undefined)) ?? '').trim()
     return key ? { via: 'openai', key } : null
   }
   if (s.picker !== 'jev') return null
-  const typesafe = s.jev || ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()
+  if (s.jev) return { via: 'typesafe', key: s.jev }
+  if (s.gateway) return { via: 'gateway', key: s.gateway }
+  const typesafe = ((await $.env.get('TYPESAFE_API_KEY').catch(() => undefined)) ?? '').trim()
   if (typesafe) return { via: 'typesafe', key: typesafe }
-  const gateway = s.gateway || ((await $.env.get('AI_GATEWAY_API_KEY').catch(() => undefined)) ?? '').trim()
+  const gateway = ((await $.env.get('AI_GATEWAY_API_KEY').catch(() => undefined)) ?? '').trim()
   return gateway ? { via: 'gateway', key: gateway } : null
 }
 
 // The picker when there is one and it answers in time; the rules otherwise.
-async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, c: Credential, zeroRetention: boolean): Promise<Pick> {
+async function decide($: EngineInterface, e: { subagentType: string; description: string; prompt: string }, c: Credential, s: Settings): Promise<Pick> {
   const rules = byRules(e)
-  if (!c) return { ...rules, by: 'rules' }
+  if (!c) return { ...rules, by: 'rules', reason: s.picker === 'rules' ? rules.reason : `${rules.reason} (no ${s.picker === 'openai' ? 'OpenAI' : 'Jev'} key)` }
   const name = PICKER_NAME[c.via]
   const timeout = $.clock.sleep(PICK_TIMEOUT_MS).then(() => null)
   const asked = $.http
     .fetch(PICK_URL[c.via], {
       method: 'POST',
       headers: { Authorization: `Bearer ${c.key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(pickRequest(e, c.via, { zeroRetention })),
+      body: JSON.stringify(pickRequest(e, c.via, { zeroRetention: s.zeroRetention })),
     })
     .then(r => (r.ok ? parsePick(r.text, c.via) : null))
     .catch(() => null)
