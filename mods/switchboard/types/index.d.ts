@@ -15,8 +15,8 @@ export type Route = {
   type: string
   asked?: string // what it would run on without us; undefined when its own agent definition decides
   picked: Tier
-  by: 'jev' | 'rules'
-  confidence?: number // Jev's, 0 to 1
+  by: 'jev' | 'openai' | 'rules'
+  confidence?: number // the picker's, 0 to 1
   reason: string
   applied: boolean // false in suggest mode, or when the pick matched what was asked
   status: 'running' | 'done' | 'failed'
@@ -26,7 +26,7 @@ export type Route = {
   usage?: Usage
   costUsd?: number // at API prices, for the tokens it used
   askedUsd?: number // the same tokens at the asked model's prices
-  jevUsd?: number // what the routing call itself cost
+  pickerUsd?: number // what the pick itself cost
 }
 
 declare module 'claude-code' {
