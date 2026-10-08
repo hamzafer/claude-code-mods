@@ -51,7 +51,7 @@ describe('reels', () => {
     const h = engine(on, { installed: false })
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const r: any = await $.command.run({ command: 'reels', args: '' } as any)
-    expect(r.text).toMatch(/npm install --prefix \/Users\/me\/\.claude-mods\/reels playwright/)
+    expect(r.text).toMatch(/npm install --prefix \/Users\/me\/\.claude-mods\/reels playwright@1\.63\.0/)
     expect(h.spawned).toEqual([])
   })
 
