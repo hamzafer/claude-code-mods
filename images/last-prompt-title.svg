@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 310" width="760" height="310" role="img" aria-label="last-prompt-title demo: each prompt first becomes the session title cut to 60 characters, then Haiku replaces it with a short title, and the title follows the latest prompt">
+  <style>
+    * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .muted { fill: #8A847A; }
+    .ink { fill: #2B2925; }
+    .msg { font-size: 13.5px; fill: #2B2925; }
+    .title { font-size: 17px; }
+    .status { font-size: 12.5px; }
+
+    /* One 14s loop for every timeline below. */
+    .t { animation-duration: 14s; animation-iteration-count: infinite; animation-timing-function: ease-out; }
+
+    .title-new { animation-name: title-new; }
+    @keyframes title-new { 0%, 8% { opacity: 1 } 9%, 98% { opacity: 0 } 100% { opacity: 1 } }
+
+    .title-cut1 { animation-name: title-cut1; }
+    @keyframes title-cut1 { 0%, 8% { opacity: 0 } 10%, 22% { opacity: 1 } 24%, 100% { opacity: 0 } }
+
+    .title-ai1 { animation-name: title-ai1; }
+    @keyframes title-ai1 { 0%, 23% { opacity: 0 } 25%, 46% { opacity: 1 } 48%, 100% { opacity: 0 } }
+
+    .title-cut2 { animation-name: title-cut2; }
+    @keyframes title-cut2 { 0%, 47% { opacity: 0 } 49%, 65% { opacity: 1 } 67%, 100% { opacity: 0 } }
+
+    .title-ai2 { animation-name: title-ai2; }
+    @keyframes title-ai2 { 0%, 66% { opacity: 0 } 68%, 94% { opacity: 1 } 97%, 100% { opacity: 0 } }
+
+    .titling { animation-name: titling; }
+    @keyframes titling {
+      0%, 9% { opacity: 0 } 10%, 22% { opacity: 1 } 24%, 48% { opacity: 0 }
+      49%, 65% { opacity: 1 } 67%, 100% { opacity: 0 }
+    }
+    .titled { animation-name: titled; }
+    @keyframes titled {
+      0%, 23% { opacity: 0 } 25%, 46% { opacity: 1 } 48%, 66% { opacity: 0 }
+      68%, 94% { opacity: 1 } 97%, 100% { opacity: 0 }
+    }
+    .spark { animation: spark 0.9s ease-in-out infinite; }
+    @keyframes spark { 0%, 100% { opacity: 0.35 } 50% { opacity: 1 } }
+
+    .flash { animation-name: flash; }
+    @keyframes flash {
+      0%, 23% { opacity: 0 } 25% { opacity: 1 } 34%, 66% { opacity: 0 }
+      68% { opacity: 1 } 77%, 100% { opacity: 0 }
+    }
+
+    .msg1 { animation-name: msg1; }
+    @keyframes msg1 { 0%, 6% { opacity: 0; transform: translateY(8px) } 9%, 94% { opacity: 1; transform: translateY(0) } 97%, 100% { opacity: 0 } }
+    .reply1 { animation-name: reply1; }
+    @keyframes reply1 { 0%, 28% { opacity: 0 } 31%, 94% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .msg2 { animation-name: msg2; }
+    @keyframes msg2 { 0%, 45% { opacity: 0; transform: translateY(8px) } 48%, 94% { opacity: 1; transform: translateY(0) } 97%, 100% { opacity: 0 } }
+    .reply2 { animation-name: reply2; }
+    @keyframes reply2 { 0%, 72% { opacity: 0 } 75%, 94% { opacity: 1 } 97%, 100% { opacity: 0 } }
+
+    .cap0 { animation-name: cap0; }
+    @keyframes cap0 { 0%, 7% { opacity: 1 } 9%, 98% { opacity: 0 } 100% { opacity: 1 } }
+    .cap1 { animation-name: cap1; }
+    @keyframes cap1 { 0%, 8% { opacity: 0 } 10%, 22% { opacity: 1 } 24%, 100% { opacity: 0 } }
+    .cap2 { animation-name: cap2; }
+    @keyframes cap2 { 0%, 23% { opacity: 0 } 25%, 45% { opacity: 1 } 47%, 100% { opacity: 0 } }
+    .cap3 { animation-name: cap3; }
+    @keyframes cap3 { 0%, 46% { opacity: 0 } 48%, 94% { opacity: 1 } 97%, 100% { opacity: 0 } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .t, .spark { animation: none; }
+      .title-new, .title-cut1, .title-ai1, .title-cut2, .titling, .flash, .cap0, .cap1, .cap2 { opacity: 0; }
+      .title-ai2, .titled, .msg1, .reply1, .msg2, .reply2, .cap3 { opacity: 1; }
+    }
+  </style>
+
+  <defs>
+    <clipPath id="title-box"><rect x="22" y="62" width="276" height="34"/></clipPath>
+  </defs>
+
+  <!-- Card -->
+  <rect x="0.5" y="0.5" width="759" height="309" rx="14" fill="#FAF9F7" stroke="#E2DED6"/>
+
+  <!-- Sidebar -->
+  <path d="M14.5 0.5 H320 V256 H0.5 V14.5 A14 14 0 0 1 14.5 0.5 Z" fill="#F1EFEA"/>
+  <line x1="320" y1="0" x2="320" y2="256" stroke="#E2DED6"/>
+  <text x="24" y="38" class="muted" font-size="11.5" font-weight="600" letter-spacing="0.8">SESSIONS</text>
+
+  <!-- The session being titled -->
+  <rect x="12" y="54" width="296" height="74" rx="10" fill="#E6E1D7"/>
+  <rect class="t flash" x="12" y="54" width="296" height="74" rx="10" fill="#F6D58E"/>
+  <rect x="12.5" y="54.5" width="295" height="73" rx="10" fill="none" stroke="#D3CCBF"/>
+  <g clip-path="url(#title-box)">
+    <text class="t title-new title muted" x="26" y="85" font-style="italic">New session</text>
+    <text class="t title-cut1 title ink" x="26" y="85">Can you check how the dae…</text>
+    <text class="t title-ai1 title ink" x="26" y="85" font-weight="650">Daemon reconnect logic</text>
+    <text class="t title-cut2 title ink" x="26" y="85">Now add a unit test for th…</text>
+    <text class="t title-ai2 title ink" x="26" y="85" font-weight="650">Backoff timer unit test</text>
+  </g>
+  <g class="t titling">
+    <text class="spark status" x="26" y="112" fill="#B07A12">✦</text>
+    <text class="status" x="42" y="112" fill="#B07A12">Haiku is titling…</text>
+  </g>
+  <g class="t titled">
+    <text class="status" x="26" y="112" fill="#5E8A57">✦ Titled by Haiku</text>
+  </g>
+
+  <text x="26" y="160" class="ink" font-size="14" opacity="0.6">Fix login redirect loop</text>
+  <text x="26" y="194" class="ink" font-size="14" opacity="0.6">Refactor billing webhooks</text>
+  <text x="26" y="228" class="ink" font-size="14" opacity="0.6">Add dark mode toggle</text>
+
+  <!-- Chat -->
+  <g class="t msg1">
+    <rect x="352" y="32" width="384" height="62" rx="14" fill="#ECE7DE"/>
+    <text class="msg" x="368" y="58">Can you check how the daemon connects to the</text>
+    <text class="msg" x="368" y="78">server, and where the reconnect logic lives?</text>
+  </g>
+  <g class="t reply1">
+    <circle cx="346" cy="120" r="3" fill="#B8B1A5"/>
+    <text x="358" y="124" class="muted" font-size="12.5">Reading src/daemon/connection.ts…</text>
+  </g>
+  <g class="t msg2">
+    <rect x="440" y="152" width="296" height="40" rx="14" fill="#ECE7DE"/>
+    <text class="msg" x="456" y="177">Now add a unit test for the backoff timer.</text>
+  </g>
+  <g class="t reply2">
+    <circle cx="346" cy="218" r="3" fill="#B8B1A5"/>
+    <text x="358" y="222" class="muted" font-size="12.5">Editing test/backoff.test.ts…</text>
+  </g>
+
+  <!-- Captions -->
+  <line x1="0" y1="256" x2="760" y2="256" stroke="#E2DED6"/>
+  <text class="t cap0 muted" x="380" y="289" font-size="14.5" text-anchor="middle">You send a prompt…</text>
+  <text class="t cap1 ink" x="380" y="289" font-size="14.5" text-anchor="middle">① The title becomes your prompt, cut to 60 characters</text>
+  <text class="t cap2 ink" x="380" y="289" font-size="14.5" text-anchor="middle">② A moment later, Haiku rewrites it as a short title</text>
+  <text class="t cap3 ink" x="380" y="289" font-size="14.5" text-anchor="middle">③ Next prompt → the title follows what you're doing now</text>
+</svg>

@@ -77,6 +77,7 @@ claude --plugin-dir mods/context-bar
 | 🕌 | **prayer-times** | The current prayer and how long is left, the next one, and zawal. Computed on your computer, Hanafi or standard Asr | `/prayers` |
 | 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
 | 📝 | **md-preview** | Renders the Markdown files Claude edits like GitHub does, with before and after side by side. Needs Chrome and a terminal that shows images | `/md` |
+| 🏷️ | **last-prompt-title** | Retitles the session on every prompt, so the sidebar says what each session is doing now. A short title Haiku writes, on the desktop app | |
 
 ### 🛡️ Guard your repo
 
