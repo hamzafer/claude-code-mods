@@ -37,7 +37,7 @@ export const register: Register = on => {
     }
     if (!(await $.fs.exists(`${p.modules}/playwright`))) {
       await update($, status, () => 'missing')
-      return { text: `Reels needs Playwright once: npm install --prefix ${p.dir} playwright` }
+      return { text: `Reels needs Playwright once: npm install --prefix ${p.dir} playwright@1.63.0` }
     }
     if (arg === 'login') {
       await send($, '/quit') // the profile opens in one Chrome at a time
