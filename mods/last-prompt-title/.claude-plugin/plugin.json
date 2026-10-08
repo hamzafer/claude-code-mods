@@ -1,0 +1,9 @@
+{
+  "name": "last-prompt-title",
+  "version": "0.3.0",
+  "description": "Retitles the session on every prompt: the prompt cut to 60 characters at once, then a short title Haiku writes for the desktop sidebar.",
+  "author": {
+    "name": "zhangbubu",
+    "url": "https://github.com/zhangbububu"
+  }
+}

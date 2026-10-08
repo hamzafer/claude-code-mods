@@ -321,6 +321,22 @@ Renders the Markdown files Claude Code edits, like GitHub does.
 - Scripts in the Markdown never run. The page allows only its own script, and the built-in renderer drops script tags, event handlers and `javascript:` links
 - **Privacy:** with the GitHub renderer, the file's text goes to GitHub's API under your own `gh` login. In a GitHub repo, that happens for every Markdown file Claude edits, in the background at the end of the turn, even if you never open `/md`. Nothing else is sent anywhere. Images the file links to on the web load in that Chrome, the same as on GitHub
 
+### 🏷️ last-prompt-title
+
+Retitles the Claude Code session every time you send a prompt, so the title says what the session is doing now, not what it started as.
+
+![last-prompt-title: each prompt first becomes the title cut to 60 characters, then Haiku rewrites it as a short title that follows the latest prompt](../images/last-prompt-title.svg)
+
+- The CLI title becomes your prompt on one line, cut to 60 characters, at once
+- On the desktop app, the sidebar title then becomes a short title Haiku writes from that prompt, a few seconds later. The turn doesn't wait for it
+- No answer from Haiku within 15 seconds: the sidebar gets the cut prompt instead
+- Only prompts you type count. Slash commands, empty prompts and injected turns (task notifications, loop wakeups, SDK calls) leave the title alone
+- Prompts sent quickly in a row: only the latest one's title lands
+- In a terminal session only the CLI title changes
+- It overwrites a title you set by hand on your next prompt
+- Makes one Haiku call per prompt, with the first 1,000 characters of that prompt and nothing else
+- session-saver names only untitled sessions, so with both on it leaves the title to last-prompt-title
+
 ### 🎵 now-playing
 
 Shows Spotify's current track and lyrics in Claude Code.

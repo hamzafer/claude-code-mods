@@ -142,6 +142,12 @@
       "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. /openai-balance shows the breakdown.",
       "version": "0.1.1",
       "source": "./mods/openai-balance"
+    },
+    {
+      "name": "last-prompt-title",
+      "description": "Retitles the session on every prompt: the prompt cut to 60 characters at once, then a short title Haiku writes for the desktop sidebar.",
+      "version": "0.3.0",
+      "source": "./mods/last-prompt-title"
     }
   ]
 }
