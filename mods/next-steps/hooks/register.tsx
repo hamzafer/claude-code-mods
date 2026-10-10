@@ -16,7 +16,10 @@ const steps = atom({ plugin: 'next-steps', key: 'steps' } as const, null as Next
 // True while the list is on screen. where-am-i reads it and leaves out its own "next" meanwhile.
 const active = atom({ plugin: 'next-steps', key: 'active' } as const, false)
 
-export const register: Register = on => {
+let language = ''   // userConfig.language: empty keeps the original English
+
+export const register: Register = (on, options) => {
+  language = String((options as Record<string, unknown>)?.language ?? '').trim()
   // The turn a suggestion may still be shown for. A submit or a new turn moves it on.
   let latest = ''
   let submits = 0
@@ -133,7 +136,10 @@ async function suggest($: EngineInterface, turnId: string, answer: string, curre
       `Give 2 or 3 short, concrete follow-up prompts, each an instruction in the imperative, under ${MAX_CHARS} characters, ` +
       'specific to what just happened (name the file, test or feature). Plain words, no em dashes, no numbering, no quotes. ' +
       'One per line and nothing else. If nothing sensible follows, reply with the single word NONE.\n' +
-      'Example reply:\nRun the login tests again\nAdd the same check to signup.ts\nOpen a draft PR',
+      'Example reply:\nRun the login tests again\nAdd the same check to signup.ts\nOpen a draft PR' +
+      (language
+        ? `\nWrite every line in ${language}. Keep file names, commands and code identifiers as they are.`
+        : ''),
     prompt: [
       `<transcript>\n${messages.map(m => `[${m.role === 'user' ? 'person' : 'assistant'}] ${m.text.slice(0, 800)}`).join('\n')}\n</transcript>`,
       `<latest_reply>\n${answer.slice(0, 2000)}\n</latest_reply>`,
