@@ -103,6 +103,7 @@ Suggests the prompts you'd likely send Claude Code next.
 - The list clears when you send a prompt (slash commands too) or a new turn starts
 - Makes one Haiku call after each turn. Skips it for short replies, and for a turn that ends while background agents still run
 - where-am-i drops its own "next" part while the list shows, and restores it when the list clears
+- Set `language` to get the suggestions in another language (e.g. `Korean`). Empty, the default, keeps English. File names, commands and code identifiers stay as they are, so a drafted prompt is still pasteable. Change it in `/config`, or in `settings.json` under `pluginConfigs["next-steps"].options`
 
 ### 💰 usage-meter
 

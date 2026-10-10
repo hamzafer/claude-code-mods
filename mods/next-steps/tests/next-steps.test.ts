@@ -11,14 +11,16 @@ const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
 // Stands for the engine beneath the mod. `reply` may hold the model call until the test lets it go.
 function engine(on: any, reply: () => Promise<string> | string, agents: unknown[] = []) {
   let calls = 0
+  let system = ''
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('prompt.submit', () => ({ text: '' }))
   on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('agent.list', () => ({ value: agents }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'add tests for the login form', toolUses: [] }] }))
-  on('model.complete', async () => {
+  on('model.complete', async (_$: any, e: any) => {
     calls++
+    system = e.system ?? ''
     return { value: { isAnswered: true, text: await reply(), usage: { input_tokens: 1, output_tokens: 1 } } }
   })
   // The editor: splice what was typed into the draft.
@@ -30,7 +32,7 @@ function engine(on: any, reply: () => Promise<string> | string, agents: unknown[
     const { Text } = $.ui.resolve(e)
     return Text({ children: 'band below' }) // stands for other mods' bands
   })
-  return { calls: () => calls }
+  return { calls: () => calls, system: () => system }
 }
 
 async function finishTurn($: any, turnId = 't1', answer = ANSWER) {
@@ -192,6 +194,20 @@ describe('next-steps', () => {
     const eng = engine(on, () => REPLY, [{ id: 'a1', description: 'tests', type: 'general-purpose', status: 'running' }])
     await finishTurn($)
     expect(eng.calls()).toBe(0)
+  })
+
+  test('asks for the suggestions in the configured language', { options: { language: 'Korean' } }, async ($, on) => {
+    const e = engine(on, () => REPLY)
+    await finishTurn($)
+    expect(e.system()).toContain('Write every line in Korean')
+    // A drafted prompt is only useful if you can paste it: names stay as they are.
+    expect(e.system()).toContain('Keep file names, commands and code identifiers as they are')
+  })
+
+  test('says nothing about language by default', async ($, on) => {
+    const e = engine(on, () => REPLY)
+    await finishTurn($)
+    expect(e.system()).not.toContain('Write every line in')
   })
 
   test('cleans the model lines', () => {

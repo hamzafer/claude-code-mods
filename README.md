@@ -68,7 +68,7 @@ claude --plugin-dir mods/context-bar
 | 🌦️ | **token-weather** | Context fill from Clear to Compact soon, plus a prompt-cache countdown | |
 | ⏱️ | **cache-clock** | A prompt-cache line under your status line, from Claude Code's own figures: time left, hit rate and misses, and the tokens your next message re-caches once it goes cold. Needs Node and Claude Code 2.1.251+ | `/cache-clock setup` |
 | 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
-| ➡️ | **next-steps** | 2 or 3 likely next prompts after each turn, one key to draft one | `1` `2` `3`, `0` hides |
+| ➡️ | **next-steps** | 2 or 3 likely next prompts after each turn, one key to draft one. `language` sets their language | `1` `2` `3`, `0` hides |
 | 💰 | **usage-meter** | 5-hour and 7-day plan usage, the reset countdown and the session's cost | |
 | 💳 | **openai-balance** | Your OpenAI API credit: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. Needs an OpenAI organization Admin key | `/openai-balance` |
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |

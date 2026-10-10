@@ -1,10 +1,18 @@
 {
   "name": "next-steps",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "default": "",
+      "description": "Write the suggestions in this language (e.g. Korean). Empty keeps English."
+    }
+  }
 }
