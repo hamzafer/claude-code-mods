@@ -115,8 +115,22 @@ async function setSteps($: EngineInterface, fn: (before: NextSteps | null) => Ne
 
 // The whole list on one row, or one suggestion per row when it would not fit.
 export function fitsOnOneLine(items: string[], columns: number) {
-  const width = 'next:  '.length + items.reduce((n, t) => n + 2 + t.length + 5, 0) + '0 dismiss'.length
+  const width = 'next:  '.length + items.reduce((n, t) => n + 2 + displayWidth(t) + 5, 0) + '0 dismiss'.length
   return width <= columns - 2 // the band's padding
+}
+
+// Columns a line takes in the terminal: CJK, Hangul, full-width forms and emoji take two.
+export function displayWidth(text: string) {
+  let width = 0
+  for (const ch of text) {
+    const c = ch.codePointAt(0) ?? 0
+    const wide =
+      (c >= 0x1100 && c <= 0x115f) || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) ||
+      (c >= 0xf900 && c <= 0xfaff) || (c >= 0xfe30 && c <= 0xfe4f) || (c >= 0xff00 && c <= 0xff60) ||
+      (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x1f300 && c <= 0x1faff) || (c >= 0x20000 && c <= 0x3fffd)
+    width += wide ? 2 : 1
+  }
+  return width
 }
 
 async function suggest($: EngineInterface, turnId: string, answer: string, current: () => string) {

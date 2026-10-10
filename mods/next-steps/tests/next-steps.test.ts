@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { fitsOnOneLine, parseSteps } from '../hooks/register'
+import { displayWidth, fitsOnOneLine, parseSteps } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160 } }
 const ANSWER = 'I wrote tests for the login form and they pass locally.'
@@ -225,5 +225,9 @@ describe('next-steps', () => {
     expect(parseSteps(`${'word '.repeat(30)}\nshort one`)).toEqual(['short one']) // too long: dropped, not cut
     expect(fitsOnOneLine(['a', 'b'], 40)).toBe(true)
     expect(fitsOnOneLine(['a'.repeat(40), 'b'.repeat(40)], 80)).toBe(false)
+    // Hangul takes two columns, so the same count no longer fits.
+    expect(displayWidth('테스트')).toBe(6)
+    expect(fitsOnOneLine(['a'.repeat(20), 'b'.repeat(20)], 80)).toBe(true)
+    expect(fitsOnOneLine(['테'.repeat(20), '스'.repeat(20)], 80)).toBe(false)
   })
 })
