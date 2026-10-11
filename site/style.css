@@ -46,7 +46,6 @@
     --guard: #e57373;
     --setup: #b39ae8;
     --fun: #e5c07b;
-  --spend: #98c379;
     --spend: #98c379;
     --term-edge: #414855;
   }
@@ -63,6 +62,7 @@
   --guard: #e57373;
   --setup: #b39ae8;
   --fun: #e5c07b;
+  --spend: #98c379;
   --term-edge: #414855;
 }
 
