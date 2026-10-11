@@ -51,7 +51,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const rest = await next(e) // what other mods and Claude Code draw here stays
+    const rest = await next(e) // what other mods and Claude Code draw here stays, drawn above the box so one-row mods stay visible
     const r = await read($, reading)
     if (e.props.hasSurvey || (await read($, isHidden)) || !r) return rest
     const { Box, Text } = $.ui.resolve(e)
@@ -63,6 +63,7 @@ export const register: Register = on => {
     const level = r.compactsAt ? r.total / r.compactsAt : r.total / r.window
     return (
       <Box flexDirection="column">
+        {rest}
         <Box flexDirection="column" borderStyle="round" borderColor="inactive" paddingX={1}>
           <Box flexDirection="row" justifyContent="space-between">
             <Text wrap="truncate-end">
@@ -93,7 +94,6 @@ export const register: Register = on => {
             </Text>
           ))}
         </Box>
-        {rest}
       </Box>
     )
   })

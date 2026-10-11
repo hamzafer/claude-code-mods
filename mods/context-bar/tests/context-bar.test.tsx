@@ -94,6 +94,11 @@ describe('context-bar', () => {
     expect(await band.find({ type: 'Text', text: /^186k$/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /mcp tools \(deferred\)/ })).toBeUndefined()
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined() // the band beneath stays
+    // the box is the bottom of the stack: what other mods draw sits above it
+    const root: any = await band.drawn()
+    const kids = root.children as any[]
+    expect(kids[0].children).toEqual(['band below'])
+    expect(kids[1].props.borderStyle).toBe('round')
     await band.unmount()
   })
 
