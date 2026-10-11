@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>switchboard: pick the model for each Claude Code subagent</title>
+<meta name="description" content="Picks the model for each Claude Code subagent that doesn&#x27;t name one, from its short label only, and shows what every subagent cost.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/switchboard/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="switchboard: pick the model for each Claude Code subagent">
+<meta property="og:description" content="Picks the model for each Claude Code subagent that doesn&#x27;t name one, from its short label only, and shows what every subagent cost.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/switchboard/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<meta property="og:image:alt" content="Claude Code mods: lines above the prompt">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="switchboard: pick the model for each Claude Code subagent">
+<meta name="twitter:description" content="Picks the model for each Claude Code subagent that doesn&#x27;t name one, from its short label only, and shows what every subagent cost.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/og.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "switchboard", "description": "Picks the model for each Claude Code subagent that doesn't name one, from its short label only, and shows what every subagent cost.", "url": "https://hamzafer.github.io/claude-code-mods/mods/switchboard/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/switchboard", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.3.1", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "switchboard", "item": "https://hamzafer.github.io/claude-code-mods/mods/switchboard/"}]}</script>
+</head>
+<body class="mod c-spend">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-spend">Spend less</a> <span aria-hidden="true">/</span> <span aria-current="page">switchboard</span></nav>
+<header class="mod-head">
+  <h1>switchboard</h1>
+  <p class="lede">Picks the model for each subagent that doesn&#x27;t name one, from its short label only, and shows what every subagent cost.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> Spend less</span> <span>Version 0.3.1</span></p>
+</header>
+
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install switchboard" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install switchboard@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install switchboard@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/switchboard</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<p>It starts with the picker <code>off</code>: it only tracks cost. Pick <code>openai</code> or <code>jev</code> under <strong>Picker</strong> in <code>/config</code> and add a key, then try <strong>Mode</strong> <code>suggest</code> for a few days before <code>auto</code>. See every subagent with its pick and cost:</p>
+<div class="code">
+  <pre id="c-use" aria-label="Show subagent picks and costs" data-cmd="/route"><code>/route</code></pre>
+  <button type="button" class="copy" data-copy="c-use">Copy</button>
+</div>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li><strong>A named model is kept.</strong> When you or your CLAUDE.md name a model for a subagent, switchboard leaves it alone. Only a subagent with no model named gets a pick.</li>
+<li><strong>Only the label goes out.</strong> The picker gets the subagent&#x27;s type and its 3 to 5 word label, never its task text, so code, paths and pasted keys never leave your machine.</li>
+<li>Pickers: <a href="https://developers.openai.com/api/docs/guides/decisions">OpenAI&#x27;s Decisions API</a> (about $0.00003 a pick) or <a href="https://docs.typesafe.ai">Jev</a> (about $0.00001 a pick, direct or through Vercel AI Gateway).</li>
+<li>Models: <code>haiku-sonnet-opus</code> (default) or <code>sonnet-opus-fable</code>. Style: <code>saver</code>, the cheapest model that will do the job well, or <code>quality</code>.</li>
+<li>No picker, no key or no answer within 4 s: nothing changes, and <code>/route</code> says why. Under 50% sure, it shows the pick but keeps the model.</li>
+<li>Leaves forks and teammates alone. Costs are estimates at API prices, not what your plan charges.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+<li>For picks: an OpenAI key, a TypeSafe key or a Vercel AI Gateway key</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-switchboard">Full notes for switchboard</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/switchboard">Source folder: mods/switchboard</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-see"><a href="../../mods/usage-meter/"><span class="row-text"><span class="row-name">usage-meter</span><span class="row-desc">5-hour and 7-day plan usage, the reset countdown and the session&#x27;s cost</span></span></a></li>
+<li class="row c-see"><a href="../../mods/agent-radar/"><span class="row-text"><span class="row-name">agent-radar</span><span class="row-desc">One live line per running subagent</span></span></a></li>
+<li class="row c-see"><a href="../../mods/openai-balance/"><span class="row-text"><span class="row-name">openai-balance</span><span class="row-desc">Your OpenAI API credit, today&#x27;s spend, where it went and the last call</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 23 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

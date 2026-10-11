@@ -14,6 +14,7 @@
   --guard: #c0443c;
   --setup: #7a5cc4;
   --fun: #a87a0c;
+  --spend: #3d8b4f;
 
   /* terminal slab, matched to the screenshots */
   --term-bg: #282c34;
@@ -45,6 +46,8 @@
     --guard: #e57373;
     --setup: #b39ae8;
     --fun: #e5c07b;
+  --spend: #98c379;
+    --spend: #98c379;
     --term-edge: #414855;
   }
 }
@@ -262,6 +265,7 @@ a.tl:hover .tl-tag, a.tl:focus-visible .tl-tag { opacity: 1; }
 .c-guard { --cat: var(--guard); }
 .c-setup { --cat: var(--setup); }
 .c-fun { --cat: var(--fun); }
+.c-spend { --cat: var(--spend); }
 .cat h3 .sq, .cat-chip .sq { color: var(--cat); }
 
 .rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
