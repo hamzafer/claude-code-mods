@@ -109,6 +109,16 @@ These are built around my own tools and rules. Fork them and change the rules to
 | 🐍 | **snake** | Snake while Claude works | `/snake` |
 | 🎵 | **now-playing** | What Spotify is playing, with a progress bar, the lyric being sung, and ⏮ ⏸ ⏭ buttons. Needs macOS and the Spotify app | `/music` |
 
+## 🤝 Community mods
+
+Mods by other people, in their own marketplaces. They're not maintained here, so read the code before you install.
+
+| | Mod | What it does | Install |
+| --- | --- | --- | --- |
+| 🏷️ | **[last-prompt-title](https://github.com/zhangbububu/session-titles)** by [@zhangbububu](https://github.com/zhangbububu) | Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar | `claude plugin marketplace add zhangbububu/session-titles` then `claude plugin install last-prompt-title@session-titles` |
+
+Built one? Open a PR that adds a row.
+
 <a id="mission-control"></a>
 
 ## 🛰️ Flagship: mission-control

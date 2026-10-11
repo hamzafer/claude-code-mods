@@ -27,3 +27,7 @@ CLAUDE_CONFIG_DIR=$(mktemp -d) claude plugin test mods/<name>
 - 🔢 Changed a mod? Bump its version in its `plugin.json` and in `.claude-plugin/marketplace.json`
 
 Gotchas: [Build your own](docs/mods.md#build-your-own).
+
+## 🏷️ Keep it in your own repo
+
+Rather maintain your mod yourself? Publish it in your own marketplace and open a PR that adds a row to [Community mods](README.md#-community-mods).
