@@ -119,16 +119,22 @@ export function fitsOnOneLine(items: string[], columns: number) {
   return width <= columns - 2 // the band's padding
 }
 
-// Columns a line takes in the terminal: CJK, Hangul, full-width forms and emoji take two.
+// Columns a line takes in the terminal: CJK, Hangul, full-width forms and emoji take two,
+// joiners, variation selectors and combining marks none. Where it guesses, it guesses wide:
+// too wide only means one suggestion per row.
 export function displayWidth(text: string) {
   let width = 0
   for (const ch of text) {
     const c = ch.codePointAt(0) ?? 0
+    const zero =
+      (c >= 0x0300 && c <= 0x036f) || (c >= 0x200b && c <= 0x200f) || (c >= 0xfe00 && c <= 0xfe0f) || c === 0x20e3
     const wide =
-      (c >= 0x1100 && c <= 0x115f) || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) ||
+      (c >= 0x1100 && c <= 0x115f) || (c >= 0x231a && c <= 0x231b) || (c >= 0x23e9 && c <= 0x23f3) ||
+      (c >= 0x25fd && c <= 0x25fe) || (c >= 0x2600 && c <= 0x27bf) || (c >= 0x2b1b && c <= 0x2b1c) ||
+      c === 0x2b50 || c === 0x2b55 || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) ||
       (c >= 0xf900 && c <= 0xfaff) || (c >= 0xfe30 && c <= 0xfe4f) || (c >= 0xff00 && c <= 0xff60) ||
-      (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x1f300 && c <= 0x1faff) || (c >= 0x20000 && c <= 0x3fffd)
-    width += wide ? 2 : 1
+      (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x1f000 && c <= 0x1faff) || (c >= 0x20000 && c <= 0x3fffd)
+    width += zero ? 0 : wide ? 2 : 1
   }
   return width
 }

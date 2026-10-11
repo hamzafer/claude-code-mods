@@ -227,6 +227,8 @@ describe('next-steps', () => {
     expect(fitsOnOneLine(['a'.repeat(40), 'b'.repeat(40)], 80)).toBe(false)
     // Hangul takes two columns, so the same count no longer fits.
     expect(displayWidth('테스트')).toBe(6)
+    expect(displayWidth('⏰ ✅ ⭐ 🇳🇴')).toBe(13) // emoji outside the CJK blocks are wide too
+    expect(displayWidth('é‍')).toBe(1) // combining mark and joiner take no column
     expect(fitsOnOneLine(['a'.repeat(20), 'b'.repeat(20)], 80)).toBe(true)
     expect(fitsOnOneLine(['테'.repeat(20), '스'.repeat(20)], 80)).toBe(false)
   })
