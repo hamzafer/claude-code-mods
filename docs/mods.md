@@ -11,7 +11,7 @@ Most mods add a live line above the Claude Code prompt, like extra status lines.
 
 ![Several Claude Code mods stacked as live lines above the prompt](../images/bands.png)
 
-- context-bar, token-weather, usage-meter, openai-balance, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
+- context-bar, token-weather, usage-meter, openai-balance, openrouter-balance, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -131,6 +131,19 @@ Shows your OpenAI API credit above the Claude Code prompt.
 - Calls to the Decisions API show as spend (`gpt-6-luna`) without a key or time: OpenAI's Usage API has no Decisions data yet. The mod keeps asking, so they fill in once it does
 - "Today" is the UTC day, as OpenAI's billing counts it
 - Refreshes every 10 minutes and after each turn; a minute after a failure. A failed refresh keeps the last numbers, marked offline
+
+### 🪙 openrouter-balance
+
+Shows your OpenRouter credit above the Claude Code prompt.
+
+- One line: the balance with a gauge, today's spend, and the model the last 30 days' money mostly went to
+- **The balance is real**, not an estimate: OpenRouter's `/credits` reports credits bought and used. That needs a **management key** (openrouter.ai → Settings → Management keys). It can't make model calls, so it's safe to keep around
+- **A regular API key** works too, but sees only itself: its spend today and this month, and what its limit leaves when it has one
+- Green from $5, yellow under $5, red under $2
+- `/openrouter-balance` shows the breakdown: balance, today, yesterday, last 30 days, and spend, requests and tokens by model. With a regular key: today, this week, this month, all time, its limit and budget
+- "Today" is the UTC day. OpenRouter reports spend by model for completed days only, so today with a management key is the usage now minus where it stood when the mod first saw the day. A day first seen later than 00:15 UTC shows "since HH:MM" instead of "today"
+- **Key:** from the key in `/config`, else `OPENROUTER_MANAGEMENT_KEY`, else `OPENROUTER_API_KEY`, else the macOS Keychain item `openrouter-key`. Kept in memory only
+- Refreshes every 5 minutes and after each turn; a minute after a failure. A failed refresh keeps the last numbers, marked offline
 
 ### 📡 agent-radar
 

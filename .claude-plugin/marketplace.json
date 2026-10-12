@@ -142,6 +142,12 @@
       "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. /openai-balance shows the breakdown.",
       "version": "0.1.1",
       "source": "./mods/openai-balance"
+    },
+    {
+      "name": "openrouter-balance",
+      "description": "Your OpenRouter credit above the prompt: the balance with a gauge, today's spend and where the money mostly went. /openrouter-balance shows the breakdown.",
+      "version": "0.1.0",
+      "source": "./mods/openrouter-balance"
     }
   ]
 }

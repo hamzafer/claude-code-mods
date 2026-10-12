@@ -1,0 +1,19 @@
+{
+  "name": "openrouter-balance",
+  "version": "0.1.0",
+  "description": "Your OpenRouter credit above the prompt: the balance with a gauge, today's spend and where the money mostly went. /openrouter-balance shows the breakdown.",
+  "author": {
+    "name": "Jakub Krysmalski",
+    "url": "https://github.com/krysmalskipl"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "apiKey": {
+      "type": "string",
+      "title": "OpenRouter key",
+      "description": "A management key (openrouter.ai → Settings → Management keys) shows the account balance and spend by model; a regular API key shows its own spend and limit. Empty uses OPENROUTER_MANAGEMENT_KEY, then OPENROUTER_API_KEY, then the macOS Keychain item openrouter-key.",
+      "sensitive": true,
+      "default": ""
+    }
+  }
+}
