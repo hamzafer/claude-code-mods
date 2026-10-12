@@ -1,6 +1,6 @@
 {
   "name": "review-watch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A live line above the prompt for each running code review: Codex or a review subagent, its model, what it reviews, time, and Codex's latest output. A toast with the findings when it ends.",
   "author": {
     "name": "Hamza Zafar",

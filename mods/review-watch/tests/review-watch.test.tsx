@@ -40,6 +40,18 @@ describe('review-watch', () => {
     expect(isCodexReview('git commit -m "docs: codex review notes"')).toBe(false)
     expect(isCodexReview('codex exec review the PR')).toBe(false)
     expect(isCodexReview(`codex -c a=1 -c b=2 -c c=3 -c d=4 --profile x review --base main`)).toBe(true)
+    // The Codex plugin's /codex:review and /codex:adversarial-review run its companion script.
+    const COMPANION = `node "/p/codex/scripts/codex-companion.mjs" review "--base main"`
+    expect(isCodexReview(COMPANION)).toBe(true)
+    expect(isCodexReview(`node "/p/codex/scripts/codex-companion.mjs" adversarial-review ""`)).toBe(true)
+    expect(isCodexReview('/opt/homebrew/bin/node /p/codex/scripts/codex-companion.mjs review --base main')).toBe(true) // as ps prints it
+    expect(isCodexReview(`node "/p/codex/scripts/codex-companion.mjs" task "fix it"`)).toBe(false)
+    expect(isCodexReview('node review.mjs review')).toBe(false)
+    expect(keyOf(COMPANION)).toBe('codex-companion.mjs review --base main')
+    expect(labelOf(COMPANION)).toBe('changes vs main')
+    expect(isCodexReview(`node "/Users/A B/codex/scripts/codex-companion.mjs" review ""`)).toBe(true) // a space in the path
+    expect(keyOf(`node "/Users/A B/codex/scripts/codex-companion.mjs" review ""`)).toBe('codex-companion.mjs review')
+    expect(modelOf(`node "/p/codex-companion.mjs" review "--model gpt-5.4 --base main"`)).toBe('gpt-5.4')
     expect(isReviewAgent('Review PR 28')).toBe(true)
     expect(isReviewAgent('Code reviewer pass')).toBe(true)
     expect(isReviewAgent('Preview the page')).toBe(false)

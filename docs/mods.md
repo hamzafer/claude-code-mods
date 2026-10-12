@@ -184,7 +184,7 @@ Shows the code reviews running in Claude Code, Codex or a review subagent, live.
 
 ![review-watch: a Codex review and a Claude Code review subagent running](../images/review-watch.png)
 
-- Tracks every `codex review` shell command, in the foreground or background, and every subagent whose description says "review"
+- Tracks every `codex review` shell command, in the foreground or background, the Codex plugin's `/codex:review` and `/codex:adversarial-review`, and every subagent whose description says "review"
 - Each line shows the model (from `-c model=...` or `--model`, else your `~/.codex/config.toml`), the `--title` or what's under review, and the elapsed time. Codex reviews also show the last line Codex printed
 - When a review ends, a toast says so. For Codex it also counts the `[P1]`/`[P2]` findings. That works when the output goes to a file (`> review.txt`) or the review runs in the background
 - A finished review shows a ✅ line for 30 s, then goes away
