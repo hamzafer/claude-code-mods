@@ -9,22 +9,26 @@ const LRC = '[00:58.00] Hold the light up high\n[01:02.50] Paper lanterns in the
 
 const settle = () => new Promise(done => (globalThis as any).setTimeout(done, 20)) // the first poll runs in the background
 
-// Stands for the engine beneath the mod: a Spotify that answers osascript, and LRCLIB.
-function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: string }) {
+// Stands for the engine beneath the mod: a Spotify that answers osascript (macOS) or PowerShell (Windows), and LRCLIB.
+function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: string; readFails?: boolean }) {
   const runs: string[][] = []
   const urls: string[] = []
   const commands: string[] = []
+  let unames = 0
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', (_$: any, e: any) => (commands.push(e.name), { value: undefined }))
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'OS' && spotify.os === 'Windows' ? 'Windows_NT' : undefined }))
   on('process.run', (_$: any, e: any) => {
     const argv: string[] = e.argv
-    if (argv[0] === 'uname') return { value: { exitCode: 0, stdout: `${spotify.os ?? 'Darwin'}\n`, stderr: '' } }
+    if (argv[0] === 'uname') return (unames++, { value: { exitCode: 0, stdout: `${spotify.os ?? 'Darwin'}\n`, stderr: '' } })
     runs.push(argv)
     if (argv[0] === 'pgrep') return { value: { exitCode: spotify.isRunning === false ? 1 : 0, stdout: '', stderr: '' } }
-    const script = argv[2] ?? ''
+    const script = (argv[0] === 'powershell' ? argv.at(-1) : argv[2]) ?? ''
+    if (/Get-Process/.test(script)) return { value: { exitCode: 0, stdout: spotify.isRunning === false ? '' : 'running\n', stderr: '' } }
     if (spotify.isRunning === false) return { value: { exitCode: 0, stdout: 'closed\n', stderr: '' } }
-    if (/to playpause/.test(script)) spotify.out = spotify.out.replace(/^(playing|paused)/, s => (s === 'playing' ? 'paused' : 'playing'))
-    if (/to (playpause|next track|previous track)/.test(script)) return { value: { exitCode: 0, stdout: 'ok\n', stderr: '' } }
+    if (spotify.readFails && /TryGetMediaPropertiesAsync/.test(script)) return { value: { exitCode: 1, stdout: '', stderr: 'no media controls' } }
+    if (/to playpause|TryTogglePlayPauseAsync/.test(script)) spotify.out = spotify.out.replace(/^(playing|paused)/, s => (s === 'playing' ? 'paused' : 'playing'))
+    if (/to (playpause|next track|previous track)|Try(TogglePlayPause|SkipNext|SkipPrevious)Async/.test(script)) return { value: { exitCode: 0, stdout: 'ok\n', stderr: '' } }
     return { value: { exitCode: 0, stdout: spotify.out, stderr: '' } }
   })
   on('http.fetch', (_$: any, e: any) => {
@@ -33,7 +37,7 @@ function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: strin
     return { value: { status: 200, ok: true, headers: {}, text: '[]' } }
   })
   on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
-  return { runs, urls, commands }
+  return { runs, urls, commands, unames: () => unames }
 }
 
 describe('now-playing', () => {
@@ -176,5 +180,68 @@ describe('now-playing', () => {
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await settle()
     expect(e.urls).toEqual([])
+  })
+
+  test('Windows: reads Spotify through the media controls, with no osascript, uname or pgrep', async ($, on) => {
+    mock.clock(on, { now: 1_000_000 })
+    const e = engine(on, { out: PLAYING, os: 'Windows' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: ' Paper Lanterns' })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: ' 1:01/3:20' })).toBeDefined()
+    await band.unmount()
+    expect(e.runs.length).toBeGreaterThan(0)
+    expect(e.runs.every(a => a[0] === 'powershell')).toBe(true)
+    expect(e.runs.some(a => /GlobalSystemMediaTransportControlsSessionManager/.test(a.at(-1) ?? ''))).toBe(true)
+    expect(e.runs.every(a => !/"/.test(a.at(-1) ?? ''))).toBe(true) // one argument through CreateProcess: no double quotes to mangle
+    expect(e.unames()).toBe(0)
+    expect(e.commands).toEqual(['music'])
+  })
+
+  test('Windows, Spotify closed: only the process check runs, and /music never starts it', async ($, on) => {
+    const clk = mock.clock(on, { now: 1_000_000 })
+    const e = engine(on, { out: PLAYING, os: 'Windows', isRunning: false })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    await clk.advance(12_000)
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /🎵|⏸/ })).toBeUndefined()
+    await band.unmount()
+    expect(e.runs.length).toBeGreaterThan(0)
+    expect(e.runs.every(a => /Get-Process/.test(a.at(-1) ?? ''))).toBe(true)
+    expect((await $.command.run({ command: 'music', args: '' } as any)).text).toMatch(/^Spotify is not running/)
+  })
+
+  test('Windows: the ⏮ ⏸ ⏭ buttons and /music control Spotify', async ($, on) => {
+    mock.clock(on, { now: 1_000_000 })
+    const e = engine(on, { out: PLAYING, os: 'Windows' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    const sent = () => e.runs.map(a => /Try(TogglePlayPause|SkipNext|SkipPrevious)Async/.exec(a.at(-1) ?? '')?.[1]).filter(Boolean)
+
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    await band.press({ key: 'next' })
+    await band.press({ key: 'toggle' })
+    await settle()
+    await band.press({ key: 'prev' })
+    await settle()
+    expect(sent()).toEqual(['SkipNext', 'TogglePlayPause', 'SkipPrevious'])
+    await band.unmount()
+
+    expect((await $.command.run({ command: 'music', args: 'next' } as any)).text).toMatch(/Paper Lanterns · The Night Owls$/)
+    expect(sent().at(-1)).toBe('SkipNext')
+    expect(e.runs.every(a => !/"/.test(a.at(-1) ?? ''))).toBe(true)
+  })
+
+  test('Windows: a PowerShell that cannot read the media controls leaves no line', async ($, on) => {
+    const clk = mock.clock(on, { now: 1_000_000 })
+    engine(on, { out: PLAYING, os: 'Windows', readFails: true })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    await clk.advance(12_000)
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /🎵|⏸/ })).toBeUndefined()
+    await band.unmount()
   })
 })

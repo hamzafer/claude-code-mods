@@ -328,7 +328,7 @@ Shows Spotify's current track and lyrics in Claude Code.
 
 ![now-playing: the Spotify track, progress, buttons and the lyric line in Claude Code](../images/now-playing.png)
 
-- **Needs** macOS and the Spotify desktop app. It reads Spotify through AppleScript, so there is nothing to log in to
+- **Needs** macOS or Windows, and the Spotify desktop app. On macOS it reads Spotify through AppleScript, so there is nothing to log in to. On Windows it reads the media controls Spotify publishes to the system (SMTC), through Windows PowerShell 5.1, which every Windows 10 and 11 has. There is nothing to log in to either
 - One line: `🎵 Track · Artist  ━━━━━━────── 1:51/3:14 · ♪ the lyric being sung`
 - Paused, the line dims to the track and artist. Spotify closed, the line goes away. The mod never opens Spotify
 - **Controls:** click ⏮ ⏸ ⏭ at the end of the line (Claude Code in fullscreen). Or press ctrl+x then Tab to reach the line, then `b` previous, `p` play or pause, `n` next, and Esc to go back. `/music`, `/music next` and `/music prev` work from the prompt anywhere
@@ -337,8 +337,9 @@ Shows Spotify's current track and lyrics in Claude Code.
 - Terminals can't draw right-to-left scripts (Urdu, Arabic, Persian, Hebrew) properly, so for those songs it looks for romanized lyrics instead. If there are none, the lyric line stays hidden
 - **Without the keys**: `/music` plays or pauses, `/music next` and `/music prev` skip
 - The first time, macOS asks once to let your terminal control Spotify (Automation). Allow it, or the line stays empty. To change it later: System Settings, Privacy & Security, Automation
-- On Linux and Windows it does nothing: no line, no command, nothing runs
-- It checks Spotify every 3 s while playing and every 5 s otherwise. The bar moves each second in between. When Spotify is closed it only runs a quick `pgrep`
+- On Windows no permission prompt appears. The controls and the line work through the same system media controls that the volume flyout uses
+- On Linux it does nothing: no line, no command, nothing runs
+- It checks Spotify every 3 s while playing and every 5 s otherwise. The bar moves each second in between. When Spotify is closed it only runs a quick `pgrep` (a quick PowerShell process check on Windows). A Windows check takes about half a second, a macOS one a few milliseconds
 - **Privacy:** for lyrics it sends the track, artist and album names to [LRCLIB](https://lrclib.net), once per track. Turn lyrics off in `/config` (now-playing) and nothing is sent. Songs without synced lyrics show no lyric
 
 ### 📱🐍 reels and snake
