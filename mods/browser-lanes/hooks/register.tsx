@@ -16,6 +16,15 @@ const BROWSER_TOOL = /^mcp__.*playwright.*__browser_/
 const IDLE_MS = 90_000 // a driver this quiet lets go
 const MAX_WAIT_MS = 5 * 60_000
 
+let isWindows = false // set at session start: macOS and Linux have ps, lsof and kill; Windows has none of them
+
+// Windows: every process as `pid ppid command`, as `ps -axo pid=,ppid=,command=` prints them. The first line is this
+// PowerShell's own pid, and its parent is the Claude process. `powershell` is Windows PowerShell 5.1, on every Windows.
+const POWERSHELL = ['powershell', '-NoProfile', '-NonInteractive', '-Command']
+const WIN_PROCESSES = `[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::Out.Write(('' + $PID) + [char]10)
+Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CommandLine | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, ($_.CommandLine -replace '[\\r\\n]+', ' ') }`
+
 // Held by the host, so a reload keeps who holds the browser.
 const holder = atom({ plugin: 'browser-lanes', key: 'holder' } as const, null as Lane | null)
 const waiting = atom({ plugin: 'browser-lanes', key: 'waiting' } as const, [] as string[])
@@ -27,6 +36,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
+    isWindows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
     await $.command.register({ name: 'browser', description: "Show if this session has a Playwright browser; /browser clean closes other sessions' browsers", argumentHint: '[clean]' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     void inspect($).catch(() => {})
     return r
@@ -72,7 +82,7 @@ export const register: Register = on => {
         await update($, waiting, w => drop(w, label))
         return { deny: `browser-lanes: the browser has been busy with "${lane.label}" for over 5 minutes. Try again later, or ask the user.` }
       }
-      await $.process.run(['sleep', '0.5'])
+      await $.process.run(isWindows ? [...POWERSHELL, 'Start-Sleep -Milliseconds 500'] : ['sleep', '0.5']) // sleep, or Windows PowerShell where there is none: time inside a $ call is not the hook's
     }
     if (isQueued) await update($, waiting, w => drop(w, label))
 
@@ -93,7 +103,7 @@ export const register: Register = on => {
       // Self-heal: offer to close the browser that blocks ours, then try once more.
       const a = await inspect($)
       if (a.state === 'blocked' && a.chromePid && (await closeBlocker($, a))) {
-        await $.process.run(['sleep', '1.5'])
+        await $.process.run(isWindows ? [...POWERSHELL, 'Start-Sleep -Milliseconds 1500'] : ['sleep', '1.5'])
         r = await next(call)
         void inspect($).catch(() => {})
       } else {
@@ -137,15 +147,12 @@ export const register: Register = on => {
   })
 }
 
-// Reads `ps` to see whose Chrome is whose, and keeps the answer for the band.
+// Reads `ps` (on Windows, the process list from PowerShell) to see whose Chrome is whose, and keeps the answer for the band.
 async function inspect($: EngineInterface): Promise<Attachment> {
-  const me = Number((await $.process.run(['sh', '-c', 'echo $PPID'])).stdout.trim()) // our Claude process
-  const ps = await $.process.run(['ps', '-axo', 'pid=,ppid=,command='], { timeoutMs: 10_000 })
-  const list = parsePs(ps.stdout)
+  const { me, list } = await processes($)
   const cwds = new Map<number, string>()
   for (const pid of otherHolders(list, me)) {
-    const lsof = await $.process.run(['lsof', '-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { timeoutMs: 10_000 }).catch(() => null)
-    const cwd = lsof?.stdout.split('\n').find(l => l.startsWith('n'))?.slice(1)
+    const cwd = await cwdOf($, pid)
     if (cwd) cwds.set(pid, cwd)
   }
   const a = attachment(list, me, await $.session.cwd(), cwds)
@@ -153,18 +160,17 @@ async function inspect($: EngineInterface): Promise<Attachment> {
   return a
 }
 
-// Closes one Playwright Chrome, after checking the pid still is one: between `ps` and
-// `kill` the process may have ended and its pid gone to something else.
+// Closes one Playwright Chrome, after checking the pid still is one: between the process list and
+// the kill the process may have ended and its pid gone to something else.
 async function closeChrome($: EngineInterface, pid: number) {
-  const now = await $.process.run(['ps', '-p', String(pid), '-o', 'command='], { timeoutMs: 2_000 }).catch(() => null)
-  if (!now || now.exitCode !== 0 || !/--user-data-dir=/.test(now.stdout) || /Helper/.test(now.stdout)) return false
-  const r = await $.process.run(['kill', String(pid)], { timeoutMs: 2_000 }).catch(() => null)
-  return r?.exitCode === 0
+  const command = await commandOf($, pid)
+  if (command === null || !/--user-data-dir=/.test(command) || /Helper| --type=/.test(command)) return false
+  return terminate($, pid)
 }
 
 // Asks before closing the Chrome another Claude holds; never touches that Claude itself.
 async function closeBlocker($: EngineInterface, a: Attachment) {
-  const where = a.holder?.cwd ? ` in ${a.holder.cwd.split('/').slice(-2).join('/')}` : ''
+  const where = a.holder?.cwd ? ` in ${a.holder.cwd.split(/[\\/]/).slice(-2).join('/')}` : ''
   try {
     const answer = await $.ui.ask(
       `browser-lanes: another Claude (pid ${a.holder?.claudePid}${where}) holds the browser this session needs. Close that browser and retry? Its Claude session stays open.`,
@@ -179,9 +185,8 @@ async function closeBlocker($: EngineInterface, a: Attachment) {
 
 // /browser clean: lists every Playwright browser and closes the ones the person picks.
 async function clean($: EngineInterface) {
-  const me = Number((await $.process.run(['sh', '-c', 'echo $PPID'])).stdout.trim())
-  const ps = await $.process.run(['ps', '-axo', 'pid=,ppid=,command='], { timeoutMs: 10_000 })
-  const all = browsers(parsePs(ps.stdout), me)
+  const { me, list: running } = await processes($)
+  const all = browsers(running, me)
   const others = all.filter(b => !b.isMine)
   const orphans = others.filter(b => b.claudePid === undefined)
   if (others.length === 0) return `${all.length === 1 ? 'Only this session has a browser.' : 'No Playwright browsers open.'} Nothing to clean.`
@@ -202,6 +207,49 @@ async function clean($: EngineInterface) {
   }
   void inspect($).catch(() => {})
   return `Closed ${closed.length} of ${chosen.length} browser(s):\n${chosen.map(b => `- Chrome ${b.chromePid} · ${b.claude}${closed.includes(b.chromePid) ? '' : ' (could not close)'}`).join('\n')}`
+}
+
+// Our Claude process and every process on the machine.
+async function processes($: EngineInterface): Promise<{ me: number; list: Proc[] }> {
+  if (isWindows) {
+    const ps = await $.process.run([...POWERSHELL, WIN_PROCESSES], { timeoutMs: 20_000 })
+    const list = parsePs(ps.stdout)
+    const self = Number(ps.stdout.split('\n', 1)[0])
+    return { me: list.find(p => p.pid === self)?.ppid ?? NaN, list }
+  }
+  const me = Number((await $.process.run(['sh', '-c', 'echo $PPID'])).stdout.trim()) // our Claude process
+  const ps = await $.process.run(['ps', '-axo', 'pid=,ppid=,command='], { timeoutMs: 10_000 })
+  return { me, list: parsePs(ps.stdout) }
+}
+
+// The folder another Claude works in. macOS and Linux ask lsof. Windows has no such tool, but Claude Code
+// writes every running session to <config dir>/sessions/<pid>.json, with its cwd.
+async function cwdOf($: EngineInterface, pid: number) {
+  if (isWindows) {
+    const dir = (await $.env.get('CLAUDE_CONFIG_DIR').catch(() => undefined)) ?? `${(await $.env.get('USERPROFILE').catch(() => undefined)) ?? ''}/.claude`
+    const text = await $.fs.read(`${dir}/sessions/${pid}.json`).catch(() => '')
+    try {
+      const session: unknown = JSON.parse(text)
+      return session && typeof session === 'object' && 'cwd' in session && typeof session.cwd === 'string' ? session.cwd : undefined
+    } catch {
+      return undefined
+    }
+  }
+  const lsof = await $.process.run(['lsof', '-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { timeoutMs: 10_000 }).catch(() => null)
+  return lsof?.stdout.split('\n').find(l => l.startsWith('n'))?.slice(1)
+}
+
+// The command line of one process, or null when it is gone.
+async function commandOf($: EngineInterface, pid: number) {
+  const now = await $.process.run(isWindows ? [...POWERSHELL, `(Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}').CommandLine`] : ['ps', '-p', String(pid), '-o', 'command='], { timeoutMs: isWindows ? 20_000 : 2_000 }).catch(() => null)
+  return now && now.exitCode === 0 ? now.stdout : null
+}
+
+// Asks a process to end. Windows has no SIGTERM: a plain taskkill only closes windows (a headless Chrome reports success and
+// stays), so it is /F, with /T to take the helpers too.
+async function terminate($: EngineInterface, pid: number) {
+  const argv = isWindows ? ['taskkill', '/PID', String(pid), '/T', '/F'] : ['kill', String(pid)]
+  return (await $.process.run(argv, { timeoutMs: isWindows ? 10_000 : 2_000 }).catch(() => null))?.exitCode === 0
 }
 
 export function browserReport(a: Attachment) {
@@ -234,7 +282,7 @@ async function warnOtherSession($: EngineInterface) {
 // `login-test-03.png`, or the asked-for name with the driver in front.
 export function shotName(label: string, n: number, asked?: string, type?: string) {
   if (asked) {
-    const base = asked.split('/').pop() ?? asked
+    const base = asked.split(/[\\/]/).pop() ?? asked
     if (base.startsWith(`${label}-`)) return asked
     return asked.slice(0, asked.length - base.length) + `${label}-${base}`
   }

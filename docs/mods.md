@@ -194,6 +194,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 - The session's own browser closes when the session ends
 - Subagents in one session take turns. A second one's browser call waits until the first is done (closed it, finished, or idle 90 s), for up to 5 minutes
 - Screenshots get the name of the agent that took them, like `login-test-03.png`
+- Works on macOS, Linux and Windows. It finds each session's browser in the process list: `ps` on macOS and Linux, Windows PowerShell on Windows, where a look takes a couple of seconds and never holds up a tool call. It ends a Chrome with `kill` (`taskkill /F` on Windows, which also takes its helpers)
+- To tell whose folder a session works in, macOS and Linux ask `lsof`. Windows has no such tool, so it reads `~/.claude/sessions/<pid>.json`, which Claude Code writes for each running session. Without that file the "another Claude holds the browser" warning cannot tell the folders apart and stays quiet
 
 ### 🚦 merge-gate
 
