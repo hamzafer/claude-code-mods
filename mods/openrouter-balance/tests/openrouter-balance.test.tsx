@@ -99,7 +99,8 @@ describe('openrouter-balance', () => {
     const h = engine(on, { info: management })
     h.tick(9 * 60 * 60 * 1000) // 09:05 UTC
     await start($)
-    expect(await band($)).toMatch(/\$0\.00 since \d\d:\d\d/)
+    expect(await band($)).toMatch(/\$0\.00 since 09:05/) // UTC, as the docs say, wherever the machine is
+    expect((await run($)).text).toMatch(/since 09:05 UTC/)
   })
 
   test('a regular key without a limit shows its own spend and never asks for the balance', async ($, on) => {
@@ -110,6 +111,14 @@ describe('openrouter-balance', () => {
     const out = await run($)
     expect(out.text).toMatch(/This week:\*\* \$3\.10/)
     expect(out.text).toMatch(/Key limit:\*\* none/)
+    expect(out.text).not.toContain('sk-or-') // the label is the key's start and end
+  })
+
+  test('a /credits answer without numbers is an error, not $0.00 left', async ($, on) => {
+    engine(on, { info: management, credits: () => ({}) as any })
+    await start($)
+    expect(await band($)).not.toMatch(/\$0\.00/)
+    expect((await run($)).text).toMatch(/no credit numbers/)
   })
 
   test('a regular key with a limit shows what the limit leaves, red when low', async ($, on) => {

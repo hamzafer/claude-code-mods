@@ -37,6 +37,7 @@ let nextTry = 0
 let generation = 0 // a newer refresh wins; an older one that ends later is dropped
 let running: { since: number } | null = null
 let activityCache: { at: number; items: Promise<Activity[]> } | null = null
+let lastKey = '' // the key the cached numbers came from, in memory only
 
 class NoKey extends Error {}
 class KeyRejected extends Error {}
@@ -48,6 +49,7 @@ class HttpError extends Error {
 
 export const register: Register = (on, options) => {
   configKey = typeof options.apiKey === 'string' ? options.apiKey.trim() : ''
+  key = '' // a key changed in /config is read again
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -198,7 +200,7 @@ async function detail($: EngineInterface) {
 
   if (!isManagement(info)) {
     lines.push(
-      `Key **${info.label ?? '?'}** (a regular API key: it sees only its own spend; a management key shows the account balance).`,
+      `A regular API key: it sees only its own spend. A management key shows the account balance.`,
       '',
       `- **Today (UTC):** ${usd(num(info.usage_daily) ?? 0)}`,
       `- **This week:** ${usd(num(info.usage_weekly) ?? 0)}`,
@@ -223,7 +225,7 @@ async function detail($: EngineInterface) {
   const today = Math.max(0, credits.total_usage - mark.usage)
   lines.push(
     `- **Balance:** ${usd(credits.total_credits - credits.total_usage)} (${usd(credits.total_credits)} bought, ${usd(credits.total_usage)} used)`,
-    `- **Today (UTC):** ${usd(today)}${mark.at - mark.day > GRACE_S ? ` since ${clock(mark.at)}, when this mod first saw the day` : ''}`,
+    `- **Today (UTC):** ${usd(today)}${mark.at - mark.day > GRACE_S ? ` since ${clock(mark.at)} UTC, when this mod first saw the day` : ''}`,
     `- **Yesterday:** ${usd(sum(items.filter(i => i.date === yesterday)))}`,
     `- **Last 30 days:** ${usd(sum(items))}`,
     '',
@@ -255,7 +257,10 @@ const sum = (items: Activity[]) => items.reduce((s, i) => s + (Number(i.usage) |
 const keyInfo = async ($: EngineInterface) => (await call($, 'key')).data ?? {}
 const account = async ($: EngineInterface) => {
   const d = (await call($, 'credits')).data ?? {}
-  return { total_credits: Number(d.total_credits) || 0, total_usage: Number(d.total_usage) || 0 }
+  const total_credits = num(d.total_credits)
+  const total_usage = num(d.total_usage)
+  if (total_credits === null || total_usage === null) throw new Error('OpenRouter sent no credit numbers')
+  return { total_credits, total_usage }
 }
 const isManagement = (info: any) => info.is_management_key === true || info.is_provisioning_key === true
 
@@ -300,6 +305,11 @@ async function apiKey($: EngineInterface) {
     (await run(['printenv', 'OPENROUTER_API_KEY'])) ||
     (await run(['security', 'find-generic-password', '-s', KEYCHAIN_SERVICE, '-w']))
   if (!k.startsWith('sk-or-')) throw new NoKey()
+  if (lastKey && k !== lastKey) {
+    activityCache = null // another key may be another account: drop its numbers
+    await $.store.set('mark', null).catch(() => {}) // and its start-of-day mark
+  }
+  lastKey = k
   return (key = k)
 }
 
@@ -322,5 +332,5 @@ const usd4 = (n: number) => `$${n.toFixed(4)}`
 const int = (n: number) => Math.round(n).toLocaleString('en-US')
 const clock = (s: number) => {
   const d = new Date(s * 1000)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
