@@ -116,6 +116,8 @@ Mods by other people, in their own marketplaces. They're not maintained here, so
 | | Mod | What it does | Install |
 | --- | --- | --- | --- |
 | 🏷️ | **[last-prompt-title](https://github.com/zhangbububu/session-titles)** by [@zhangbububu](https://github.com/zhangbububu) | Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar | `claude plugin marketplace add zhangbububu/session-titles` then `claude plugin install last-prompt-title@session-titles` |
+| 📈 | **[cache-meter](https://github.com/T-AI-Labs/claude-code-mods#cache-meter)** by [@T-AI-Labs](https://github.com/T-AI-Labs) | The share of each turn the prompt cache served, next to the context fill, with an auto-compact threshold and Compact and Clear buttons | `claude plugin marketplace add T-AI-Labs/claude-code-mods` then `claude plugin install cache-meter@T-AI-Labs` |
+| ⏳ | **[usage-limits](https://github.com/T-AI-Labs/claude-code-mods#usage-limits)** by [@T-AI-Labs](https://github.com/T-AI-Labs) | 5-hour and weekly plan limits in percent, with the time left until each resets | `claude plugin marketplace add T-AI-Labs/claude-code-mods` then `claude plugin install usage-limits@T-AI-Labs` |
 
 Built one? Open a PR that adds a row.
 
