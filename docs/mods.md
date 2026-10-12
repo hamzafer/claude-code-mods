@@ -136,6 +136,8 @@ Shows your OpenAI API credit above the Claude Code prompt.
 
 Shows your OpenRouter credit above the Claude Code prompt.
 
+![openrouter-balance: OpenRouter credit with a gauge and today's spend above the Claude Code prompt](../images/openrouter-balance.png)
+
 - One line: the balance with a gauge, today's spend, and the model the last 30 days' money mostly went to
 - **The balance is real**, not an estimate: OpenRouter's `/credits` reports credits bought and used. That needs a **management key** (openrouter.ai → Settings → Management keys). It can't make model calls, so it's safe to keep around
 - **A regular API key** works too, but sees only itself: its spend today and this month, and what its limit leaves when it has one
