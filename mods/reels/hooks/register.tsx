@@ -37,7 +37,7 @@ export const register: Register = on => {
     }
     if (!(await $.fs.exists(`${p.modules}/playwright`))) {
       await update($, status, () => 'missing')
-      return { text: `Reels needs Playwright once: npm install --prefix ${p.dir} playwright@1.63.0` }
+      return { text: `Reels needs Playwright once: npm install --prefix ${/\s/.test(p.dir) ? `"${p.dir}"` : p.dir} playwright@1.63.0` }
     }
     if (arg === 'login') {
       await send($, '/quit') // the profile opens in one Chrome at a time
@@ -147,7 +147,8 @@ async function start($: EngineInterface, p: Paths) {
 
 async function onLine($: EngineInterface, line: string) {
   if (line.startsWith('F ')) {
-    const [, n, file] = line.split(' ')
+    const [, n, ...rest] = line.split(' ')
+    const file = rest.join(' ') // a Windows profile folder can have spaces in it
     if (!file) return
     live.frame = { file, n: Number(n) }
     if (live.size) {
@@ -160,24 +161,31 @@ async function onLine($: EngineInterface, line: string) {
   }
 }
 
-type Paths = { dir: string; socket: string; profile: string; frames: string; modules: string }
+type Paths = { dir: string; socket: string; profile: string; frames: string; modules: string; isWindows: boolean }
 
 async function paths($: EngineInterface): Promise<Paths> {
-  const home = (await $.env.get('HOME')) ?? ''
-  const dir = `${home}/.claude-mods/reels`
-  return { dir, socket: `${dir}/ctl.sock`, profile: `${dir}/profile`, frames: `${dir}/frames`, modules: `${dir}/node_modules` }
+  const isWindows = (await $.env.get('OS')) === 'Windows_NT'
+  // Windows has no HOME: the profile folder stands in, with forward slashes (node and npm read them there too).
+  const home = (await $.env.get('HOME')) ?? (isWindows ? await $.env.get('USERPROFILE') : undefined) ?? ''
+  const dir = `${isWindows ? home.replace(/\\/g, '/') : home}/.claude-mods/reels`
+  // The helper's control channel: a Unix socket, or on Windows (no Unix sockets in node, and a pipe name is refused by
+  // $.http.fetch) a file holding the port and token of its loopback server.
+  return { dir, socket: `${dir}/${isWindows ? 'ctl.json' : 'ctl.sock'}`, profile: `${dir}/profile`, frames: `${dir}/frames`, modules: `${dir}/node_modules`, isWindows }
 }
 
 function helperArgv($: EngineInterface, p: Paths, mode: 'pane' | 'login') {
-  return ['/usr/bin/env', 'node', `${$.plugin.root}/helper/reels.cjs`, p.socket, p.profile, p.frames, mode]
+  return [...(p.isWindows ? ['node'] : ['/usr/bin/env', 'node']), `${$.plugin.root}/helper/reels.cjs`, p.socket, p.profile, p.frames, mode]
 }
 
 // Sends one command to the helper; false when it is not running.
 async function send($: EngineInterface, path: string) {
-  const { socket } = await paths($)
+  const p = await paths($)
+  const method = path === '/state' ? 'GET' : 'POST'
   try {
-    const r = await $.http.fetch(`http://reels${path}`, { method: path === '/state' ? 'GET' : 'POST', socketPath: socket })
-    return r.ok
+    if (!p.isWindows) return (await $.http.fetch(`http://reels${path}`, { method, socketPath: p.socket })).ok
+    const ctl: unknown = JSON.parse(await $.fs.read(p.socket))
+    if (!ctl || typeof ctl !== 'object' || !('port' in ctl) || !('token' in ctl)) return false
+    return (await $.http.fetch(`http://127.0.0.1:${ctl.port}${path}`, { method, headers: { 'x-reels-token': String(ctl.token) } })).ok
   } catch {
     return false
   }
