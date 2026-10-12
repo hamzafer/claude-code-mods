@@ -38,12 +38,19 @@ export const register: Register = (on, options) => {
       }
     }
 
+    // $.process.run has no shell: on Windows the wait and the preview run in Git Bash, not in whatever `bash` is on PATH.
+    const sh = await shellOf($)
+
     // One command is held at a time; a second waits its turn (the first one's timeout bounds the wait).
-    for (;;) {
-      // The call ended while it waited its turn: leave the held one alone.
-      if (next.signal.aborted) return { deny: 'blast-radius: held this command, but the call was stopped before it was shown.' }
-      if (holder === null && (await read($, held)) === null && holder === null) break
-      await $.process.run(['sleep', '0.25'])
+    try {
+      for (;;) {
+        // The call ended while it waited its turn: leave the held one alone.
+        if (next.signal.aborted) return { deny: 'blast-radius: held this command, but the call was stopped before it was shown.' }
+        if (holder === null && (await read($, held)) === null && holder === null) break
+        await $.process.run(sleepArgv(sh, '0.25'))
+      }
+    } catch (err) {
+      return couldNotHold($, err)
     }
     holder = e.tool_use_id
     try {
@@ -79,7 +86,7 @@ export const register: Register = (on, options) => {
             await update($, held, h => (h && h.id === one.id ? { ...h, secondsLeft: left } : h))
           }
         }
-        await $.process.run(['sleep', '0.25'])
+        await $.process.run(sleepArgv(sh, '0.25'))
       }
       const decision = isTimedOut ? 'cancel' : (decisions.get(one.id) ?? 'cancel')
       decisions.delete(one.id)
@@ -97,6 +104,8 @@ export const register: Register = (on, options) => {
       return {
         deny: `blast-radius: the user pressed Cancel on this command. It would have: ${one.summary}.`,
       }
+    } catch (err) {
+      return couldNotHold($, err)
     } finally {
       holder = null
       // If the hold failed partway, don't leave its command blocking the next call.
@@ -164,6 +173,40 @@ export function timeoutFrom(value: unknown): number {
   return Math.ceil(n) // a positive fraction stays a timeout, never 0 (wait forever)
 }
 
+// Where the preview and the wait run. $.process.run uses no shell and looks programs up on PATH. Claude Code's own Bash
+// tool runs in bash, but on Windows the `bash` on PATH is the WSL launcher, and sleep, du and find are not on PATH at all.
+// There Git Bash does the work: Claude Code keeps its path in SHELL.
+type Shell = { isWindows: boolean; bash: string }
+
+async function shellOf($: EngineInterface): Promise<Shell> {
+  const isWindows = (await $.env.get('OS').catch(() => undefined)) === 'Windows_NT'
+  const shell = isWindows ? await $.env.get('SHELL').catch(() => undefined) : undefined
+  return { isWindows, bash: shell && /bash(\.exe)?$/i.test(shell) ? shell : 'bash' }
+}
+
+// ~ and $HOME. Windows has no HOME, so the profile folder stands in, with the forward slashes Git Bash reads.
+async function homeOf($: EngineInterface, sh: Shell) {
+  const home = (await $.env.get('HOME').catch(() => undefined)) ?? (sh.isWindows ? await $.env.get('USERPROFILE').catch(() => undefined) : undefined) ?? ''
+  return sh.isWindows ? home.replace(/\\/g, '/') : home
+}
+
+// The pause between looks at the buttons. Time inside a $ call does not count against the hook's time limit.
+export function sleepArgv(sh: Shell, seconds: string) {
+  return sh.isWindows ? [sh.bash, '-c', `sleep ${seconds}`] : ['sleep', seconds]
+}
+
+// `cd /c/proj`, as Git Bash writes it, as a folder Windows can start a process in.
+export function winPath(p: string) {
+  return p.replace(/^\/([a-zA-Z])(\/|$)/, '$1:/')
+}
+
+// A guard that cannot wait for the answer must not let the command through: refuse it, say why, and keep the reason in the debug log.
+function couldNotHold($: EngineInterface, err: unknown) {
+  const why = String((err as Error)?.message ?? err)
+  $.ui.log(`blast-radius: could not hold a command: ${why}`, { to: 'debug' })
+  return { deny: `blast-radius: could not hold this command for an answer (${why}), so it was not run. Ask the user to run it themselves.` }
+}
+
 // Which risky kind a command is, if any, looking at each part of a compound command.
 export function classify(command: string): Risk | null {
   let cwd: string | undefined
@@ -192,13 +235,14 @@ const UNRESOLVED = /[$`]|^~[^/]/
 const UNRESOLVED_QUOTED = /[$`~]/ // with quotes around, even ~ and $HOME are unknown
 
 async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldCommand, 'summary' | 'details'>> {
+  const sh = await shellOf($)
   // ~ and $HOME are expanded here; anything else with a variable is reported as unknown, never as "nothing".
-  const home = (await $.env.get('HOME').catch(() => undefined)) ?? ''
+  const home = await homeOf($, sh)
   // With quotes in the command we can't tell '~' (literal) from ~ (home): don't expand, report it instead.
   const expand = (p: string) => (home && !found.hasQuotes ? p.replace(/^~(?=\/|$)/, home).replace(/\$\{HOME\}|\$HOME\b/g, home) : p)
   const cwd = found.cwd ? expand(found.cwd) : undefined
   const unresolved = found.hasQuotes ? UNRESOLVED_QUOTED : UNRESOLVED
-  const init = cwd && !unresolved.test(cwd) ? { cwd, timeoutMs: 10_000 } : { timeoutMs: 10_000 }
+  const init = cwd && !unresolved.test(cwd) ? { cwd: sh.isWindows ? winPath(cwd) : cwd, timeoutMs: 10_000 } : { timeoutMs: 10_000 }
   try {
     if (found.risk === 'delete') {
       const targets = (found.targets ?? []).map(expand)
@@ -211,7 +255,9 @@ async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldComman
       const script =
         'shopt -s nullglob; for t in "$@"; do for p in $t; do [ -e "$p" ] || continue; ' +
         'echo "S $(du -sk "$p" | cut -f1)"; find "$p" -type f | head -n 5000 | sed "s/^/F /"; done; done'
-      const r = await $.process.run(['bash', '-c', script, 'blast-radius', ...targets], init)
+      const r = await $.process.run([sh.bash, '-c', script, 'blast-radius', ...targets], init)
+      // A bash that did not run the script (exit code 1 from a launcher, a missing tool) says nothing about the folder.
+      if (r.exitCode !== 0) throw new Error(`the preview exited with code ${r.exitCode}`)
       const lines = r.stdout.split('\n')
       const files = lines.filter(l => l.startsWith('F ')).map(l => short(l.slice(2), targets))
       const kb = lines.filter(l => l.startsWith('S ')).reduce((sum, l) => sum + Number(l.slice(2)), 0)

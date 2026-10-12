@@ -1,14 +1,14 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { classify, timeoutFrom } from '../hooks/register'
+import { classify, sleepArgv, timeoutFrom, winPath } from '../hooks/register'
 
 const PANE = { component: 'Pane', requestId: 'blast-radius', props: { title: 'Blast Radius', isFocused: true, bodyColumns: 100, placement: 'dock' } }
 
 // Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open, a terminal that draws.
 // Its clock is the test's: pass one from mock.clock to move it, or the engine makes its own.
-function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true, previews = [] as string[][] } = {}) {
+function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true, previews = [] as string[][], procs = [] as string[][], cwds = [] as unknown[], env = { HOME: '/home/me' } as Record<string, string> } = {}) {
   if (!clock) mock.clock(on)
-  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('env.get', (_$: any, e: any) => ({ value: env[e.name] }))
   on('session.surfaces', () => ({ value: surfaces }))
   on('tool.call', (_$: any, e: any) => {
     ran.push(e.command)
@@ -16,9 +16,13 @@ function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] a
   })
   on('process.run', async (_$: any, e: any) => {
     const argv: string[] = e.argv
-    if (argv[0] === 'bash') previews.push(argv.slice(4)) // the targets the preview looks at
-    if (argv[0] === 'sleep') await new Promise(done => (globalThis as any).setTimeout(done, 5)) // a real wait, so the hold loop yields
-    const stdout = argv[0] === 'bash'
+    procs.push(argv)
+    const isPreview = argv[1] === '-c' && /^shopt /.test(argv[2] ?? '') // bash, or Git Bash on Windows
+    const isSleep = argv[0] === 'sleep' || (argv[1] === '-c' && /^sleep /.test(argv[2] ?? ''))
+    if (isPreview) previews.push(argv.slice(4)) // the targets the preview looks at
+    if (isPreview) cwds.push(e.init?.cwd) // and the folder it runs in
+    if (isSleep) await new Promise(done => (globalThis as any).setTimeout(done, 5)) // a real wait, so the hold loop yields
+    const stdout = isPreview
       ? ['S 1126', ...Array.from({ length: 9 }, (_, i) => `F build/chunk-${i}.js`)].join('\n')
       : ''
     return { value: { exitCode: 0, stdout, stderr: '' } }
@@ -285,5 +289,156 @@ describe('blast-radius', () => {
     await second
     expect(ran).toEqual(['git push --force'])
     await next.unmount()
+  })
+
+  test('sleepArgv and winPath', () => {
+    const git = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    expect(sleepArgv({ isWindows: false, bash: 'bash' }, '0.25')).toEqual(['sleep', '0.25'])
+    expect(sleepArgv({ isWindows: true, bash: git }, '0.25')).toEqual([git, '-c', 'sleep 0.25'])
+    expect(winPath('/c/proj')).toBe('c:/proj')
+    expect(winPath('/c')).toBe('c:/')
+    expect(winPath('/home/me')).toBe('/home/me')
+    expect(winPath('web/c/x')).toBe('web/c/x')
+  })
+
+  test('Windows: the preview and the wait run in Git Bash, and ~ is the profile folder', async ($, on) => {
+    const git = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const ran: string[] = []
+    const procs: string[][] = []
+    const previews: string[][] = []
+    engine(on, ran, { procs, previews, env: { OS: 'Windows_NT', SHELL: git, USERPROFILE: 'C:\\Users\\me' } })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf ~/build' } as any)
+    const ui = await heldPane($)
+    expect(previews[0]).toEqual(['C:/Users/me/build'])
+    await ui.press({ key: 'cancel' })
+    await call
+    expect(procs.length).toBeGreaterThan(1)
+    expect(procs.every(argv => argv[0] === git)).toBe(true) // never `sleep` or `bash` looked up on PATH
+    expect(procs.some(argv => argv[2] === 'sleep 0.25')).toBe(true)
+    await ui.unmount()
+  })
+
+  test('Windows: a cd to a Git Bash path previews in the matching Windows folder', async ($, on) => {
+    const ran: string[] = []
+    const cwds: unknown[] = []
+    engine(on, ran, { cwds, env: { OS: 'Windows_NT', SHELL: 'C:\\Program Files\\Git\\bin\\bash.exe' } })
+    const call = $.tool.call({ tool: 'Bash', command: 'cd /c/proj && rm -rf dist' } as any)
+    const ui = await heldPane($)
+    expect(cwds[0]).toBe('c:/proj')
+    await ui.press({ key: 'cancel' })
+    await call
+    await ui.unmount()
+  })
+
+  test('Windows without Git Bash in SHELL falls back to bash on PATH', async ($, on) => {
+    const ran: string[] = []
+    const procs: string[][] = []
+    engine(on, ran, { procs, env: { OS: 'Windows_NT', SHELL: 'C:\\Windows\\System32\\cmd.exe' } })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    const ui = await heldPane($)
+    await ui.press({ key: 'cancel' })
+    await call
+    expect(procs.every(argv => argv[0] === 'bash')).toBe(true)
+    await ui.unmount()
+  })
+
+  test('a wait that cannot start refuses the command instead of letting it through', async ($, on) => {
+    const ran: string[] = []
+    on('tool.call', (_$: any, e: any) => (ran.push(e.command), { result: {}, text: 'ok' }) as any)
+    on('process.run', (_$: any, e: any) => (e.argv[0] === 'sleep' ? { deny: 'ENOENT: sleep not found' } : { value: { exitCode: 0, stdout: '', stderr: '' } }) as any)
+    on('env.get', () => ({ value: undefined }) as any)
+    on('ui.open', () => ({ value: { isPlaced: true } }) as any)
+    on('ui.close', () => ({ value: undefined }) as any)
+    on('ui.log', () => ({ value: undefined }) as any)
+    on('session.surfaces', () => ({ value: ['terminal'] }) as any)
+    mock.clock(on)
+    const r: any = await $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    expect(r.deny).toMatch(/^blast-radius: could not hold this command for an answer \(.*sleep not found.*\), so it was not run/)
+    expect(ran).toEqual([])
+  })
+
+  test('Windows without SHELL falls back to bash on PATH too', async ($, on) => {
+    const ran: string[] = []
+    const procs: string[][] = []
+    engine(on, ran, { procs, env: { OS: 'Windows_NT' } })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    const ui = await heldPane($)
+    await ui.press({ key: 'cancel' })
+    await call
+    expect(procs.every(argv => argv[0] === 'bash')).toBe(true)
+    await ui.unmount()
+  })
+
+  for (const [where, env] of [['off Windows with no HOME', {}], ['on Windows with no profile folder', { OS: 'Windows_NT' }]] as const) {
+    test(`${where}, ~ is passed on as written`, async ($, on) => {
+      const ran: string[] = []
+      const previews: string[][] = []
+      engine(on, ran, { previews, env })
+      const call = $.tool.call({ tool: 'Bash', command: 'rm -rf ~/build' } as any)
+      const ui = await heldPane($)
+      expect(previews[0]).toEqual(['~/build'])
+      await ui.press({ key: 'cancel' })
+      await call
+      await ui.unmount()
+    })
+  }
+
+  test('on macOS and Linux a cd target is the preview folder as written', async ($, on) => {
+    const ran: string[] = []
+    const cwds: unknown[] = []
+    engine(on, ran, { cwds })
+    const call = $.tool.call({ tool: 'Bash', command: 'cd /c/proj && rm -rf dist' } as any)
+    const ui = await heldPane($)
+    expect(cwds[0]).toBe('/c/proj') // no Windows drive rewrite off Windows
+    await ui.press({ key: 'cancel' })
+    await call
+    await ui.unmount()
+  })
+
+  test('a second command whose wait for its turn cannot start is refused too', async ($, on) => {
+    const ran: string[] = []
+    let isBroken = false
+    on('tool.call', (_$: any, e: any) => (ran.push(e.command), { result: {}, text: 'ok' }) as any)
+    on('process.run', async (_$: any, e: any) => {
+      if (e.argv[0] !== 'sleep') return { value: { exitCode: 0, stdout: '', stderr: '' } } as any
+      if (isBroken) return { deny: 'ENOENT: sleep not found' } as any
+      await new Promise(done => (globalThis as any).setTimeout(done, 5))
+      return { value: { exitCode: 0, stdout: '', stderr: '' } } as any
+    })
+    on('env.get', () => ({ value: undefined }) as any)
+    on('ui.open', () => ({ value: { isPlaced: true } }) as any)
+    on('ui.close', () => ({ value: undefined }) as any)
+    on('ui.log', () => ({ value: undefined }) as any)
+    on('session.surfaces', () => ({ value: ['terminal'] }) as any)
+    mock.clock(on)
+    const first = $.tool.call({ tool: 'Bash', command: 'rm -rf build', tool_use_id: 'one' } as any)
+    const ui = await heldPane($)
+    await ui.unmount()
+    isBroken = true // from here on the wait cannot start, for the held one and for the one in line
+    const second: any = await $.tool.call({ tool: 'Bash', command: 'git push --force', tool_use_id: 'two' } as any)
+    expect(second.deny).toMatch(/could not hold this command for an answer/)
+    expect(((await first) as any).deny).toMatch(/could not hold this command for an answer/)
+    expect(ran).toEqual([])
+  })
+
+  test('a preview that fails is reported as not measured, never as nothing', async ($, on) => {
+    on('tool.call', () => ({ result: {}, text: 'ok' }) as any)
+    on('process.run', async (_$: any, e: any) => {
+      if (e.argv[0] === 'sleep') await new Promise(done => (globalThis as any).setTimeout(done, 5))
+      const isPreview = e.argv[0] === 'bash'
+      return { value: { exitCode: isPreview ? 1 : 0, stdout: '', stderr: isPreview ? 'WSL has no distribution' : '' } } as any // a launcher that never ran the script
+    })
+    on('env.get', () => ({ value: undefined }) as any)
+    on('ui.open', () => ({ value: { isPlaced: true } }) as any)
+    on('ui.close', () => ({ value: undefined }) as any)
+    on('session.surfaces', () => ({ value: ['terminal'] }) as any)
+    mock.clock(on)
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
+    const ui = await heldPane($)
+    expect(await ui.find({ type: 'Text', text: /run a risky delete command \(could not measure it\)/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /delete nothing/ })).toBeUndefined()
+    await ui.press({ key: 'cancel' })
+    await call
+    await ui.unmount()
   })
 })
