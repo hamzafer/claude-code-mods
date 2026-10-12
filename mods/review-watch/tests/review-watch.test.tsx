@@ -49,6 +49,9 @@ describe('review-watch', () => {
     expect(isCodexReview('node review.mjs review')).toBe(false)
     expect(keyOf(COMPANION)).toBe('codex-companion.mjs review --base main')
     expect(labelOf(COMPANION)).toBe('changes vs main')
+    expect(isCodexReview(`node "/Users/A B/codex/scripts/codex-companion.mjs" review ""`)).toBe(true) // a space in the path
+    expect(keyOf(`node "/Users/A B/codex/scripts/codex-companion.mjs" review ""`)).toBe('codex-companion.mjs review')
+    expect(modelOf(`node "/p/codex-companion.mjs" review "--model gpt-5.4 --base main"`)).toBe('gpt-5.4')
     expect(isReviewAgent('Review PR 28')).toBe(true)
     expect(isReviewAgent('Code reviewer pass')).toBe(true)
     expect(isReviewAgent('Preview the page')).toBe(false)

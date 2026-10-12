@@ -175,7 +175,7 @@ async function configModel($: EngineInterface) {
 // `codex review` where a command starts (after `;`, `&&`, `|`, `timeout 900` and the like), flags before `review` allowed.
 // Also the Codex plugin's `/codex:review` and `/codex:adversarial-review`: `node .../codex-companion.mjs review`.
 const CODEX_REVIEW =
-  /(?:^|[;&|(])\s*(?:(?:timeout|nohup|nice|env|time|command)(?:\s+[-\w.=:]+)*\s+)?(?:(?:\S*\/)?codex(?:\s+-{1,2}[\w-]+(?:[\s=]+(?!-)\S+)?)*\s+review|(?:\S*\/)?node\s+["']?\S*\/codex-companion\.mjs["']?\s+(?:adversarial-)?review)(?=\s|$)/
+  /(?:^|[;&|(])\s*(?:(?:timeout|nohup|nice|env|time|command)(?:\s+[-\w.=:]+)*\s+)?(?:(?:\S*\/)?codex(?:\s+-{1,2}[\w-]+(?:[\s=]+(?!-)\S+)?)*\s+review|(?:\S*\/)?node\s+(?:"[^"]*|'[^']*|\S*)\/codex-companion\.mjs["']?\s+(?:adversarial-)?review)(?=\s|$)/
 
 export function isCodexReview(command: string) {
   return CODEX_REVIEW.test(command)
@@ -198,7 +198,7 @@ function codexPart(command: string) {
 
 export function modelOf(command: string) {
   const part = codexPart(command)
-  return /\s-c\s+["']?model\s*=\s*\\?["']?([\w.:-]+)/.exec(part)?.[1] ?? /\s(?:--model|-m)(?:\s+|=)["']?([\w.:-]+)/.exec(part)?.[1]
+  return /\s-c\s+["']?model\s*=\s*\\?["']?([\w.:-]+)/.exec(part)?.[1] ?? /[\s"'](?:--model|-m)(?:\s+|=)["']?([\w.:-]+)/.exec(part)?.[1]
 }
 
 export function labelOf(command: string) {
