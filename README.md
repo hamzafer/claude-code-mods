@@ -116,6 +116,7 @@ Mods by other people, in their own marketplaces. They're not maintained here, so
 | | Mod | What it does | Install |
 | --- | --- | --- | --- |
 | 🏷️ | **[last-prompt-title](https://github.com/zhangbububu/session-titles)** by [@zhangbububu](https://github.com/zhangbububu) | Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar | `claude plugin marketplace add zhangbububu/session-titles` then `claude plugin install last-prompt-title@session-titles` |
+| 🌏 | **[cc-zh](https://github.com/jiangnanquan/claude-code-zh)** by [@jiangnanquan](https://github.com/jiangnanquan) | Simplified Chinese UI localization via static dictionary: slash-command descriptions, `/config` labels, spinner, hints, notices, command output, tool summaries and turn duration. Zero tokens / network; verified on CC 2.1.296 | `claude plugin marketplace add jiangnanquan/claude-code-zh` then `claude plugin install cc-zh@claude-code-zh` |
 
 Built one? Open a PR that adds a row.
 
