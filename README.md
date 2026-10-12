@@ -116,6 +116,7 @@ Mods by other people, in their own marketplaces. They're not maintained here, so
 | | Mod | What it does | Install |
 | --- | --- | --- | --- |
 | 🏷️ | **[last-prompt-title](https://github.com/zhangbububu/session-titles)** by [@zhangbububu](https://github.com/zhangbububu) | Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar | `claude plugin marketplace add zhangbububu/session-titles` then `claude plugin install last-prompt-title@session-titles` |
+| 🛒 | **[mod-store](https://github.com/hellosverre/mod-store)** by [@hellosverre](https://github.com/hellosverre) | An app store in a pane: `/mods` browses, searches and installs about 2,700 community mods, with what each one can access shown before you install. Or ask Claude to find one | `claude plugin marketplace add hellosverre/mod-store` then `claude plugin install mod-store@mod-store` |
 
 Built one? Open a PR that adds a row.
 
