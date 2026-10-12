@@ -240,6 +240,9 @@ A Claude Code hook that holds risky commands and shows what they would delete.
 - Set `timeoutSeconds` to change the wait (`0` waits forever). Change it in `/config`, or in `settings.json` under `pluginConfigs["blast-radius"].options`
 - With no screen attached (a plain `claude -p` run, or an SDK host that draws nothing), it cancels at once. Nobody can answer
 - One command is held at a time. A second one waits its turn, then gets its own full countdown
+- If it cannot hold a command (the wait fails to start), it refuses the command and says why, never lets it through. The reason also goes to the debug log
+- If the preview itself cannot run, the pane says it could not measure it. It never says "nothing"
+- On Windows the preview and the wait run in Git Bash, the one Claude Code already needs, found through `SHELL`. `~` is your profile folder, and `cd /c/proj` paths are read as `c:/proj`
 
 ### 💾 session-saver
 
