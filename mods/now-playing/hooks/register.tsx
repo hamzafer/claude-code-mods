@@ -29,8 +29,38 @@ const READ_SCRIPT = `if application "Spotify" is running then
 end if
 return "closed"`
 
+// The same on Windows. Spotify publishes what it plays to the system media controls (SMTC), and Windows PowerShell 5.1
+// can reach them (pwsh cannot load the Windows Runtime types). Output is the lines osascript prints: closed, or the
+// state and track a field per line; the position is read now (SMTC keeps the last report), in a culture-free format.
+const POWERSHELL = ['powershell', '-NoProfile', '-NonInteractive', '-Command']
+const WIN_SESSION = `$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
+$asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -like 'IAsyncOperation*' } | Select-Object -First 1
+function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $null = $t.Wait(-1); $t.Result }
+$lf = [string][char]10
+$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+$s = $mgr.GetSessions() | Where-Object { $_.SourceAppUserModelId -like '*Spotify*' } | Select-Object -First 1
+if (-not $s) { [Console]::Out.Write('closed' + $lf); exit }`
+const WIN_READ = `${WIN_SESSION}
+$p = Await ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
+$state = switch ($s.GetPlaybackInfo().PlaybackStatus.ToString()) { 'Playing' { 'playing' } 'Paused' { 'paused' } default { 'stopped' } }
+$t = $s.GetTimelineProperties()
+$end = $t.EndTime.TotalSeconds
+$pos = $t.Position.TotalSeconds
+if ($state -eq 'playing') { $pos += ([DateTimeOffset]::UtcNow - $t.LastUpdatedTime).TotalSeconds }
+$pos = [Math]::Max(0, [Math]::Min($pos, $end))
+$c = [Globalization.CultureInfo]::InvariantCulture
+[Console]::Out.Write((@($state, ($p.Title + '|' + $p.Artist + '|' + $p.AlbumTitle), $p.Title, $p.Artist, $p.AlbumTitle, [Math]::Round($end * 1000).ToString($c), $pos.ToString('0.0', $c)) -join $lf) + $lf)`
+const WIN_ACTIONS = { toggle: 'TryTogglePlayPauseAsync', next: 'TrySkipNextAsync', prev: 'TrySkipPreviousAsync' } as const
+
+// What reads Spotify's state on each system, and how long to wait for it: PowerShell starts slower than osascript.
+const ASK = { darwin: { argv: ['osascript', '-e', READ_SCRIPT], timeoutMs: 5_000 }, win32: { argv: [...POWERSHELL, WIN_READ], timeoutMs: 10_000 } } as const
+
 export const ACTIONS = { toggle: 'playpause', next: 'next track', prev: 'previous track' } as const
 export type Action = keyof typeof ACTIONS
+type Os = 'darwin' | 'win32'
 
 // Held by the host, so the line survives a hot reload of this file.
 const track = atom({ plugin: 'now-playing', key: 'track' } as const, null as Track | null)
@@ -40,20 +70,19 @@ const now = atom({ plugin: 'now-playing', key: 'now' } as const, 0)
 let polling: Promise<void> | null = null // a slow osascript must not let two polls overlap
 // Module-level, so a hot reload (which runs register again) can cancel the old loop.
 let timers: Timer[] = []
+let os: Os | null = null // set at session start: how to ask Spotify here, or null when there is nothing to ask
 
 export const register: Register = (on, options) => {
   const wantsLyrics = options.lyrics !== false
   let lastPoll = 0
-  let isMac = false
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     for (const t of timers) t.cancel()
     timers = []
-    // Off macOS there is no Spotify to ask: no command, no polling, nothing runs again.
-    const uname = await $.process.run(['uname', '-s'], { timeoutMs: 3_000 }).catch(() => null)
-    isMac = uname?.stdout.trim() === 'Darwin'
-    if (!isMac) return r
+    // Off macOS and Windows there is no Spotify to ask: no command, no polling, nothing runs again.
+    os = await osOf($)
+    if (!os) return r
     await $.command.register({ name: 'music', description: 'Spotify: play or pause. /music next, /music prev skip' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     lastPoll = await $.clock.now()
     timers = [
@@ -152,13 +181,11 @@ async function poll($: EngineInterface, wantsLyrics: boolean, fresh = false) {
 
 async function pollOnce($: EngineInterface, wantsLyrics: boolean) {
   const before = await read($, track)
-  // Closed last time: a cheap pgrep before any osascript, so an idle session runs almost nothing.
-  if (!before) {
-    const pg = await $.process.run(['pgrep', '-x', 'Spotify'], { timeoutMs: 3_000 }).catch(() => null)
-    if (!pg || pg.exitCode !== 0) return
-  }
+  // Closed last time: a cheap look at the process list before any osascript or PowerShell, so an idle session runs almost nothing.
+  if (!before && !(await isRunning($))) return
   const asked = await $.clock.now()
-  const out = await $.process.run(['osascript', '-e', READ_SCRIPT], { timeoutMs: 5_000 }).catch(() => null)
+  const { argv, timeoutMs } = ASK[os as Os] // a poll only runs once session.start found an os
+  const out = await $.process.run([...argv], { timeoutMs }).catch(() => null)
   if (!out || out.exitCode !== 0) return
   // Spotify read its position partway through the call, not when the answer arrived.
   const t = parseTrack(out.stdout, asked + ((await $.clock.now()) - asked) / 2)
@@ -167,18 +194,39 @@ async function pollOnce($: EngineInterface, wantsLyrics: boolean) {
   if (t && wantsLyrics && t.id !== before?.id) void loadLyrics($, t).catch(() => {})
 }
 
+// Whether Spotify's process is there, without asking it anything, so asking never launches it.
+async function isRunning($: EngineInterface) {
+  if (os === 'win32') {
+    // Get-Process takes about 0.35 s; tasklist, on the same machine, 1.5 s.
+    const found = await $.process.run([...POWERSHELL, "if (Get-Process -Name Spotify -ErrorAction SilentlyContinue) { 'running' }"], { timeoutMs: 10_000 }).catch(() => null)
+    return !!found && found.stdout.includes('running')
+  }
+  const pg = await $.process.run(['pgrep', '-x', 'Spotify'], { timeoutMs: 3_000 }).catch(() => null)
+  return !!pg && pg.exitCode === 0
+}
+
 // Sends one command to Spotify, then reads it back. False when Spotify is not running.
 async function control($: EngineInterface, action: Action, wantsLyrics: boolean) {
-  const script = `if application "Spotify" is running then
+  const mac = `if application "Spotify" is running then
   tell application "Spotify" to ${ACTIONS[action]}
   return "ok"
 end if
 return "closed"`
-  const r = await $.process.run(['osascript', '-e', script], { timeoutMs: 5_000 })
+  const win = `${WIN_SESSION}
+$ok = Await ($s.${WIN_ACTIONS[action]}()) ([bool])
+[Console]::Out.Write($(if ($ok) { 'ok' } else { 'failed' }) + $lf)`
+  const r = await $.process.run(os === 'win32' ? [...POWERSHELL, win] : ['osascript', '-e', mac], { timeoutMs: os === 'win32' ? 10_000 : 5_000 })
   if (r.exitCode === 0 && r.stdout.trim() === 'closed') await update($, track, () => null) // it quit since the last poll
   if (r.exitCode !== 0 || r.stdout.trim() !== 'ok') return false
   await poll($, wantsLyrics, true)
   return true
+}
+
+// macOS is asked through AppleScript, Windows through the media controls Spotify publishes. Elsewhere there is nothing to ask.
+async function osOf($: EngineInterface): Promise<Os | null> {
+  if ((await $.env.get('OS').catch(() => undefined)) === 'Windows_NT') return 'win32'
+  const uname = await $.process.run(['uname', '-s'], { timeoutMs: 3_000 }).catch(() => null)
+  return uname?.stdout.trim() === 'Darwin' ? 'darwin' : null
 }
 
 // Fetches synced lyrics from LRCLIB: the exact match first, then a search. Silent on any error.
