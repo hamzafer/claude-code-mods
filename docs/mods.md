@@ -348,6 +348,7 @@ YouTube Shorts or a game of Snake in a Claude Code pane while it works.
 - Installing them changes nothing until you type `/reels` or `/snake`
 - `stop` turns them off again. For snake, typing `/snake` again does it too
 - Reels needs Playwright once, and `/reels` prints the install command
+- On Windows it runs the helper with `node` from your PATH, and `/reels` reaches it on a loopback port (the port and a token it checks are in `~/.claude-mods/reels/ctl.json`) because node has no Unix sockets there. Chrome and a terminal that can draw images are still needed
 - `/reels login` opens a YouTube window to accept cookies or sign in. Close it, then run `/reels`
 - In the reels pane, `j` is next, `k` previous, `m` mute and `x` stop
 

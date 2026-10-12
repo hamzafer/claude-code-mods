@@ -2,12 +2,15 @@
 // Run: node reels.cjs <socket> <profile dir> <frame dir> [pane|login]
 //   pane:  headless; writes PNG frames and prints "F <n> <path>" per frame, "C consent" on a consent page
 //   login: a visible window to accept cookies or sign in once; exits when closed
-// Listens on the Unix socket for POST /play, /pause, /next, /prev, /mute, /quit and GET /state.
+// Listens for POST /play, /pause, /next, /prev, /mute, /quit and GET /state: on the Unix socket, or on Windows (where node
+// has none) on a loopback port, written with a token to the file `socket` names. Every request must carry that token.
 const fs = require('node:fs')
 const path = require('node:path')
 const http = require('node:http')
 const { chromium } = require('playwright')
 
+const isWindows = process.platform === 'win32'
+const token = isWindows ? require('node:crypto').randomUUID() : ''
 const [socket, profile, frameDir, mode = 'pane'] = process.argv.slice(2)
 const START = 'https://www.youtube.com/shorts'
 const WIDTH = 405
@@ -112,6 +115,10 @@ async function pane() {
   await cdp.send('Page.startScreencast', { format: 'png', maxWidth: WIDTH, maxHeight: HEIGHT, everyNthFrame: 1 })
 
   const server = http.createServer(async (req, res) => {
+    if (isWindows && req.headers['x-reels-token'] !== token) {
+      res.statusCode = 403 // a web page can send a request to a local port, but not this header
+      return res.end('forbidden')
+    }
     const url = new URL(req.url, 'http://reels')
     try {
       if (url.pathname === '/play' || url.pathname === '/pause') {
@@ -162,7 +169,12 @@ async function pane() {
   process.on('SIGINT', shutdown)
 
   fs.rmSync(socket, { force: true })
-  server.listen(socket, () => console.log('R ready'))
+  if (isWindows) {
+    server.listen(0, '127.0.0.1', () => {
+      fs.writeFileSync(socket, JSON.stringify({ port: server.address().port, token }))
+      console.log('R ready')
+    })
+  } else server.listen(socket, () => console.log('R ready'))
 }
 
 ;(mode === 'login' ? login() : pane()).catch(err => {
