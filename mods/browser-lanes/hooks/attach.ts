@@ -1,22 +1,28 @@
-// Which Playwright browser belongs to which Claude process, read off `ps`.
+// Which Playwright browser belongs to which Claude process, read off `ps` (on Windows, off the same list from PowerShell).
 //   claude ─ npm exec @playwright/mcp ─ node playwright-mcp ─ Google Chrome --user-data-dir=…
 import type { Attachment } from '../types'
 
 export type Proc = { pid: number; ppid: number; command: string }
 
-// `ps -axo pid=,ppid=,command=` output, one process per line.
+// `ps -axo pid=,ppid=,command=` output, one process per line (Windows ends its lines with \r\n).
 export function parsePs(stdout: string): Proc[] {
   return stdout
-    .split('\n')
+    .split(/\r?\n/)
     .map(line => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line))
     .filter((m): m is RegExpExecArray => m !== null)
     .map(m => ({ pid: Number(m[1]), ppid: Number(m[2]), command: m[3] ?? '' }))
 }
 
-const isServer = (p: Proc) => /node\b.*playwright-mcp/.test(p.command) || /\bmcp-server-playwright\b/.test(p.command)
-const isChrome = (p: Proc) => /\/(Google Chrome|Chromium|chrome)( |$)/.test(p.command) && /--user-data-dir=/.test(p.command) && !/Helper/.test(p.command)
-const isClaude = (p: Proc) => /(^|\/)claude( |$)/.test(p.command)
-const profileOf = (p: Proc) => /--user-data-dir=(\S+)/.exec(p.command)?.[1]
+// The server is `…/.bin/playwright-mcp`, or on Windows `…\@playwright\mcp\cli.js` (the bin shim's target; npx's own `@playwright/mcp@latest` is not it).
+const isServer = (p: Proc) => /node(\.exe)?\b.*(playwright-mcp|playwright[\\/]mcp[\\/]cli\.js)/i.test(p.command) || /\bmcp-server-playwright\b/.test(p.command)
+// The main Chrome only: its helpers carry `--type=` (or "Helper" in their name on macOS).
+const isChrome = (p: Proc) => /[\\/](Google Chrome|Chromium|chrome)(\.exe)?"?( |$)/.test(p.command) && /--user-data-dir=/.test(p.command) && !/Helper| --type=/.test(p.command)
+const isClaude = (p: Proc) => /(^|[\\/"])claude(\.exe)?"?( |$)/.test(p.command)
+// `--user-data-dir=path`, with the path (on Windows, the whole argument) quoted when it has spaces.
+const profileOf = (p: Proc) => {
+  const m = /"--user-data-dir=([^"]+)"|--user-data-dir="([^"]+)"|--user-data-dir=(\S+)/.exec(p.command)
+  return m?.[1] ?? m?.[2] ?? m?.[3]
+}
 
 // The Claude process a process runs under, if any.
 function claudeOf(procs: Map<number, Proc>, pid: number): number | undefined {
@@ -29,7 +35,7 @@ function claudeOf(procs: Map<number, Proc>, pid: number): number | undefined {
 export function otherHolders(list: Proc[], me: number): number[] {
   const procs = new Map(list.map(p => [p.pid, p]))
   const pids = list
-    .filter(c => isChrome(c) && /ms-playwright-mcp\/mcp-chrome/.test(profileOf(c) ?? ''))
+    .filter(c => isChrome(c) && /ms-playwright-mcp[\\/]mcp-chrome/.test(profileOf(c) ?? ''))
     .map(c => claudeOf(procs, c.pid))
     .filter((pid): pid is number => pid !== undefined && pid !== me)
   return [...new Set(pids)]
@@ -52,7 +58,7 @@ export function attachment(list: Proc[], me: number, myCwd = '', cwds: ReadonlyM
 
   // Same folder, same shared profile: another Claude's Chrome there blocks ours.
   const other = chromes.find(c => {
-    if (!/ms-playwright-mcp\/mcp-chrome/.test(profileOf(c) ?? '')) return false
+    if (!/ms-playwright-mcp[\\/]mcp-chrome/.test(profileOf(c) ?? '')) return false
     const holder = claudeOf(procs, c.pid)
     return holder !== undefined && holder !== me && myCwd !== '' && cwds.get(holder) === myCwd
   })
@@ -94,6 +100,6 @@ export function describeAttachment(a: Attachment): string {
   if (a.state === 'none') return 'no Playwright server in this session'
   if (a.state === 'attached') return `attached · this session's Chrome${a.isolated ? ' · isolated' : ' · shared profile'}`
   if (a.state === 'ready') return `ready · browser not open yet${a.isolated ? ' · isolated' : ''}`
-  const where = a.holder?.cwd ? ` in ${a.holder.cwd.split('/').slice(-2).join('/')}` : ''
+  const where = a.holder?.cwd ? ` in ${a.holder.cwd.split(/[\\/]/).slice(-2).join('/')}` : ''
   return `NOT attached · another Claude (pid ${a.holder?.claudePid}${where}) holds the shared profile`
 }
