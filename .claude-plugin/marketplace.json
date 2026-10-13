@@ -146,7 +146,7 @@
     {
       "name": "openrouter-balance",
       "description": "Your OpenRouter credit above the prompt: the balance with a gauge, today's spend and where the money mostly went. /openrouter-balance shows the breakdown.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./mods/openrouter-balance"
     }
   ]

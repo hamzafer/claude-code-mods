@@ -1,6 +1,6 @@
 // OpenRouter Balance: your OpenRouter credit, in a band above the prompt.
 // A management key sees the account: the real balance from /credits, and spend by model from /activity.
-// A regular API key sees only itself: its spend today and this month, and what its limit leaves.
+// A regular API key sees the balance too, when OpenRouter lets it, and its own spend and limit.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
@@ -111,7 +111,7 @@ export const register: Register = (on, options) => {
       )
     } else {
       const tone = now.left < LOW ? 'red' : now.left < MID ? 'yellow' : 'green'
-      const filled = now.start !== null && now.start > 0 ? Math.max(0, Math.min(GAUGE, Math.round((now.left / now.start) * GAUGE))) : 0
+      const filled = now.start !== null && now.start > 0 ? Math.max(now.left > 0 ? 1 : 0, Math.min(GAUGE, Math.round((now.left / now.start) * GAUGE))) : 0 // any credit left shows a block
       const of = now.start !== null ? ` of ${usd(now.start)}${now.kind === 'key' ? ' key limit' : ''}` : ''
       body = (
         <Text>
@@ -166,12 +166,13 @@ async function refresh($: EngineInterface, isForced: boolean) {
 async function snapshot($: EngineInterface, now: number): Promise<Line> {
   const info = await keyInfo($)
   const loaded = { ...EMPTY, isLoaded: true, hasData: true }
-  if (!isManagement(info)) {
+  const isMgmt = isManagement(info)
+  const credits = isMgmt ? await account($) : await account($, true) // a regular key often sees the balance too
+  if (!credits) {
     return { ...loaded, kind: 'key', left: num(info.limit_remaining), start: num(info.limit), today: num(info.usage_daily), month: num(info.usage_monthly) }
   }
-  const credits = await account($)
   const mark = await dayMark($, Math.floor(now / 1000), credits.total_usage)
-  const items = await activity($, now).catch(() => []) // a hiccup here never hides the balance
+  const items = isMgmt ? await activity($, now).catch(() => []) : [] // a hiccup here never hides the balance; a regular key is refused
   return {
     ...loaded,
     kind: 'account',
@@ -199,8 +200,10 @@ async function detail($: EngineInterface) {
   const lines = ['## OpenRouter balance', '']
 
   if (!isManagement(info)) {
+    const credits = await account($, true)
+    if (credits) lines.push(`- **Account balance:** ${usd(credits.total_credits - credits.total_usage)} (${usd(credits.total_credits)} bought, ${usd(credits.total_usage)} used)`, '')
     lines.push(
-      `A regular API key: it sees only its own spend. A management key shows the account balance.`,
+      `This key's own spend (a regular API key; a management key shows spend by model):`,
       '',
       `- **Today (UTC):** ${usd(num(info.usage_daily) ?? 0)}`,
       `- **This week:** ${usd(num(info.usage_weekly) ?? 0)}`,
@@ -212,7 +215,7 @@ async function detail($: EngineInterface) {
       lines.push(`- **Key limit:** ${usd(num(info.limit_remaining) ?? 0)} left of ${usd(info.limit)}${reset}`)
     } else lines.push('- **Key limit:** none')
     const b = info.effective_budget
-    if (b && typeof b.limit_usd === 'number') lines.push(`- **Budget:** ${usd(b.remaining_usd ?? 0)} left of ${usd(b.limit_usd)}${b.reset_interval ? ` ${b.reset_interval}` : ''}`)
+    if (b && typeof b.limit_usd === 'number' && b.scope !== 'key_limit') lines.push(`- **Budget:** ${usd(b.remaining_usd ?? 0)} left of ${usd(b.limit_usd)}${b.reset_interval ? ` ${b.reset_interval}` : ''}`)
     const free = info.free_model_daily_requests
     if (info.is_free_tier && free) lines.push(`- **Free model requests today:** ${free.remaining} of ${free.limit} left`)
     return lines.join('\n')
@@ -255,11 +258,17 @@ function byModel(items: Activity[]) {
 const sum = (items: Activity[]) => items.reduce((s, i) => s + (Number(i.usage) || 0), 0)
 
 const keyInfo = async ($: EngineInterface) => (await call($, 'key')).data ?? {}
-const account = async ($: EngineInterface) => {
-  const d = (await call($, 'credits')).data ?? {}
+// With isOptional, a refusal or an answer without numbers is null, not an error: the key's own numbers still show.
+async function account($: EngineInterface, isOptional?: false): Promise<{ total_credits: number; total_usage: number }>
+async function account($: EngineInterface, isOptional: true): Promise<{ total_credits: number; total_usage: number } | null>
+async function account($: EngineInterface, isOptional = false) {
+  const d = (await call($, 'credits', isOptional))?.data ?? {}
   const total_credits = num(d.total_credits)
   const total_usage = num(d.total_usage)
-  if (total_credits === null || total_usage === null) throw new Error('OpenRouter sent no credit numbers')
+  if (total_credits === null || total_usage === null) {
+    if (isOptional) return null
+    throw new Error('OpenRouter sent no credit numbers')
+  }
   return { total_credits, total_usage }
 }
 const isManagement = (info: any) => info.is_management_key === true || info.is_provisioning_key === true
@@ -282,8 +291,9 @@ async function activity($: EngineInterface, now: number): Promise<Activity[]> {
   return activityCache.items
 }
 
-async function call($: EngineInterface, path: string) {
+async function call($: EngineInterface, path: string, isOptional = false) {
   const res = await $.http.fetch(`${API}/${path}`, { headers: { authorization: `Bearer ${await apiKey($)}` } })
+  if (isOptional && (res.status === 401 || res.status === 403 || res.status === 404)) return null // not for this key: not a rejected key
   if (res.status === 401 || res.status === 403) {
     key = '' // read it again next time, in case it was replaced
     throw new KeyRejected()

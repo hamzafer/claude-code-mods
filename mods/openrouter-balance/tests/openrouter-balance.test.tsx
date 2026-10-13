@@ -15,7 +15,7 @@ const activity = [
 ]
 
 // Stands for the engine, the key's sources and OpenRouter beneath the mod.
-function engine(on: any, opts: { info?: object; credits?: () => { total_credits: number; total_usage: number }; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number }) {
+function engine(on: any, opts: { info?: object; credits?: () => { total_credits: number; total_usage: number }; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number; creditsRefused?: boolean }) {
   const urls: string[] = []
   const auths: string[] = []
   const from = opts.keyFrom ?? 'keychain'
@@ -43,6 +43,7 @@ function engine(on: any, opts: { info?: object; credits?: () => { total_credits:
     const status = opts.status?.() ?? 200
     if (status !== 200) return fail(status)
     if (e.url.endsWith('/key')) return ok({ data: opts.info ?? regular })
+    if (e.url.endsWith('/credits') && opts.creditsRefused) return fail(403)
     if (e.url.endsWith('/credits')) return ok({ data: opts.credits?.() ?? { total_credits: 100, total_usage: 25 } })
     if (e.url.endsWith('/activity')) return ok({ data: activity })
     return fail(404)
@@ -103,12 +104,22 @@ describe('openrouter-balance', () => {
     expect((await run($)).text).toMatch(/since 09:05 UTC/)
   })
 
-  test('a regular key without a limit shows its own spend and never asks for the balance', async ($, on) => {
-    const h = engine(on, { keyFrom: 'env' })
+  test('a regular key that OpenRouter shows the balance to shows the account balance', async ($, on) => {
+    const h = engine(on, { keyFrom: 'env', credits: () => ({ total_credits: 5, total_usage: 4.87 }) })
+    await start($)
+    expect(await band($)).toMatch(/\$0\.13 of \$5\.00 left, top up soon · \$0\.00 today/)
+    expect(h.urls.some(u => u.endsWith('/activity'))).toBe(false) // refused to a regular key: never asked
+    const out = await run($)
+    expect(out.text).toMatch(/Account balance:\*\* \$0\.13 \(\$5\.00 bought, \$4\.87 used\)/)
+    expect(out.text).toMatch(/Today \(UTC\):\*\* \$0\.42/)
+  })
+
+  test('a regular key refused the balance shows its own spend, and the key still counts as good', async ($, on) => {
+    engine(on, { keyFrom: 'env', creditsRefused: true })
     await start($)
     expect(await band($)).toMatch(/\$0\.42 today · \$12\.30 this month · a management key shows the balance/)
-    expect(h.urls.some(u => u.endsWith('/credits'))).toBe(false)
     const out = await run($)
+    expect(out.text).not.toMatch(/Account balance/)
     expect(out.text).toMatch(/This week:\*\* \$3\.10/)
     expect(out.text).toMatch(/Key limit:\*\* none/)
     expect(out.text).not.toContain('sk-or-') // the label is the key's start and end
@@ -122,7 +133,7 @@ describe('openrouter-balance', () => {
   })
 
   test('a regular key with a limit shows what the limit leaves, red when low', async ($, on) => {
-    engine(on, { info: { ...regular, limit: 10, limit_remaining: 1.5, limit_reset: 'monthly' } })
+    engine(on, { info: { ...regular, limit: 10, limit_remaining: 1.5, limit_reset: 'monthly' }, creditsRefused: true })
     await start($)
     expect(await band($)).toMatch(/\$1\.50 of \$10\.00 key limit left, top up soon · \$0\.42 today/)
   })

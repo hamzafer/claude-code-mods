@@ -139,8 +139,8 @@ Shows your OpenRouter credit above the Claude Code prompt.
 ![openrouter-balance: OpenRouter credit with a gauge and today's spend above the Claude Code prompt](../images/openrouter-balance.png)
 
 - One line: the balance with a gauge, today's spend, and the model the last 30 days' money mostly went to
-- **The balance is real**, not an estimate: OpenRouter's `/credits` reports credits bought and used. That needs a **management key** (openrouter.ai → Settings → Management keys). It can't make model calls, so it's safe to keep around
-- **A regular API key** works too, but sees only itself: its spend today and this month, and what its limit leaves when it has one
+- **The balance is real**, not an estimate: OpenRouter's `/credits` reports credits bought and used. OpenRouter documents it for a **management key** (openrouter.ai → Settings → Management keys), which can't make model calls, so it's safe to keep around
+- **A regular API key** works too. It shows the account balance when OpenRouter answers `/credits` for it, and else its own spend today and this month and what its limit leaves. Spend by model needs a management key
 - Green from $5, yellow under $5, red under $2
 - `/openrouter-balance` shows the breakdown: balance, today, yesterday, last 30 days, and spend, requests and tokens by model. With a regular key: today, this week, this month, all time, its limit and budget
 - "Today" is the UTC day. OpenRouter reports spend by model for completed days only, so today with a management key is the usage now minus where it stood when the mod first saw the day. A day first seen later than 00:15 UTC shows "since HH:MM" instead of "today"
