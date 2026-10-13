@@ -112,7 +112,7 @@ export const register: Register = (on, options) => {
     } else {
       const tone = now.left < LOW ? 'red' : now.left < MID ? 'yellow' : 'green'
       const filled = now.start !== null && now.start > 0 ? Math.max(now.left > 0 ? 1 : 0, Math.min(GAUGE, Math.round((now.left / now.start) * GAUGE))) : 0 // any credit left shows a block
-      const of = now.start !== null ? ` of ${usd(now.start)}${now.kind === 'key' ? ' key limit' : ''}` : ''
+      const of = now.start !== null ? ` of ${usd(now.start)}${now.kind === 'key' ? ' key limit' : ' credit'}` : '' // which one binds: the key's limit or the account's credit
       body = (
         <Text>
           {isWide && <Text color={tone}>{'█'.repeat(filled)}</Text>}
@@ -171,6 +171,10 @@ async function snapshot($: EngineInterface, now: number): Promise<Line> {
   if (!credits) {
     return { ...loaded, kind: 'key', left: num(info.limit_remaining), start: num(info.limit), today: num(info.usage_daily), month: num(info.usage_monthly) }
   }
+  const keyLeft = num(info.limit_remaining)
+  if (!isMgmt && keyLeft !== null && keyLeft < credits.total_credits - credits.total_usage) {
+    return { ...loaded, kind: 'key', left: keyLeft, start: num(info.limit), today: num(info.usage_daily), month: num(info.usage_monthly) } // the key's limit runs out first
+  }
   const mark = await dayMark($, Math.floor(now / 1000), credits.total_usage)
   const items = isMgmt ? await activity($, now).catch(() => []) : [] // a hiccup here never hides the balance; a regular key is refused
   return {
@@ -201,7 +205,14 @@ async function detail($: EngineInterface) {
 
   if (!isManagement(info)) {
     const credits = await account($, true)
-    if (credits) lines.push(`- **Account balance:** ${usd(credits.total_credits - credits.total_usage)} (${usd(credits.total_credits)} bought, ${usd(credits.total_usage)} used)`, '')
+    if (credits) {
+      const mark = await dayMark($, Math.floor(now / 1000), credits.total_usage) // the same "today" the band shows
+      lines.push(
+        `- **Account balance:** ${usd(credits.total_credits - credits.total_usage)} (${usd(credits.total_credits)} bought, ${usd(credits.total_usage)} used)`,
+        `- **Account spend today (UTC):** ${usd(Math.max(0, credits.total_usage - mark.usage))}${mark.at - mark.day > GRACE_S ? ` since ${clock(mark.at)} your time, when this mod first saw the day` : ''}`,
+        '',
+      )
+    }
     lines.push(
       `This key's own spend (a regular API key; a management key shows spend by model):`,
       '',
@@ -228,7 +239,7 @@ async function detail($: EngineInterface) {
   const today = Math.max(0, credits.total_usage - mark.usage)
   lines.push(
     `- **Balance:** ${usd(credits.total_credits - credits.total_usage)} (${usd(credits.total_credits)} bought, ${usd(credits.total_usage)} used)`,
-    `- **Today (UTC):** ${usd(today)}${mark.at - mark.day > GRACE_S ? ` since ${clock(mark.at)} UTC, when this mod first saw the day` : ''}`,
+    `- **Today (UTC):** ${usd(today)}${mark.at - mark.day > GRACE_S ? ` since ${clock(mark.at)} your time, when this mod first saw the day` : ''}`,
     `- **Yesterday:** ${usd(sum(items.filter(i => i.date === yesterday)))}`,
     `- **Last 30 days:** ${usd(sum(items))}`,
     '',
@@ -292,14 +303,21 @@ async function activity($: EngineInterface, now: number): Promise<Activity[]> {
 }
 
 async function call($: EngineInterface, path: string, isOptional = false) {
-  const res = await $.http.fetch(`${API}/${path}`, { headers: { authorization: `Bearer ${await apiKey($)}` } })
-  if (isOptional && (res.status === 401 || res.status === 403 || res.status === 404)) return null // not for this key: not a rejected key
+  const auth = { authorization: `Bearer ${await apiKey($)}` }
+  const res = isOptional ? await $.http.fetch(`${API}/${path}`, { headers: auth }).catch(() => null) : await $.http.fetch(`${API}/${path}`, { headers: auth })
+  if (isOptional && (!res || !res.ok)) return null // refused or down: the key's own numbers still show, and the key is not rejected
+  if (!res) return null // for the type: only an optional fetch is ever null
   if (res.status === 401 || res.status === 403) {
     key = '' // read it again next time, in case it was replaced
     throw new KeyRejected()
   }
   if (!res.ok) throw new HttpError(res.status)
-  return JSON.parse(res.text)
+  try {
+    return JSON.parse(res.text)
+  } catch (err) {
+    if (isOptional) return null
+    throw err
+  }
 }
 
 // From /config first, then OPENROUTER_MANAGEMENT_KEY, OPENROUTER_API_KEY, then the macOS Keychain.
@@ -342,5 +360,5 @@ const usd4 = (n: number) => `$${n.toFixed(4)}`
 const int = (n: number) => Math.round(n).toLocaleString('en-US')
 const clock = (s: number) => {
   const d = new Date(s * 1000)
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` // your local time: the day itself is UTC
 }

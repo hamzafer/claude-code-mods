@@ -70,7 +70,7 @@ claude plugin install openrouter-balance@claude-code-mods"><code><span class="ps
 <li>The balance is real, not an estimate: OpenRouter&#x27;s <code>/credits</code> reports credits bought and used. OpenRouter documents it for a management key, which can&#x27;t make model calls.</li>
 <li>A regular API key shows the account balance when OpenRouter answers <code>/credits</code> for it, and else its own spend today and this month and what its limit leaves. Spend by model needs a management key.</li>
 <li>Green from $5, yellow under $5, red under $2.</li>
-<li>&quot;Today&quot; is the UTC day. A day first seen later than 00:15 UTC shows &quot;since HH:MM&quot; instead of &quot;today&quot;.</li>
+<li>&quot;Today&quot; is the UTC day. A day first seen later than 00:15 UTC shows &quot;since HH:MM&quot; (your local time) instead of &quot;today&quot;.</li>
 <li>The key comes from <code>/config</code>, else <code>OPENROUTER_MANAGEMENT_KEY</code>, else <code>OPENROUTER_API_KEY</code>, else the macOS Keychain item <code>openrouter-key</code>, and stays in memory.</li>
 <li>Refreshes every 5 minutes and after each turn. A failed refresh keeps the last numbers, marked offline.</li>
 </ul>

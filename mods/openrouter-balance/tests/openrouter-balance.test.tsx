@@ -15,7 +15,7 @@ const activity = [
 ]
 
 // Stands for the engine, the key's sources and OpenRouter beneath the mod.
-function engine(on: any, opts: { info?: object; credits?: () => { total_credits: number; total_usage: number }; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number; creditsRefused?: boolean }) {
+function engine(on: any, opts: { info?: object; credits?: () => { total_credits: number; total_usage: number }; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number; creditsRefused?: boolean; creditsStatus?: number }) {
   const urls: string[] = []
   const auths: string[] = []
   const from = opts.keyFrom ?? 'keychain'
@@ -44,6 +44,7 @@ function engine(on: any, opts: { info?: object; credits?: () => { total_credits:
     if (status !== 200) return fail(status)
     if (e.url.endsWith('/key')) return ok({ data: opts.info ?? regular })
     if (e.url.endsWith('/credits') && opts.creditsRefused) return fail(403)
+    if (e.url.endsWith('/credits') && opts.creditsStatus) return fail(opts.creditsStatus)
     if (e.url.endsWith('/credits')) return ok({ data: opts.credits?.() ?? { total_credits: 100, total_usage: 25 } })
     if (e.url.endsWith('/activity')) return ok({ data: activity })
     return fail(404)
@@ -81,12 +82,12 @@ describe('openrouter-balance', () => {
     const h = engine(on, { info: management, credits: () => ({ total_credits: 100, total_usage: usage }) })
     await start($)
     expect(h.auths[0]).toBe(`Bearer ${KEY}`)
-    expect(await band($)).toMatch(/█{8}▁{2} \$75\.00 of \$100\.00 left · \$0\.00 today, mostly claude-sonnet-4\.5/)
+    expect(await band($)).toMatch(/█{8}▁{2} \$75\.00 of \$100\.00 credit left · \$0\.00 today, mostly claude-sonnet-4\.5/)
 
     usage = 25.6
     h.tick(6 * 60 * 1000) // past the 5-minute refresh
     await turn($)
-    expect(await band($)).toMatch(/\$74\.40 of \$100\.00 left · \$0\.60 today/)
+    expect(await band($)).toMatch(/\$74\.40 of \$100\.00 credit left · \$0\.60 today/)
 
     const out = await run($)
     expect(out.text).toMatch(/Balance:\*\* \$74\.40 \(\$100\.00 bought, \$25\.60 used\)/)
@@ -100,18 +101,35 @@ describe('openrouter-balance', () => {
     const h = engine(on, { info: management })
     h.tick(9 * 60 * 60 * 1000) // 09:05 UTC
     await start($)
-    expect(await band($)).toMatch(/\$0\.00 since 09:05/) // UTC, as the docs say, wherever the machine is
-    expect((await run($)).text).toMatch(/since 09:05 UTC/)
+    const d = new Date(NOW + 9 * 60 * 60 * 1000) // 09:05 UTC, shown in the machine's own time
+    const local = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    expect(await band($)).toContain(`$0.00 since ${local}`)
+    expect((await run($)).text).toContain(`since ${local} your time`)
   })
 
   test('a regular key that OpenRouter shows the balance to shows the account balance', async ($, on) => {
     const h = engine(on, { keyFrom: 'env', credits: () => ({ total_credits: 5, total_usage: 4.87 }) })
     await start($)
-    expect(await band($)).toMatch(/\$0\.13 of \$5\.00 left, top up soon · \$0\.00 today/)
+    expect(await band($)).toMatch(/\$0\.13 of \$5\.00 credit left, top up soon · \$0\.00 today/)
     expect(h.urls.some(u => u.endsWith('/activity'))).toBe(false) // refused to a regular key: never asked
     const out = await run($)
     expect(out.text).toMatch(/Account balance:\*\* \$0\.13 \(\$5\.00 bought, \$4\.87 used\)/)
-    expect(out.text).toMatch(/Today \(UTC\):\*\* \$0\.42/)
+    expect(out.text).toMatch(/Account spend today \(UTC\):\*\* \$0\.00/) // the band's today
+    expect(out.text).toMatch(/Today \(UTC\):\*\* \$0\.42/) // the key's own
+  })
+
+  test("a /credits outage never hides a regular key's own numbers", async ($, on) => {
+    engine(on, { keyFrom: 'env', creditsStatus: 500 })
+    await start($)
+    expect(await band($)).toMatch(/\$0\.42 today · \$12\.30 this month/)
+    const out = await run($)
+    expect(out.text).toMatch(/This month:\*\* \$12\.30/)
+  })
+
+  test('a key limit tighter than the account balance is what the band shows', async ($, on) => {
+    engine(on, { info: { ...regular, limit: 10, limit_remaining: 1.5 }, credits: () => ({ total_credits: 100, total_usage: 20 }) })
+    await start($)
+    expect(await band($)).toMatch(/\$1\.50 of \$10\.00 key limit left, top up soon/)
   })
 
   test('a regular key refused the balance shows its own spend, and the key still counts as good', async ($, on) => {
@@ -166,7 +184,7 @@ describe('openrouter-balance', () => {
     status = 500
     h.tick(6 * 60 * 1000)
     await turn($)
-    expect(await band($)).toMatch(/\$75\.00 of \$100\.00 left.*offline/)
+    expect(await band($)).toMatch(/\$75\.00 of \$100\.00 credit left.*offline/)
     status = 200
     h.tick(61 * 1000) // a failure retries after a minute, not five
     await turn($)
