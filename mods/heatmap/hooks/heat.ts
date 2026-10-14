@@ -85,8 +85,9 @@ export function sessionDays(times: readonly number[], offset: Offset): Map<strin
 export function aggregate(logs: readonly SessionLog[], offset: Offset, fromDay = ''): Row[] {
   const acc = new Map<string, { p: string; n: string; d: string; ms: number; s: number; hours: number[] }>()
   const seen = new Map<string, Set<number>>()
-  const first = (log: SessionLog) => (log.times.length ? Math.min(...log.times) : Infinity)
-  for (const log of [...logs].sort((a, b) => first(a) - first(b))) {
+  // Oldest log first; on a tie the shorter one, the original a resume copied from.
+  const order = logs.map(log => ({ log, first: earliest(log.times) })).sort((a, b) => a.first - b.first || a.log.times.length - b.log.times.length)
+  for (const { log } of order) {
     let had = seen.get(log.p)
     if (!had) seen.set(log.p, (had = new Set()))
     const own = log.times.filter(ms => !had!.has(ms))
@@ -106,9 +107,21 @@ export function aggregate(logs: readonly SessionLog[], offset: Offset, fromDay =
   )
 }
 
-/** The ledger with every day from `fromDay` on replaced by `fresh`; older days are never rewritten. */
+function earliest(times: readonly number[]): number {
+  let min = Infinity
+  for (const ms of times) if (ms < min) min = ms // no spread: a long log passes the argument limit
+  return min
+}
+
+/**
+ * The ledger brought up to date: from `fromDay` on, a fresh row replaces the old
+ * one for its day and project. Older days, and old rows nothing fresh replaces
+ * (their logs may be gone), stay as they were.
+ */
 export function mergeLedger(old: readonly Row[], fresh: readonly Row[], fromDay: string): Row[] {
-  return sortRows([...old.filter(r => r.d < fromDay), ...fresh.filter(r => r.d >= fromDay)])
+  const recent = fresh.filter(r => r.d >= fromDay)
+  const replaced = new Set(recent.map(r => `${r.d}\u0000${r.p}`))
+  return sortRows([...old.filter(r => !replaced.has(`${r.d}\u0000${r.p}`)), ...recent])
 }
 
 /** Reads the ledger file; a malformed line is skipped. */

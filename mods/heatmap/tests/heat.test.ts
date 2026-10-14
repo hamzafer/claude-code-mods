@@ -71,7 +71,8 @@ describe('active minutes', () => {
     const early = [t('2026-10-14T10:00:00Z'), t('2026-10-14T10:04:00Z')]
     const original = { p: 'a', n: 'a', times: early }
     const resumed = { p: 'a', n: 'a', times: [...early, t('2026-10-15T09:00:00Z'), t('2026-10-15T09:02:00Z')] }
-    const rows = aggregate([resumed, original], UTC)
+    const copy = { p: 'a', n: 'a', times: [...early] } // a resume that added nothing, listed first
+    const rows = aggregate([copy, resumed, original], UTC)
     expect(rows.map(r => [r.d, r.min, r.s])).toEqual([
       ['2026-10-14', 4, 1],
       ['2026-10-15', 2, 1],
@@ -93,6 +94,15 @@ describe('ledger', () => {
       ['2026-09-01', 50],
       ['2026-10-14', 40],
       ['2026-10-15', 5],
+    ])
+  })
+
+  test('keeps an old row its logs no longer cover', () => {
+    const old = [row('2026-09-01', 'a', 50), row('2026-09-01', 'b', 20)]
+    const fresh = [row('2026-09-01', 'a', 55)]
+    expect(mergeLedger(old, fresh, '2026-09-01').map(r => [r.p, r.min])).toEqual([
+      ['a', 55],
+      ['b', 20],
     ])
   })
 
