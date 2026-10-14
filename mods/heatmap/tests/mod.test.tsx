@@ -12,7 +12,7 @@ function noon(back: number, plusMin = 0) {
   return new Date(Date.parse(`${day}T12:00:00`) + plusMin * 60_000).toISOString()
 }
 
-type World = { files: Record<string, string>; logs: Record<string, { cwd: string; times: string[] }>; toasts: string[]; saved: Record<string, unknown> }
+type World = { failWrite?: string; files: Record<string, string>; logs: Record<string, { cwd: string; times: string[] }>; toasts: string[]; saved: Record<string, unknown> }
 
 // Stands for the engine beneath the mod: a home folder with session logs, grep, a store.
 function engine(on: any, world: World, closed: string[] = []) {
@@ -23,7 +23,11 @@ function engine(on: any, world: World, closed: string[] = []) {
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('fs.exists', (_$: any, e: any) => ({ value: e.path === PROJECTS || e.path in world.files }))
   on('fs.read', (_$: any, e: any) => ({ value: world.files[e.path] ?? '' }))
-  on('fs.write', (_$: any, e: any) => ((world.files[e.path] = e.text), { value: undefined }))
+  on('fs.write', (_$: any, e: any) => {
+    if (world.failWrite) throw new Error(world.failWrite)
+    world.files[e.path] = e.text
+    return { value: undefined }
+  })
   on('fs.list', (_$: any, e: any) => {
     const paths = Object.keys(world.logs)
     if (e.path === PROJECTS) {
@@ -101,6 +105,32 @@ describe('heatmap mod', () => {
     const ledger = world.files[LEDGER]!.trim().split('\n').map(l => JSON.parse(l))
     expect(ledger.some((r: any) => r.p === '-work-other')).toBe(true) // 5 days ago: outside the refresh window, kept
     expect(ledger.filter((r: any) => r.p === '-work-mods').length).toBe(7)
+  })
+
+  test('an empty ledger backfills, and days missed since its last day are filled in', async ($, on) => {
+    const world = sampleWorld()
+    engine(on, world)
+    world.files[LEDGER] = '\n'
+    await start($)
+    expect(world.files[LEDGER]!.trim().split('\n').length).toBe(8) // a full backfill
+
+    // The ledger stops 4 days ago, as if the sessions since ended without session.end.
+    const lines = world.files[LEDGER]!.trim().split('\n').map(l => JSON.parse(l))
+    const cut = addDays(dayOf(Date.now(), localOffset), -4)
+    world.files[LEDGER] = lines.filter((r: any) => r.d <= cut).map((r: any) => JSON.stringify(r)).join('\n') + '\n'
+    await start($)
+    expect(world.files[LEDGER]!.trim().split('\n').length).toBe(8) // the 3 missing days and today are back
+  })
+
+  test('a failed refresh says why instead of loading forever', async ($, on) => {
+    const world = sampleWorld()
+    world.failWrite = 'disk full'
+    engine(on, world)
+    await start($)
+    await $.command.run({ command: 'heatmap', args: '' } as any)
+    const ui: any = await $.ui.mount({ plugin: 'heatmap', surface: 'terminal', ...PANE } as any)
+    expect(await ui.find({ type: 'Text', text: /Could not read your session history/ })).toBeDefined()
+    await ui.unmount()
   })
 
   test('a streak milestone toasts once', async ($, on) => {

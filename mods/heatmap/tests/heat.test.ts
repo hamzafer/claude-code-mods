@@ -67,6 +67,17 @@ describe('active minutes', () => {
     expect(aggregate([a, b, c], UTC, '2026-10-14').map(r => r.d)).toEqual(['2026-10-14'])
   })
 
+  test('a resumed session copying earlier messages counts them once', () => {
+    const early = [t('2026-10-14T10:00:00Z'), t('2026-10-14T10:04:00Z')]
+    const original = { p: 'a', n: 'a', times: early }
+    const resumed = { p: 'a', n: 'a', times: [...early, t('2026-10-15T09:00:00Z'), t('2026-10-15T09:02:00Z')] }
+    const rows = aggregate([resumed, original], UTC)
+    expect(rows.map(r => [r.d, r.min, r.s])).toEqual([
+      ['2026-10-14', 4, 1],
+      ['2026-10-15', 2, 1],
+    ])
+  })
+
   test('reads message times from grep output', () => {
     const out = '"timestamp":"2026-10-14T10:00:00.000Z"\n"timestamp":"not a date"\n"timestamp":"2026-10-14T10:01:00Z"\n'
     expect(parseTimes(out)).toEqual([t('2026-10-14T10:00:00Z'), t('2026-10-14T10:01:00Z')])

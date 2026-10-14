@@ -16,7 +16,7 @@ export type GridProps = {
 }
 
 type GridText = Parameters<ClientModule<GridProps, Local>>[1]['elements']['Text']
-type Local = { cursor: number; live: { props: GridProps } }
+type Local = { cursor: string | null; live: { props: GridProps } } // the day under the cursor; null is today
 
 // Two sizes and a ramp of Claude orange: a level never depends on telling colors apart alone.
 export const GLYPHS = ['·', '▪', '▪', '■', '■']
@@ -28,7 +28,6 @@ const ROW_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
 
 const Grid: ClientModule<GridProps, Local> = (props, surface) => {
   const { Box, Text } = surface.elements
-  const last = props.cells.length - 1
 
   if (surface.state === undefined) {
     surface.onKey(e => {
@@ -39,16 +38,18 @@ const Grid: ClientModule<GridProps, Local> = (props, surface) => {
       if (key === 'q') return surface.post({ close: true })
       const step = key === 'up' ? -1 : key === 'down' ? 1 : key === 'left' ? -7 : key === 'right' ? 7 : 0
       if (step === 0) return
-      const end = now.live.props.cells.length - 1
-      const cursor = Math.max(0, Math.min(end, now.cursor + step))
-      if (cursor !== now.cursor) surface.setState({ ...now, cursor })
+      const { labels } = now.live.props
+      const end = labels.length - 1
+      const cursor = Math.max(0, Math.min(end, indexOf(labels, now.cursor) + step))
+      const day = cursor === end ? null : labels[cursor]!
+      if (day !== now.cursor) surface.setState({ ...now, cursor: day })
     })
-    surface.setState({ cursor: last, live: { props } }) // starts on today
+    surface.setState({ cursor: null, live: { props } }) // starts on today
   }
 
-  const local = surface.state ?? { cursor: last, live: { props } }
+  const local = surface.state ?? { cursor: null, live: { props } }
   local.live.props = props // the keys read the latest props
-  const cursor = Math.max(0, Math.min(last, local.cursor))
+  const cursor = indexOf(props.labels, local.cursor)
   const at = props.cells[cursor]
 
   return (
@@ -96,6 +97,12 @@ function square(Text: GridText, level: number, isCursor: boolean, isLight: boole
       {GLYPHS[level]}
     </Text>
   )
+}
+
+// The cursor's place in the grid: its day, or today when the day is gone or unset.
+function indexOf(labels: string[], day: string | null) {
+  const i = day === null ? -1 : labels.indexOf(day)
+  return i < 0 ? labels.length - 1 : i
 }
 
 function detail(day: string, [min, s, top]: Cell) {

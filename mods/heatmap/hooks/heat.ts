@@ -77,11 +77,21 @@ export function sessionDays(times: readonly number[], offset: Offset): Map<strin
   return days
 }
 
-/** Ledger rows from session logs: one per day per project, from `fromDay` on. */
+/**
+ * Ledger rows from session logs: one per day per project, from `fromDay` on.
+ * A resumed session's log copies the earlier messages, so within a project each
+ * message time counts once, for the log that has it first.
+ */
 export function aggregate(logs: readonly SessionLog[], offset: Offset, fromDay = ''): Row[] {
   const acc = new Map<string, { p: string; n: string; d: string; ms: number; s: number; hours: number[] }>()
-  for (const log of logs) {
-    for (const [d, t] of sessionDays(log.times, offset)) {
+  const seen = new Map<string, Set<number>>()
+  const first = (log: SessionLog) => (log.times.length ? Math.min(...log.times) : Infinity)
+  for (const log of [...logs].sort((a, b) => first(a) - first(b))) {
+    let had = seen.get(log.p)
+    if (!had) seen.set(log.p, (had = new Set()))
+    const own = log.times.filter(ms => !had!.has(ms))
+    own.forEach(ms => had!.add(ms))
+    for (const [d, t] of sessionDays(own, offset)) {
       if (d < fromDay) continue
       const key = `${d}\u0000${log.p}`
       let r = acc.get(key)
