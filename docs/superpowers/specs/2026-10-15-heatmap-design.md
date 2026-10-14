@@ -16,8 +16,9 @@ A new public mod people want to screenshot and share. It should be easy to recog
 
 - One cell = one local calendar day (00:00 to 24:00, local time zone).
 - Value = **active minutes**: the time between consecutive messages in a session, where a gap longer than 5 minutes adds nothing. A counted gap that crosses midnight is split between the two days.
-- Five shades of Claude orange: none `·`, then `░ ▒ ▓ █` for `< 15m`, `15-60m`, `1-3h` and `3h+`.
-- The shades must pass the `dataviz` palette validator for colorblind safety, in dark and light.
+- Levels: none `·`, then `< 15m`, `15-60m`, `1-3h` and `3h+`, drawn as `▪ ▪ ■ ■` in a ramp of Claude orange.
+- Two square sizes carry the level along with the color, so no level depends on telling colors apart alone.
+- The ramp follows the saved theme in `.claude.json` (a light ramp for light themes, else dark). Block glyphs (`░▒▓█`) were tried and dropped: they fill the line height, so rows merge into stripes.
 
 ## Data
 
@@ -64,7 +65,7 @@ Tue 14 Oct · 3h 12m · 6 sessions · top: mods
 
 ## Stats
 
-All stats are for the visible range and the current scope.
+All stats are for the current scope. Streaks count over every day in the ledger; the rest over the weeks shown.
 
 - **Streak:** current and best, in days. Any active minute keeps a day alive. If today has no activity yet, the streak counts up to yesterday.
 - **Totals:** active hours and session count.
@@ -73,7 +74,7 @@ All stats are for the visible range and the current scope.
 
 ## Keys
 
-- `← ↑ ↓ →`: move the day cursor (starts on today). The detail line shows that day's minutes, sessions and top project.
+- `← ↑ ↓ →`: move the day cursor (starts on today). The detail line shows that day's minutes, sessions and top project. The grid is a `Client`, which gets keys once clicked (Esc gives them back), as in `snake`.
 - `p`: switch between all projects and the current repo.
 - `q`: close.
 

@@ -116,6 +116,21 @@ Shows your Claude Code plan usage and session cost.
 - Without a subscription it shows only the cost
 - Narrow terminals drop the 7d part first, then the cost
 
+### 🔥 heatmap
+
+A GitHub-style grid of your Claude Code time, one square per day.
+
+![heatmap: a year of Claude Code activity as orange squares, with a 25-day streak, peak hours and top projects](../images/heatmap.png)
+
+- `/heatmap` opens the pane. Each square is one day of **active minutes**: the time between messages, where a pause over 5 minutes adds nothing. A pause over midnight is split between the two days
+- Four levels, in two sizes and a ramp of Claude orange: under 15 minutes, under an hour, under 3 hours, 3 hours and more
+- Shows as many weeks as fit the pane, up to a year, ending today
+- Under the grid: your current and best streak, active hours and sessions, your busiest weekday and hour, and your top 3 projects
+- `p` switches between all projects and this repo. Click the grid, then the arrow keys move a day cursor that shows that day's time, sessions and top project. `q` closes
+- Any activity keeps a streak going, counted on your local calendar. A toast when a streak reaches 7, 30 or 100 days
+- **Its own history:** Claude Code deletes session logs after 30 days by default (`cleanupPeriodDays`). heatmap reads them once to fill in the past, then keeps one small line per day per project in `~/.claude/heatmap/days.jsonl`, so the grid keeps growing after the logs are gone
+- Everything stays on your computer. It reads only the message times and the project folder from the logs, with `grep`
+
 ### 💳 openai-balance
 
 Shows your OpenAI API credit above the Claude Code prompt.

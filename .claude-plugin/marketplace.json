@@ -42,6 +42,12 @@
       "source": "./mods/glance"
     },
     {
+      "name": "heatmap",
+      "description": "A GitHub-style grid of your Claude Code time in a /heatmap pane, with streaks, peaks and top projects.",
+      "version": "0.1.0",
+      "source": "./mods/heatmap"
+    },
+    {
       "name": "merge-gate",
       "description": "Holds `gh pr merge` until CI passes and one Codex review (OpenAI's luna model) has run. A PR line above the prompt, and /gate shows the PR's status.",
       "version": "0.1.4",
