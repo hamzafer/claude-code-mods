@@ -37,6 +37,9 @@ jobs:
       - name: Validate the marketplace
         run: claude plugin validate .
 
+      - name: Check every band mod's copy of the band helper
+        run: node --test test/*.test.mjs
+
       - name: Validate and test each mod
         run: |
           # A mod is any folder under mods/ with a tracked plugin.json.

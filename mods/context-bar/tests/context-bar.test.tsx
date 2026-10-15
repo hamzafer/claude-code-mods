@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { resetBandOrder } from '../hooks/bands'
 import { cells, legend, share, toReading, tokens } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 84 } }
@@ -32,8 +33,12 @@ const BREAKDOWN = {
 }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, store: Record<string, unknown> = {}) {
+function engine(on: any, store: Record<string, unknown> = {}, files: Record<string, string> = {}, beneath?: unknown) {
   const asked: unknown[] = []
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('turn.complete', () => ({ text: '' }))
@@ -43,7 +48,7 @@ function engine(on: any, store: Record<string, unknown> = {}) {
     asked.push(e)
     return { value: { startedAt: 0, context: { tokens: 204_000, window: 1_000_000, percent: 20, breakdown: BREAKDOWN }, rateLimits: {}, cost: { usd: 0 } } }
   })
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   return { asked, store }
 }
 
@@ -96,9 +101,27 @@ describe('context-bar', () => {
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined() // the band beneath stays
     // the box is the bottom of the stack: what other mods draw sits above it
     const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
     const kids = root.children as any[]
     expect(kids[0].children).toEqual(['band below'])
-    expect(kids[1].props.borderStyle).toBe('round')
+    expect(kids[1].props.key).toBe('band:context-bar')
+    expect(kids[1].children[0].props.borderStyle).toBe('round')
+    await band.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, {}, { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["context-bar","where-am-i"]}' }, beneath)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    const band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:context-bar', 'band:where-am-i'])
     await band.unmount()
   })
 
