@@ -100,18 +100,30 @@ export async function save(run, id, answers) {
   return run(['plugin', 'configure', id, '--values-stdin'], { input: JSON.stringify(answers) });
 }
 
+// Printable characters become `*`; escape sequences (cursor moves, backspace redraws) pass through.
+export const maskText = (s) =>
+  s.replace(/(\x1b\[[0-9;?]*[ -\/]*[@-~])|[^\x00-\x1f\x7f-\x9f]/g, (m, esc) => esc || '*');
+
 // Line input. Sensitive answers echo `*`; prefill puts the default on the line.
+// Ctrl-C or Ctrl-D rejects the pending question with code ABORT.
 export function createPrompt({ input = process.stdin, output = process.stdout } = {}) {
   const rl = readline.createInterface({ input, output, terminal: true });
   const write = rl._writeToOutput.bind(rl);
-  let mask = false;
-  rl._writeToOutput = (s) => write(mask ? s.replace(/[^\r\n]/g, '*') : s);
+  let mask = false, pending = null, closed = false;
+  rl._writeToOutput = (s) => write(mask ? maskText(s) : s);
+  rl.on('SIGINT', () => rl.close());
+  rl.on('close', () => {
+    closed = true;
+    pending?.(Object.assign(new Error('Stopped'), { code: 'ABORT' }));
+  });
   return {
     ask(question, { sensitive = false, prefill } = {}) {
       output.write(question);
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
+        if (closed) return reject(Object.assign(new Error('Stopped'), { code: 'ABORT' }));
         mask = sensitive;
-        rl.question('', (a) => { mask = false; resolve(a); });
+        pending = reject;
+        rl.question('', (a) => { mask = false; pending = null; resolve(a); });
         if (prefill) rl.write(prefill);
       });
     },

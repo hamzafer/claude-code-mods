@@ -139,19 +139,32 @@ export async function main(argv, {
       report(r, doneLabel(a), label(a));
       if (r.code === 0 && a.verb === 'install') installed.push(a.name);
     }
-    // Options for newly installed mods, in a terminal only.
-    for (const name of isTTY ? installed : []) {
+    // Options for newly installed mods, in a terminal only; elsewhere, say how.
+    let stopped = false;
+    for (const name of installed) {
       const userConfig = await loadOptions(byName(name));
       if (!Object.keys(userConfig).length) continue;
+      if (!isTTY) {
+        out(`${name} has options: run claude plugin configure ${name}@${MARKET}`);
+        continue;
+      }
       out(`\nOptions for ${name} (Enter keeps the default)`);
       const prompt = makePrompt();
       let answers;
-      try { answers = await collect(userConfig, prompt.ask, out); } finally { prompt.close(); }
+      try {
+        answers = await collect(userConfig, prompt.ask, out);
+      } catch (e) {
+        if (e.code !== 'ABORT') throw e;
+        // Ctrl-C or Ctrl-D: the mods are in, only their options wait.
+        out(`\nSkipped configuring. Later: claude plugin configure <mod>@${MARKET}`);
+        stopped = true;
+        break;
+      } finally { prompt.close(); }
       const r = await save(run, `${name}@${MARKET}`, answers);
       if (r) report(r, `configured ${name}`, `configure ${name}`);
     }
     out('\nRestart Claude Code to load your mods.');
-    return failed ? 1 : 0;
+    return stopped ? 130 : failed ? 1 : 0;
   } catch (e) {
     err(e.code === 'ENOENT' ? 'Install Claude Code first: the claude command was not found.' : e.message);
     return 1;
