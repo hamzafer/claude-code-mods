@@ -76,6 +76,31 @@ describe('next-steps', () => {
     await ui.unmount()
   })
 
+  test('one row when the list fits, by default', async ($, on) => {
+    engine(on, () => REPLY)
+    await finishTurn($)
+    const ui = await band($, 400)
+    expect(await ui.find({ type: 'Text', text: /^ {7}$/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('layout rows keeps one per row in a wide band', { options: { layout: 'rows' } }, async ($, on) => {
+    engine(on, () => REPLY)
+    await finishTurn($)
+    const ui = await band($, 400)
+    expect(await ui.find({ type: 'Text', text: /^ {7}$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('layout rows still takes the one row in a short band', { options: { layout: 'rows' } }, async ($, on) => {
+    engine(on, () => REPLY)
+    await finishTurn($)
+    const ui = await $.ui.mount({ plugin: 'next-steps', surface: 'terminal', ...BAND, props: { ...BAND.props, maxRows: 3, bodyColumns: 400 } })
+    expect(await ui.find({ type: 'Text', text: /^ {7}$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^Open a draft PR$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('ignores a result that arrives after a newer turn started', async ($, on) => {
     let release: (s: string) => void = () => {}
     const held = new Promise<string>(done => (release = done))

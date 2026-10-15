@@ -1,6 +1,6 @@
 {
   "name": "next-steps",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
   "author": {
     "name": "Hamza Zafar",
@@ -13,6 +13,13 @@
       "title": "Language",
       "default": "",
       "description": "Write the suggestions in this language (e.g. Korean). Empty keeps English."
+    },
+    "layout": {
+      "type": "string",
+      "title": "Layout",
+      "default": "auto",
+      "options": ["auto", "rows"],
+      "description": "auto: one row when the list fits, one per row otherwise. rows: always one suggestion per row."
     }
   }
 }
