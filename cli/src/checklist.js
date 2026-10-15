@@ -128,12 +128,14 @@ export function render(state, { columns = 80, rows = 24, color = !process.env.NO
 }
 
 // Runs until apply (resolves the ticked names) or quit (resolves null).
-// onEffect(effect, state) may return a patch, e.g. { message }, to show.
+// onEffect(effect, state) may return a patch, e.g. { message }, to show when it lands.
+// The terminal is restored on every way out: keys, errors, exit and SIGTERM/SIGHUP.
 export function runChecklist({
   mods, ticked = [], scope = 'user',
   input = process.stdin, output = process.stdout,
   color = !process.env.NO_COLOR,
   onEffect = async () => null,
+  proc = process,
 }) {
   let state = initialState(mods, ticked, { scope });
   const draw = () => {
@@ -142,37 +144,60 @@ export function runChecklist({
   };
 
   return new Promise((resolve, reject) => {
-    let busy = Promise.resolve();
-    const finish = (fn) => {
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
       input.off('keypress', onKey);
       output.off('resize', draw);
-      if (input.isTTY) input.setRawMode(false);
+      for (const [sig, fn] of Object.entries(onSignal)) proc.off(sig, fn);
+      proc.off('exit', restore);
+      try { if (input.isTTY) input.setRawMode(false); } catch {}
       input.pause();
-      output.write('\x1b[?1049l\x1b[?25h');
-      fn();
+      try { output.write('\x1b[?1049l\x1b[?25h'); } catch {}
+    };
+    const finish = (fn) => { restore(); fn(); };
+    const fail = (e) => {
+      state = { ...state, done: 'quit' };
+      finish(() => reject(e));
+    };
+    // 128 + signal number, as shells report it.
+    const onSignal = {
+      SIGTERM: () => { restore(); proc.exit(143); },
+      SIGHUP: () => { restore(); proc.exit(129); },
     };
     const onKey = (str, key) => {
-      busy = busy.then(async () => {
-        if (state.done) return;
+      if (state.done) return;
+      try {
         state = reduce(state, keyOf(str, key));
         if (state.done) return finish(() => resolve(state.done === 'apply' ? state.ticked : null));
+        // Effects run on the side, so keys (and quitting) never wait on them.
         if (state.effect) {
-          const patch = await onEffect(state.effect, state);
-          if (patch) state = { ...state, ...patch };
+          const at = state.cursor;
+          Promise.resolve(onEffect(state.effect, state)).then((patch) => {
+            if (!patch || state.done || state.cursor !== at) return;
+            state = { ...state, ...patch };
+            draw();
+          }).catch((e) => { if (!state.done) fail(e); });
         }
         draw();
-      }).catch((e) => {
-        state = { ...state, done: 'quit' };
-        finish(() => reject(e));
-      });
+      } catch (e) {
+        fail(e);
+      }
     };
 
-    emitKeypressEvents(input);
-    if (input.isTTY) input.setRawMode(true);
-    input.on('keypress', onKey);
-    output.on('resize', draw);
-    input.resume();
-    output.write('\x1b[?1049h\x1b[?25l');
-    draw();
+    try {
+      proc.once('exit', restore);
+      for (const [sig, fn] of Object.entries(onSignal)) proc.once(sig, fn);
+      emitKeypressEvents(input);
+      if (input.isTTY) input.setRawMode(true);
+      input.on('keypress', onKey);
+      output.on('resize', draw);
+      input.resume();
+      output.write('\x1b[?1049h\x1b[?25l');
+      draw();
+    } catch (e) {
+      fail(e);
+    }
   });
 }

@@ -310,3 +310,11 @@ test('outside a terminal, new mods with options get a configure hint', async () 
   assert.match(r.out, /^where-am-i has options: run claude plugin configure where-am-i@claude-code-mods$/m);
   assert.doesNotMatch(r.out, /heatmap has options/);
 });
+
+test('an empty mod list exits 1 before the checklist opens', async () => {
+  let opened = false;
+  const r = await go([], fakeClaude(), { isTTY: true, loadCatalog: async () => [], checklist: async () => { opened = true; return null; } });
+  assert.equal(r.code, 1);
+  assert.equal(opened, false);
+  assert.match(r.err, /mod list is empty/);
+});

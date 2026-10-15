@@ -78,6 +78,10 @@ export async function main(argv, {
 
   try {
     const mods = await loadCatalog();
+    if (!mods.length) {
+      err('The mod list is empty. Try again later, or update claude-code-mods.');
+      return 1;
+    }
     const scope = opts.project ? 'project' : 'user';
     let state;
     if (opts.pick === null) {
