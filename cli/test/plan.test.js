@@ -85,3 +85,25 @@ test('toShell prints one claude line per action', () => {
     'claude plugin disable heatmap@claude-code-mods --scope project',
   );
 });
+
+test('never disables an installed mod that is not in the current catalog', () => {
+  const s = { 'context-bar': { enabled: true, scope: 'user' }, retired: { enabled: true, scope: 'user' } };
+  assert.deepEqual(planActions({ state: s, picked: [], scope: 'user', catalog: ['context-bar', 'heatmap'] }), [
+    { verb: 'disable', name: 'context-bar', scope: 'user' },
+  ]);
+});
+
+test('readState matches this folder through symlinks and trailing slashes', async () => {
+  const { mkdtempSync, mkdirSync, symlinkSync, realpathSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'mods-')));
+  const real = join(root, 'real');
+  mkdirSync(real);
+  symlinkSync(real, join(root, 'link'));
+  const entry = (projectPath) => [{ id: 'bands@claude-code-mods', scope: 'project', enabled: true, projectPath }];
+  assert.ok(readState(entry(real), { scope: 'project', cwd: join(root, 'link') }).bands);
+  assert.ok(readState(entry(`${real}/`), { scope: 'project', cwd: real }).bands);
+  // Root-exact: a parent folder is not this folder.
+  assert.deepEqual(readState(entry(root), { scope: 'project', cwd: real }), {});
+});

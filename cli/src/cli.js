@@ -106,10 +106,11 @@ export async function main(argv, {
     }
 
     state ??= readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
-    let actions = planActions({ state, picked: opts.pick, scope });
+    const catalog = [...names];
+    let actions = planActions({ state, picked: opts.pick, scope, catalog });
     if (actions.some((a) => a.verb === 'install' || a.verb === 'enable')) {
       const markets = await listJson(run, ['plugin', 'marketplace', 'list', '--json']);
-      actions = planActions({ state, picked: opts.pick, scope, hasMarketplace: markets.some((m) => m.name === MARKET) });
+      actions = planActions({ state, picked: opts.pick, scope, catalog, hasMarketplace: markets.some((m) => m.name === MARKET) });
     }
 
     if (!actions.length) {

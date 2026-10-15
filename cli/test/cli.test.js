@@ -272,3 +272,9 @@ test('a failed install is not asked; a failed configure is reported', async () =
   assert.equal(r.code, 1);
   assert.match(r.out, /✗ configure where-am-i \(boom\)/);
 });
+
+test('an enabled mod missing from the catalog is never disabled', async () => {
+  const plugins = [...installed, { id: 'retired@claude-code-mods', scope: 'user', enabled: true }];
+  const r = await go(['--pick', 'context-bar', '--dry-run'], fakeClaude({ plugins }));
+  assert.equal(r.out, 'Nothing to change.');
+});
