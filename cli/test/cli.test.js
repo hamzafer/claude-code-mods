@@ -30,6 +30,7 @@ async function go(argv, claude = fakeClaude(), extra = {}) {
     out: (s) => out.push(s),
     err: (s) => err.push(s),
     cwd: '/work/a',
+    loadOptions: async () => ({}),
     ...extra,
   });
   return { code, out: out.join('\n'), err: err.join('\n'), calls: claude.calls };
@@ -161,4 +162,60 @@ test('no --pick: prints the grouped list and exits 1', async () => {
   assert.equal(r.code, 1);
   assert.match(r.out, /See what's happening\n {2}context-bar +A bar\n {2}where-am-i +Where\n\nFor fun\n {2}heatmap/);
   assert.match(r.err, /Run in a terminal, or pass --pick/);
+});
+
+// Options: where-am-i has two, heatmap none.
+const whereOpts = {
+  label: { type: 'string', title: 'Label' },
+  secret: { type: 'string', title: 'Key', sensitive: true },
+};
+const loadOptions = async (mod) => (mod.name === 'where-am-i' ? whereOpts : {});
+function fakePrompt(answers) {
+  const asked = [];
+  let closed = false;
+  const makePrompt = () => ({
+    ask: async (q, o) => { asked.push(o); return answers.shift(); },
+    close: () => { closed = true; },
+  });
+  return { makePrompt, asked, closed: () => closed };
+}
+
+test('--dry-run lists the options it would ask for new mods', async () => {
+  const r = await go(['--pick', 'heatmap,where-am-i', '--dry-run'], fakeClaude({ plugins: installed }), { loadOptions });
+  assert.equal(r.code, 0);
+  assert.equal(r.out.split('\n').at(-1), 'would ask where-am-i: label, secret');
+});
+
+test('a new mod with options is asked and saved in a terminal', async () => {
+  const claude = fakeClaude({ plugins: installed });
+  const p = fakePrompt(['home', '']);
+  const r = await go(['--pick', 'heatmap,where-am-i'], claude, { loadOptions, isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(r.code, 0);
+  assert.equal(p.asked.length, 2);
+  assert.equal(p.asked[1].sensitive, true);
+  assert.ok(p.closed());
+  assert.ok(r.calls.includes('plugin configure where-am-i@claude-code-mods --values-stdin'));
+  assert.match(r.out, /✓ configured where-am-i/);
+  assert.match(r.out, /Restart Claude Code to load your mods\.$/);
+});
+
+test('options are not asked outside a terminal or for mods already installed', async () => {
+  const p = fakePrompt([]);
+  let r = await go(['--pick', 'where-am-i'], fakeClaude({ plugins: installed }), { loadOptions, isTTY: false, makePrompt: p.makePrompt });
+  assert.equal(r.code, 0);
+  assert.equal(p.asked.length, 0);
+  const plugins = [{ id: 'where-am-i@claude-code-mods', scope: 'user', enabled: false }];
+  r = await go(['--pick', 'where-am-i'], fakeClaude({ plugins }), { loadOptions, isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(p.asked.length, 0);
+  assert.ok(!r.calls.some((c) => c.includes('configure')));
+});
+
+test('a failed install is not asked; a failed configure is reported', async () => {
+  let p = fakePrompt([]);
+  let r = await go(['--pick', 'where-am-i'], fakeClaude({ plugins: installed, fail: ['install'] }), { loadOptions, isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(p.asked.length, 0);
+  p = fakePrompt(['home', 'k']);
+  r = await go(['--pick', 'where-am-i'], fakeClaude({ plugins: installed, fail: ['configure'] }), { loadOptions, isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /✗ configure where-am-i \(boom\)/);
 });
