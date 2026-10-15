@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(gh pr merge:*)",
+      "Bash(gh api *merge*)",
+      "mcp__plugin_github_github__merge_pull_request"
+    ]
+  }
+}
