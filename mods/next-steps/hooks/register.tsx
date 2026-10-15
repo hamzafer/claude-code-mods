@@ -17,9 +17,11 @@ const steps = atom({ plugin: 'next-steps', key: 'steps' } as const, null as Next
 const active = atom({ plugin: 'next-steps', key: 'active' } as const, false)
 
 let language = ''   // userConfig.language: empty keeps the original English
+let layout = 'auto' // userConfig.layout: 'rows' keeps one suggestion per row
 
 export const register: Register = (on, options) => {
   language = String((options as Record<string, unknown>)?.language ?? '').trim()
+  layout = String((options as Record<string, unknown>)?.layout ?? 'auto')
   // The turn a suggestion may still be shown for. A submit or a new turn moves it on.
   let latest = ''
   let submits = 0
@@ -78,7 +80,8 @@ export const register: Register = (on, options) => {
 
     const lines =
       // One per row needs a row each; a short band gets the one row, cut at its end.
-      fitsOnOneLine(s.items, e.props.bodyColumns) || e.props.maxRows < s.items.length + 2 ? (
+      // layout 'rows' skips only the width check: one per row whenever the band has the rows.
+      (layout !== 'rows' && fitsOnOneLine(s.items, e.props.bodyColumns)) || e.props.maxRows < s.items.length + 2 ? (
         <Text wrap="truncate-end">
           <Text dimColor>{'next:  '}</Text>
           {s.items.flatMap((t, i) => [...item(t, i), sep])}

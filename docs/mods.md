@@ -104,6 +104,7 @@ Suggests the prompts you'd likely send Claude Code next.
 - Makes one Haiku call after each turn. Skips it for short replies, and for a turn that ends while background agents still run
 - where-am-i drops its own "next" part while the list shows, and restores it when the list clears
 - Set `language` to get the suggestions in another language (e.g. `Korean`). Empty, the default, keeps English. File names, commands and code identifiers stay as they are, so a drafted prompt is still pasteable. Change it in `/config`, or in `settings.json` under `pluginConfigs["next-steps"].options`
+- Set `layout` to `rows` to show one suggestion per row however wide the terminal is. `auto`, the default, puts the list on one row when it fits the band and one per row otherwise. A band too short for one per row still gets the one row, as with `auto`. Change it in `/config` or under the same `options`
 
 ### 💰 usage-meter
 
