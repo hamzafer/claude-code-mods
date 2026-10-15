@@ -1,6 +1,6 @@
 {
   "name": "claude-code-mods",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pick the Claude Code mods you want from one checklist.",
   "type": "module",
   "bin": {

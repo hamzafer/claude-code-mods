@@ -136,6 +136,8 @@ export function runChecklist({
   color = !process.env.NO_COLOR,
   onEffect = async () => null,
   proc = process,
+  // Keys typed before the list shows (like the Enter after npx's "Ok to proceed?") are dropped.
+  settleMs = 250,
 }) {
   let state = initialState(mods, ticked, { scope });
   const draw = () => {
@@ -167,7 +169,7 @@ export function runChecklist({
       SIGHUP: () => { restore(); proc.exit(129); },
     };
     const onKey = (str, key) => {
-      if (state.done) return;
+      if (state.done || Date.now() < readyAt) return;
       try {
         state = reduce(state, keyOf(str, key));
         if (state.done) return finish(() => resolve(state.done === 'apply' ? state.ticked : null));
@@ -186,6 +188,7 @@ export function runChecklist({
       }
     };
 
+    const readyAt = Date.now() + settleMs;
     try {
       proc.once('exit', restore);
       for (const [sig, fn] of Object.entries(onSignal)) proc.once(sig, fn);

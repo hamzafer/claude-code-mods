@@ -209,7 +209,7 @@ function fakeTty() {
 
 test('runChecklist returns the ticked names on enter and restores the terminal', async () => {
   const t = fakeTty();
-  const done = runChecklist({ mods: catalog, ticked: [], input: t.input, output: t.output, color: false });
+  const done = runChecklist({ mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 0 });
   t.input.write(' ');
   t.input.write('\x1b[B');
   t.input.write(' ');
@@ -223,7 +223,7 @@ test('runChecklist returns the ticked names on enter and restores the terminal',
 
 test('runChecklist returns null on ctrl-c', async () => {
   const t = fakeTty();
-  const done = runChecklist({ mods: catalog, ticked: ['heatmap'], input: t.input, output: t.output, color: false });
+  const done = runChecklist({ mods: catalog, ticked: ['heatmap'], input: t.input, output: t.output, color: false, settleMs: 0 });
   t.input.write('\x03');
   assert.equal(await done, null);
   assert.deepEqual(t.input.raw, [true, false]);
@@ -233,7 +233,7 @@ test('runChecklist hands effects to onEffect and shows its message', async () =>
   const t = fakeTty();
   const seen = [];
   const done = runChecklist({
-    mods: catalog, ticked: [], input: t.input, output: t.output, color: false,
+    mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 0,
     onEffect: async (effect) => { seen.push(effect); return { message: `look at ${effect.name}` }; },
   });
   t.input.write('p');
@@ -247,7 +247,7 @@ test('runChecklist hands effects to onEffect and shows its message', async () =>
 test('runChecklist restores the terminal when onEffect throws', async () => {
   const t = fakeTty();
   const done = runChecklist({
-    mods: catalog, ticked: [], input: t.input, output: t.output, color: false,
+    mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 0,
     onEffect: async () => { throw new Error('nope'); },
   });
   t.input.write('p');
@@ -266,7 +266,7 @@ test('render survives odd mod fields and strips control characters', () => {
 test('q quits while a preview is still loading', async () => {
   const t = fakeTty();
   const done = runChecklist({
-    mods: catalog, ticked: [], input: t.input, output: t.output, color: false,
+    mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 0,
     onEffect: () => new Promise(() => {}),
   });
   t.input.write('p');
@@ -279,7 +279,7 @@ test('a slow effect message shows when it lands', async () => {
   const t = fakeTty();
   let land;
   const done = runChecklist({
-    mods: catalog, ticked: [], input: t.input, output: t.output, color: false,
+    mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 0,
     onEffect: () => new Promise((r) => { land = r; }),
   });
   t.input.write('p');
@@ -305,7 +305,7 @@ test('a failing first draw still restores the terminal', async () => {
   const write = t.output.write.bind(t.output);
   t.output.write = (s) => { if (++writes === 2) throw new Error('draw broke'); return write(s); };
   await assert.rejects(
-    runChecklist({ mods: catalog, input: t.input, output: t.output, color: false, proc: fakeProc() }),
+    runChecklist({ mods: catalog, input: t.input, output: t.output, color: false, settleMs: 0, proc: fakeProc() }),
     /draw broke/,
   );
   assert.deepEqual(t.input.raw, [true, false]);
@@ -315,7 +315,7 @@ test('SIGTERM and SIGHUP restore the terminal, then exit', async () => {
   for (const [sig, code] of [['SIGTERM', 143], ['SIGHUP', 129]]) {
     const t = fakeTty();
     const proc = fakeProc();
-    runChecklist({ mods: catalog, input: t.input, output: t.output, color: false, proc });
+    runChecklist({ mods: catalog, input: t.input, output: t.output, color: false, settleMs: 0, proc });
     proc.emit(sig);
     assert.deepEqual(t.input.raw, [true, false]);
     assert.match(t.written(), /\x1b\[\?1049l\x1b\[\?25h$/);
@@ -326,13 +326,13 @@ test('SIGTERM and SIGHUP restore the terminal, then exit', async () => {
 test('exit restores the terminal, and listeners go away when done', async () => {
   const t = fakeTty();
   const proc = fakeProc();
-  runChecklist({ mods: catalog, input: t.input, output: t.output, color: false, proc });
+  runChecklist({ mods: catalog, input: t.input, output: t.output, color: false, settleMs: 0, proc });
   proc.emit('exit');
   assert.deepEqual(t.input.raw, [true, false]);
 
   const u = fakeTty();
   const p2 = fakeProc();
-  const done = runChecklist({ mods: catalog, input: u.input, output: u.output, color: false, proc: p2 });
+  const done = runChecklist({ mods: catalog, input: u.input, output: u.output, color: false, settleMs: 0, proc: p2 });
   assert.ok(p2.listenerCount('SIGTERM') > 0);
   u.input.write('q');
   await done;
@@ -343,7 +343,7 @@ test('a late message is dropped once the cursor has moved on', async () => {
   const t = fakeTty();
   let land;
   const done = runChecklist({
-    mods: catalog, ticked: [], input: t.input, output: t.output, color: false,
+    mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 0,
     onEffect: () => new Promise((r) => { land = r; }), proc: fakeProc(),
   });
   t.input.write('p');
@@ -354,4 +354,14 @@ test('a late message is dropped once the cursor has moved on', async () => {
   assert.doesNotMatch(t.written(), /for the old row/);
   t.input.write('q');
   await done;
+});
+
+test('runChecklist ignores keys typed before the list was drawn, like the Enter from npx\'s prompt', async () => {
+  const t = fakeTty();
+  const done = runChecklist({ mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 50 });
+  t.input.write('\r');
+  await new Promise((r) => setTimeout(r, 80));
+  t.input.write(' ');
+  t.input.write('\r');
+  assert.deepEqual(await done, ['context-bar']);
 });
