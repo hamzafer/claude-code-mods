@@ -1,0 +1,13 @@
+name: Rule test (delete me)
+on:
+  push:
+    branches: [rule-test]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  env:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - run: echo "should never run: only main may use the npm environment"
