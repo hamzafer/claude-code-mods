@@ -21,7 +21,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: npm # only main may use it, and npm trusts only this environment
+    environment: # only main may use it, and npm trusts only this environment
+      name: npm
+      url: https://www.npmjs.com/package/claude-code-mods/v/${{ steps.version.outputs.version }}
     defaults:
       run:
         working-directory: cli
@@ -37,6 +39,8 @@ jobs:
         run: |
           name=$(node -p "require('./package.json').name")
           version=$(node -p "require('./package.json').version")
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "Not a version: $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if out=$(npm view "$name@$version" version 2>&1); then
             echo "$name@$version is already on npm. Nothing to publish."
             echo "new=false" >> "$GITHUB_OUTPUT"
