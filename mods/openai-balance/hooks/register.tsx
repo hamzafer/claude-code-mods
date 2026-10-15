@@ -5,6 +5,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Line } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const EVERY_MS = 10 * 60 * 1000 // spend posts in daily buckets; no need to ask more often
 const TICK_MS = 60 * 1000 // the timer checks every minute; nextTry decides whether to ask
@@ -45,6 +46,8 @@ class HttpError extends Error {
     super(`OpenAI answered ${status}`)
   }
 }
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = (on, options) => {
   configKey = typeof options.adminKey === 'string' ? options.adminKey.trim() : ''
@@ -133,18 +136,27 @@ export const register: Register = (on, options) => {
       )
     }
 
-    return (
-      <Box flexDirection="column">
-        <Box paddingX={1}>
-          <Text wrap="truncate-end">
-            {head}
-            {body}
-          </Text>
-        </Box>
-        {rest}
+    const mine = (
+      <Box paddingX={1}>
+        <Text wrap="truncate-end">
+          {head}
+          {body}
+        </Text>
       </Box>
     )
+    return stackBands(rest, 'openai-balance', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Updates what the band draws. Every 10 minutes, a minute after a failure, or now when forced.

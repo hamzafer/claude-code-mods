@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { adjustFrom, atHours, computeTimes, deadlineDue, hhmm, status, timesFor, until } from '../hooks/register'
+import { adjustFrom, atHours, computeTimes, deadlineDue, hhmm, resetBandOrder, status, timesFor, until } from '../hooks/register'
 import type { Config, Times } from '../hooks/register'
 
 const MINUTE = 60_000
@@ -160,6 +160,7 @@ describe('prayer-times', () => {
 
   test('draws the line from its settings', { options: { latitude: 51.5074, longitude: -0.1278 } }, async ($, on) => {
     mock.clock(on, { now: Date.now() })
+    resetBandOrder()
     on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
     on('command.register', () => ({ value: undefined }))
     on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
@@ -168,6 +169,10 @@ describe('prayer-times', () => {
     expect(await band.find({ type: 'Text', text: /🕌|⛔/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /^(🕌|⛔)$/ })).toBeDefined() // the icon is its own plain Text
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined()
+    // its band is keyed for the band order, above what other mods draw
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:prayer-times', undefined])
     await band.unmount()
     expect((await $.command.run({ command: 'prayers', args: '' } as any)).text).toMatch(/^Fajr \d\d:\d\d · Sunrise .* Isha \d\d:\d\d \(karachi, hanafi Asr\)$/)
   })
@@ -187,12 +192,38 @@ describe('prayer-times', () => {
 
   test('without a location it asks for one and computes nothing', async ($, on) => {
     mock.clock(on, { now: Date.now() })
+    resetBandOrder()
     on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
     on('command.register', () => ({ value: undefined }))
     on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const band = await $.ui.mount({ plugin: 'prayer-times', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /set your latitude and longitude in \/config/ })).toBeDefined()
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:prayer-times', undefined]) // keyed too
+    await band.unmount()
+  })
+
+  test('follows the band order file', { options: { latitude: 51.5074, longitude: -0.1278 } }, async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    const files: Record<string, string> = { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","prayer-times"]}' }
+    mock.clock(on, { now: Date.now() })
+    on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
+    on('command.register', () => ({ value: undefined }))
+    on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+    on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+    on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
+    on('ui.render', () => beneath)
+    resetBandOrder()
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const band = await $.ui.mount({ plugin: 'prayer-times', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:prayer-times'])
     await band.unmount()
   })
 })

@@ -7,6 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Review } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const SHOW_DONE_MS = 30_000 // a finished review stays in the band this long
 const BAND_ROWS = 4
@@ -18,6 +19,8 @@ const reviews = atom({ plugin: 'review-watch', key: 'reviews' } as const, [] as 
 const now = atom({ plugin: 'review-watch', key: 'now' } as const, 0)
 
 let isPolling = false // a slow ps must not let two polls overlap
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   let cwd = ''
@@ -88,7 +91,7 @@ export const register: Register = on => {
     const shown = (await read($, reviews)).filter(v => isShown(v))
     if (e.props.hasSurvey || shown.length === 0) return rest
     const { Box, Text } = $.ui.resolve(e)
-    return (
+    const mine = (
       <Box flexDirection="column">
         {shown.slice(0, BAND_ROWS).map(v => (
           <Box flexDirection="column">
@@ -104,10 +107,21 @@ export const register: Register = on => {
           </Box>
         ))}
         {shown.length > BAND_ROWS && <Text dimColor>{`   +${shown.length - BAND_ROWS} more`}</Text>}
-        {rest}
       </Box>
     )
+    return stackBands(rest, 'review-watch', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Checks each running Codex review: is its process still there, and what did it print last.

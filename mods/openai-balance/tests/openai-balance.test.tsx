@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { resetBandOrder } from '../hooks/register'
+
 const NOW = Date.UTC(2026, 9, 7, 12, 30) // 2026-10-07 12:30 UTC
 const TODAY = NOW / 1000 - ((NOW / 1000) % 86_400)
 const KEY = 'sk-admin-test'
@@ -10,11 +12,16 @@ const ok = (body: object) => ({ value: { status: 200, ok: true, headers: {}, tex
 const fail = (status: number) => ({ value: { status, ok: false, headers: {}, text: '{}' } })
 
 // Stands for the engine, the key's sources and OpenAI beneath the mod.
-function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; todayItems?: [string, number][]; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number }) {
+function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; todayItems?: [string, number][]; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number ; files?: Record<string, string>; beneath?: unknown}) {
   const urls: string[] = []
   const auths: string[] = []
   const from = opts.keyFrom ?? 'keychain'
   let now = NOW
+  const files = opts.files ?? {}
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('turn.complete', () => ({ text: '' }))
@@ -27,7 +34,7 @@ function engine(on: any, opts: { todaySpend: () => number; todayItem?: string; t
     return { value: undefined }
   })
   on('ui.status', () => ({ value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'engine band' }))
+  on('ui.render', ($: any, e: any) => opts.beneath ?? $.ui.resolve(e).Text({ children: 'engine band' }))
   on('process.run', (_$: any, e: any) => {
     const hit = (e.argv[0] === 'printenv' && from === 'env') || (e.argv[0] === 'security' && from === 'keychain')
     return { value: { exitCode: hit ? 0 : 1, stdout: hit ? `${KEY}\n` : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
@@ -81,6 +88,31 @@ const turn = async ($: any) => {
 const run = ($: any, args: string) => $.command.run({ command: 'openai-balance', args } as any)
 
 describe('openai-balance', () => {
+  test('keys its band for the band order, above what other mods draw', async ($, on) => {
+    engine(on, { todaySpend: () => 0.5 })
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'openai-balance', surface: 'terminal', ...BAND })
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:openai-balance', undefined])
+    await ui.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, { todaySpend: () => 0.5, files: { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","openai-balance"]}' }, beneath })
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'openai-balance', surface: 'terminal', ...BAND })
+    const root: any = await ui.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:openai-balance'])
+    await ui.unmount()
+  })
+
   test('asks for a balance until one is set, then subtracts only new spend', async ($, on) => {
     let spend = 0.04
     const h = engine(on, { todaySpend: () => spend })
