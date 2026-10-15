@@ -215,7 +215,7 @@
     {
       "name": "session-saver",
       "description": "Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/session-saver",
       "category": "My setup (fork and adapt)",
       "tags": [
@@ -241,7 +241,7 @@
     {
       "name": "token-weather",
       "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "source": "./mods/token-weather",
       "category": "See what's happening",
       "tags": [
@@ -265,7 +265,7 @@
     {
       "name": "usage-meter",
       "description": "Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./mods/usage-meter",
       "category": "See what's happening",
       "tags": [
@@ -276,7 +276,7 @@
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "source": "./mods/where-am-i",
       "category": "See what's happening",
       "tags": [
@@ -287,7 +287,7 @@
     {
       "name": "switchboard",
       "description": "Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "source": "./mods/switchboard",
       "category": "Spend less",
       "tags": [

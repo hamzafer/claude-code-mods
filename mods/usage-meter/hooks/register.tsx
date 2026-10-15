@@ -3,6 +3,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { UsageMeterSnapshot, UsageMeterWindow } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const CELLS = 5
 const BLOCKS = '▁▂▃▄▅▆▇█'
@@ -18,6 +19,19 @@ const warned = atom({ plugin: 'usage-meter', key: 'warned' } as const, {} as Rec
 
 type Segment = { text: string; color?: string; dim?: boolean }
 type Part = { kind: 'window' | 'cost'; isPrimary: boolean; segments: Segment[] }
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
+}
 
 export const register: Register = on => {
   let timer: Timer | undefined // one countdown timer, even if session.start fires again
@@ -59,18 +73,17 @@ export const register: Register = on => {
       segments.push(...p.segments)
     })
 
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="row" paddingX={1}>
-          {segments.map((s, i) => (
-            <Text key={String(i)} color={s.color} dimColor={s.dim} wrap="truncate">
-              {s.text}
-            </Text>
-          ))}
-        </Box>
-        {rest}
+    const mine = (
+      <Box flexDirection="row" paddingX={1}>
+        {segments.map((s, i) => (
+          <Text key={String(i)} color={s.color} dimColor={s.dim} wrap="truncate">
+            {s.text}
+          </Text>
+        ))}
       </Box>
     )
+    bandOrder ??= readBandOrder($).catch(() => [])
+    return stackBands(rest, 'usage-meter', mine, 'above', await bandOrder) // above what other mods draw, unless the band order says otherwise
   })
 }
 

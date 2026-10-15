@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { baseline, move, totals, trim } from '../hooks/register'
+import { baseline, move, resetBandOrder, totals, trim } from '../hooks/register'
 import { LADDERS, costOf, parsePick, pickRequest, tierOf } from '../hooks/route'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
@@ -20,7 +20,10 @@ function jevAnswer(choice: string, confidence: number) {
 }
 
 // Stands for the engine beneath the mod; records what each spawn ran on and what the picker was sent.
-function engine(on: any, answer: { status: number; text: string } | null, env: Record<string, string> = {}) {
+function engine(on: any, answer: { status: number; text: string } | null, env: Record<string, string> = {}, files: Record<string, string> = {}, beneath?: unknown) {
+  resetBandOrder()
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   const spawned: (string | undefined)[] = []
   const sent: any[] = []
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
@@ -34,7 +37,7 @@ function engine(on: any, answer: { status: number; text: string } | null, env: R
   on('agent.spawn', (_$: any, e: any) => (spawned.push(e.model), { model: e.model ?? e.parentModel, agentId: 'a1' }))
   on('turn.complete', () => ({ text: '', usage: { ...USAGE, model: 'claude-haiku-4-5' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   return { spawned, sent }
 }
 
@@ -219,5 +222,26 @@ describe('switchboard', () => {
     await $.session.start(START)
     await $.agent.spawn(SPAWN as any)
     expect(spawned).toEqual([undefined])
+  })
+
+  test('keys its band and follows the band order file', { options: { picker: 'openai' } }, async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    const files = { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","switchboard"]}' }
+    engine(on, null, { OPENAI_API_KEY: 'oa-test', HOME: '/home/me' }, files, beneath)
+    await $.session.start(START)
+    await $.agent.spawn({ ...SPAWN, model: 'sonnet' } as any)
+    const band = await $.ui.mount({ plugin: 'switchboard', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    // with no order it would sit above where-am-i; the order file puts it last
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:switchboard'])
+    expect(await band.find({ type: 'Text', text: /named by the caller, kept/ })).toBeDefined()
+    await band.unmount()
+    resetBandOrder()
   })
 })
