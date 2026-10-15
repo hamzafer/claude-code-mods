@@ -3,7 +3,7 @@
 Pick the Claude Code mods you want from one checklist.
 
 ```sh
-npx claude-code-mods
+npx claude-code-mods@latest
 ```
 
 Tick the mods you want, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after.
@@ -15,7 +15,7 @@ Tick the mods you want, see what each one adds, and press Enter to install. Unti
 - `--dry-run` prints the `claude` commands instead of running them
 - `--help` shows usage
 
-It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods`.
+It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods@latest`.
 
 ## Order your bands
 

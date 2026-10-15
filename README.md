@@ -5,6 +5,7 @@
 <p align="center"><b>Make Claude Code show what it's doing.</b><br>Plugins for Claude Code, built on function hooks: live lines above the prompt, guards, panes and games. Install only the ones you want.</p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/claude-code-mods"><img src="https://img.shields.io/npm/v/claude-code-mods.svg" alt="npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
   <a href="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml"><img src="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
 </p>
@@ -34,22 +35,24 @@
 ## 🚀 Install
 
 ```sh
-npx claude-code-mods
+npx claude-code-mods@latest
 ```
 
-Tick the mods you want in a checklist, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after.
+Tick the mods you want in a checklist, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after. `@latest` makes npx skip an old cached copy.
 
 - `--project` installs for this project only
 - `--dry-run` prints the `claude` commands instead of running them
 - `--pick a,b` turns on exactly these mods, no checklist
 
+It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods@latest`.
+
 ### Order your bands
 
-Press `o` in the checklist to order your bands (the lines above the prompt). Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top. Needs claude-code-mods 0.2.0 or newer and the latest band mods.
+Press `o` in the checklist to order your bands (the lines above the prompt). Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top.
 
-It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods`.
+### Other ways
 
-Or by hand:
+By hand:
 
 ```sh
 claude plugin marketplace add hamzafer/claude-code-mods

@@ -15,7 +15,7 @@ Most mods add a live line above the Claude Code prompt, like extra status lines.
 - They stack
 - Each hides when it has nothing to show
 
-To order them, run `npx claude-code-mods` and press `o` in the checklist. Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top. Needs claude-code-mods 0.2.0 or newer and the latest band mods.
+To order them, run `npx claude-code-mods@latest` and press `o` in the checklist. Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top.
 
 ### 🙋 Guards ask before they block
 
