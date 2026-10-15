@@ -8,7 +8,7 @@
     {
       "name": "agent-radar",
       "description": "One live line above the prompt per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/agent-radar",
       "category": "See what's happening",
       "tags": [
@@ -21,7 +21,7 @@
     {
       "name": "blast-radius",
       "description": "Holds risky Bash commands and shows what they would change before they run.",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "source": "./mods/blast-radius",
       "category": "Guard your repo",
       "tags": [
@@ -45,7 +45,7 @@
     {
       "name": "browser-lanes",
       "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. A subagent that wants the browser waits until the one using it is done.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/browser-lanes",
       "category": "See what's happening",
       "tags": [
@@ -73,7 +73,7 @@
     {
       "name": "glance",
       "description": "One line above the prompt with what needs you: next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./mods/glance",
       "category": "My setup (fork and adapt)",
       "tags": [
@@ -102,7 +102,7 @@
     {
       "name": "merge-gate",
       "description": "Holds `gh pr merge` until CI passes and one Codex review (OpenAI's luna model) has run. A PR line above the prompt, and /gate shows the PR's status.",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "source": "./mods/merge-gate",
       "category": "My setup (fork and adapt)",
       "tags": [
@@ -118,7 +118,7 @@
     {
       "name": "mission-control",
       "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/mission-control",
       "category": "See what's happening",
       "tags": [

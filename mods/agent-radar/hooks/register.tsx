@@ -6,6 +6,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { RadarAgent } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const PANE = 'agent-radar'
 const SHOW_DONE_MS = 30_000 // a finished agent stays in the band this long
@@ -15,6 +16,8 @@ const BAND_ROWS = 4
 const agents = atom({ plugin: 'agent-radar', key: 'agents' } as const, [] as RadarAgent[])
 const selected = atom({ plugin: 'agent-radar', key: 'selected' } as const, null as string | null)
 const now = atom({ plugin: 'agent-radar', key: 'now' } as const, 0)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -79,7 +82,7 @@ export const register: Register = on => {
     const shown = (await read($, agents)).filter(a => isShown(a))
     if (e.props.hasSurvey || shown.length === 0) return rest
     const { Box, Text } = $.ui.resolve(e)
-    return (
+    const mine = (
       <Box flexDirection="column">
         {shown.slice(0, BAND_ROWS).map(a => (
           <Text wrap="truncate-end">
@@ -90,9 +93,9 @@ export const register: Register = on => {
           </Text>
         ))}
         {shown.length > BAND_ROWS && <Text dimColor>{`   +${shown.length - BAND_ROWS} more · /radar`}</Text>}
-        {rest}
       </Box>
     )
+    return stackBands(rest, 'agent-radar', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -151,6 +154,17 @@ export const register: Register = on => {
       </Box>
     )
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Agents that started before this mod loaded: take them from the engine's own list.

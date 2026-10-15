@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { attachment, describeAttachment, parsePs } from '../hooks/attach'
-import { browserReport, shotName, slug } from '../hooks/register'
+import { browserReport, resetBandOrder, shotName, slug } from '../hooks/register'
 
 const SHARED = '/Users/me/Library/Caches/ms-playwright-mcp/mcp-chrome-265f254'
 // Two Claude processes: 100 (us) and 200 (another). Each has a Playwright server.
@@ -28,8 +28,12 @@ const psOut = (argv: string[], under: number) => {
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod: records what the browser tools were called with.
-function engine(on: any, other?: object) {
+function engine(on: any, other?: object, files: Record<string, string> = {}, beneath?: unknown) {
   const ran: any[] = []
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   const toasts: string[] = []
   const store = new Map<string, unknown>(other ? [['driver', other]] : [])
   on('tool.call', (_$: any, e: any) => (ran.push(e), { result: {}, text: 'ok' }))
@@ -39,7 +43,7 @@ function engine(on: any, other?: object) {
   on('store.get', (_$: any, e: any) => ({ value: store.get(e.key) }))
   on('store.set', (_$: any, e: any) => (store.set(e.key, e.value), { value: undefined }))
   on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   on('command.register', () => ({ value: undefined }))
   on('process.run', (_$: any, e: any) => {
     const [cmd] = e.argv as string[]
@@ -71,6 +75,10 @@ describe('browser-lanes', () => {
     expect(await ui.find({ type: 'Text', text: /attached · this session's Chrome · shared profile/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /driving: main/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /band below/ })).toBeDefined()
+    // the line sits on top: what other mods draw stays below it
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:browser-lanes', undefined])
     await ui.unmount()
   })
 
@@ -192,5 +200,21 @@ describe('browser-lanes', () => {
     const { ran } = engine(on)
     await $.tool.call({ tool: 'Read', file_path: '/a' } as any)
     expect(ran).toHaveLength(1)
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, undefined, { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","browser-lanes"]}' }, beneath)
+    await $.tool.call({ tool: `${PW}navigate`, url: 'https://example.com' } as any)
+    await new Promise(done => (globalThis as any).setTimeout(done, 20)) // the attachment check runs in the background
+    const ui = await $.ui.mount({ plugin: 'browser-lanes', surface: 'terminal', ...BAND } as any)
+    const root: any = await ui.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:browser-lanes'])
+    await ui.unmount()
   })
 })

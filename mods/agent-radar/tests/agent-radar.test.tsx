@@ -1,13 +1,17 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { describe as label, elapsed, isShown } from '../hooks/register'
+import { describe as label, elapsed, isShown, resetBandOrder } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 const PANE = { component: 'Pane', requestId: 'agent-radar', props: { title: 'Agent Radar', isFocused: true, bodyColumns: 100, placement: 'dock' } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any) {
+function engine(on: any, files: Record<string, string> = {}, beneath?: unknown) {
   const toasts: string[] = []
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('clock.every', () => ({ value: { cancel: () => {} } }))
@@ -17,7 +21,7 @@ function engine(on: any) {
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
   on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'Run the sweep', toolUses: [] }, { role: 'assistant', text: 'Sweep is at trial 12 of 40.', toolUses: [] }] }))
   return { toasts }
 }
@@ -40,6 +44,10 @@ describe('agent-radar', () => {
     const band = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: / ● sweep runner/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /band below/ })).toBeDefined()
+    // the radar sits on top: what other mods draw stays below it
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:agent-radar', undefined])
 
     const r = await $.command.run({ command: 'radar', args: '' } as any)
     expect(r.text).toBe('1 running, 0 finished')
@@ -57,6 +65,22 @@ describe('agent-radar', () => {
     expect(await ui.find({ type: 'Text', text: /0 running · 1 finished/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: / ✓ sweep runner/ })).toBeDefined() // still shown for 30 s
     await ui.unmount()
+    await band.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","agent-radar"]}' }, beneath)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn({ prompt: 'run it', description: 'sweep runner' } as any)
+    const band = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:agent-radar'])
     await band.unmount()
   })
 })
