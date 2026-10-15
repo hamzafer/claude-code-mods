@@ -7,6 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PromptOrigin, Register } from 'claude-code'
 
 import type { Parked } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const MODEL = 'haiku'
 const NAME_AFTER_TURNS = 2
@@ -15,6 +16,19 @@ const NAME_AFTER_TURNS = 2
 const resumed = atom({ plugin: 'session-saver', key: 'resumed' } as const, null as Parked | null)
 // Whether this process showed the note yet: the session's state, so a reload does not show it twice.
 const isShown = atom({ plugin: 'session-saver', key: 'isShown' } as const, false)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
+}
 
 export const register: Register = on => {
   let prompt = ''
@@ -73,7 +87,7 @@ export const register: Register = on => {
     const p = await read($, resumed)
     if (e.props.hasSurvey || !p) return rest
     const { Box, Text } = $.ui.resolve(e)
-    return (
+    const mine = (
       <Box flexDirection="column">
         <Text wrap="truncate-end">
           <Text color="green" bold>{` ↩ Last time (${ago(p.at)}): `}</Text>
@@ -82,9 +96,10 @@ export const register: Register = on => {
           {p.next !== '' && <Text>{p.next}</Text>}
         </Text>
         {p.note !== '' && <Text dimColor wrap="truncate-end">{`   note: ${p.note}`}</Text>}
-        {rest}
       </Box>
     )
+    bandOrder ??= readBandOrder($).catch(() => [])
+    return stackBands(rest, 'session-saver', mine, 'above', await bandOrder) // above what other mods draw, unless the band order says otherwise
   })
 }
 

@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { describe as label, parseRecap } from '../hooks/register'
+import { describe as label, parseRecap, resetBandOrder } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 
 const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
 
 // Stands for the engine beneath the mod.
-function engine(on: any, reply: string) {
+function engine(on: any, reply: string, beneath?: unknown) {
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('prompt.submit', () => ({ text: '' }))
@@ -17,6 +17,7 @@ function engine(on: any, reply: string) {
   on('model.complete', () => ({ value: { isAnswered: true, text: reply, usage: { input_tokens: 1, output_tokens: 1 } } }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'build the mods', toolUses: [] }] }))
   on('ui.render', ($: any, e: any) => {
+    if (beneath) return beneath
     const { Text } = $.ui.resolve(e)
     return Text({ children: 'band below' }) // stands for Token Weather and the engine's own band
   })
@@ -110,5 +111,32 @@ describe('where-am-i', () => {
     expect(parseRecap('no json here')).toBeNull()
     const long = parseRecap('{"goal":"g","now":"Part A of Merge Gate passed. Codex rules block without the luna model and codex exec too.","waiting":"","next":""}')
     expect(long?.now).toBe('Part A of Merge Gate passed')
+  })
+
+  test('keys its band and follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:context-bar' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    resetBandOrder()
+    const files: Record<string, string> = { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["context-bar","where-am-i"]}' }
+    on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+    on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+    on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
+    engine(on, '{"goal":"Ship 3 mods","now":"built it","waiting":"","next":""}', beneath)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.prompt.submit({ text: 'ship all 3' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+    const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    // with no order it would sit above context-bar; the order file puts it last
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:context-bar', 'band:where-am-i'])
+    expect(await ui.find({ type: 'Text', text: /^Ship 3 mods$/ })).toBeDefined()
+    await ui.unmount()
+    resetBandOrder()
   })
 })

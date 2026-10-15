@@ -9,6 +9,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Route, Tier } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 import { LADDERS, PICKER_NAME, PICK_URL, PRICES_AS_OF, addUsage, costOf, parsePick, pickRequest, tierOf, usd } from './route'
 import type { Ladder, Style, Via } from './route'
 
@@ -22,6 +23,19 @@ const PANE_ROWS = 12
 // Held by the host, so a hot reload keeps the log.
 const routes = atom({ plugin: 'switchboard', key: 'routes' } as const, [] as Route[])
 const now = atom({ plugin: 'switchboard', key: 'now' } as const, 0)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
+}
 
 export const register: Register = (on, options) => {
   const mode = options.mode === 'suggest' ? 'suggest' : 'auto'
@@ -121,7 +135,7 @@ export const register: Register = (on, options) => {
     const shown = (await read($, routes)).filter(r => isShown(r))
     if (e.props.hasSurvey || shown.length === 0) return rest
     const { Box, Text } = $.ui.resolve(e)
-    return (
+    const mine = (
       <Box flexDirection="column">
         {shown.slice(0, BAND_ROWS).map(r => (
           <Text wrap="truncate-end">
@@ -131,9 +145,10 @@ export const register: Register = (on, options) => {
           </Text>
         ))}
         {shown.length > BAND_ROWS && <Text dimColor>{`   +${shown.length - BAND_ROWS} more · /route`}</Text>}
-        {rest}
       </Box>
     )
+    bandOrder ??= readBandOrder($).catch(() => [])
+    return stackBands(rest, 'switchboard', mine, 'above', await bandOrder) // above what other mods draw, unless the band order says otherwise
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

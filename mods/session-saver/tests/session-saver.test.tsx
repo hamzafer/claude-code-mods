@@ -1,12 +1,17 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { ago, isWrapped, kebab } from '../hooks/register'
+import { ago, isWrapped, kebab, resetBandOrder } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 } }
 const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
 
 // Stands for the engine beneath the mod: a store, unpause, Haiku, the transcript.
-function engine(on: any, opts: { title?: string; reply?: string; turns?: number; store?: [string, unknown][] } = {}) {
+function engine(on: any, opts: { title?: string; reply?: string; turns?: number; store?: [string, unknown][]; files?: Record<string, string>; beneath?: unknown } = {}) {
+  const files = opts.files ?? {}
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   const store = new Map<string, unknown>(opts.store ?? [])
   const runs: string[] = []
   const toasts: string[] = []
@@ -21,7 +26,7 @@ function engine(on: any, opts: { title?: string; reply?: string; turns?: number;
   on('prompt.submit', () => ({ text: '' }))
   on('turn.complete', () => ({ text: '' }))
   on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => opts.beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   on('model.complete', () => ({ value: { isAnswered: true, text: opts.reply ?? 'Ship-Mods', usage: { input_tokens: 1, output_tokens: 1 } } }))
   on('process.run', (_$: any, e: any) => {
     runs.push(e.argv.join(' '))
@@ -115,5 +120,27 @@ describe('session-saver', () => {
     await $.prompt.submit({ text: 'install' } as any)
     expect(await ui.find({ type: 'Text', text: /3 mods tested/ })).toBeUndefined()
     await ui.unmount()
+  })
+
+  test('keys its band and follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    const order = '{"order":["where-am-i","session-saver"]}'
+    engine(on, { reply: '{"leftOff":"3 mods tested","next":"install"}', beneath, files: { '/home/me/.claude/claude-code-mods/bands.json': order } })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.command.run({ command: 'park', args: '' } as any)
+    await $.classic.SessionStart({ source: 'resume' } as any)
+    const ui = await $.ui.mount({ plugin: 'session-saver', surface: 'terminal', ...BAND } as any)
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    // with no order it would sit above where-am-i; the order file puts it last
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:session-saver'])
+    expect(await ui.find({ type: 'Text', text: /3 mods tested/ })).toBeDefined()
+    await ui.unmount()
+    resetBandOrder()
   })
 })

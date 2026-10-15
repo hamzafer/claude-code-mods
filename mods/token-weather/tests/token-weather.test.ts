@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { resetBandOrder } from '../hooks/register'
+
 describe('token-weather', () => {
   test('the band follows the context window', async ($, on) => {
     // Hooks registered here sit beneath the mod and stand for the engine.
@@ -58,5 +60,38 @@ describe('token-weather', () => {
     expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined()
     await ui.unmount()
+  })
+
+  test('keys its band and follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    resetBandOrder()
+    const files: Record<string, string> = { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","token-weather"]}' }
+    on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+    on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+    on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({
+      value: { startedAt: 0, rateLimits: [], context: { tokens: 10_000, window: 200_000, percent: 5 } },
+    }) as any)
+    on('ui.render', () => beneath as any)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({
+      plugin: 'token-weather',
+      surface: 'terminal',
+      component: 'AbovePrompt',
+      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+    } as any)
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    // with no order it would sit above where-am-i; the order file puts it last
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:token-weather'])
+    expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+    await ui.unmount()
+    resetBandOrder()
   })
 })
