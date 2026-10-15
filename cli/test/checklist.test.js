@@ -136,7 +136,7 @@ test('detail box skips Adds when there are no tags, shows message and keys', () 
   const out = view({ ...initialState(catalog, []), cursor: 2, message: 'Something to say' });
   assert.doesNotMatch(out.split('── where-am-i')[1], /Adds:/);
   assert.match(out, /Something to say/);
-  assert.match(out, /↑↓ move · space pick · enter apply · q quit/);
+  assert.match(out, /↑↓ move · space pick · p preview · enter apply · q quit/);
 });
 
 test('lines are cut to the terminal width', () => {
@@ -160,6 +160,36 @@ test('color uses inverse for the cursor; NO_COLOR-style off has no escapes', () 
   const s = initialState(catalog, []);
   assert.match(render(s, { columns: 80, rows: 40, color: true }), /\x1b\[7m/);
   assert.doesNotMatch(render(s, { columns: 80, rows: 40, color: false }), /\x1b\[/);
+});
+
+const gate = mod('merge-gate', 'Guard your repo', { description: 'Holds gh pr merge until CI and Codex', needs: ['gh', 'codex'] });
+
+test('needs show after the description in the row', () => {
+  const out = view(initialState([gate], []));
+  assert.match(out, /^▸ ◯ merge-gate {2}Holds gh pr merge until CI and Codex {2}needs gh, codex$/m);
+});
+
+test('a narrow row cuts the description first and keeps the needs', () => {
+  const out = view(initialState([gate], []), { columns: 45 });
+  const row = out.split('\n').find((l) => l.startsWith('▸'));
+  assert.ok(row.length <= 45, `too wide: ${row}`);
+  assert.match(row, /^▸ ◯ merge-gate {2}Holds gh pr…  needs gh, codex$/);
+});
+
+test('a very narrow row is cut whole', () => {
+  const out = view(initialState([gate], []), { columns: 20 });
+  for (const line of out.split('\n')) assert.ok(line.length <= 20, `too wide: ${line}`);
+});
+
+test('needs are dimmed in the row, inside the cursor highlight', () => {
+  const out = render(initialState([gate, mod('b', 'Guard your repo', { needs: ['node'] })], []), { columns: 80, rows: 40, color: true });
+  assert.match(out, /\x1b\[7m▸ ◯ merge-gate {2}Holds gh pr merge until CI and Codex\x1b\[2m {2}needs gh, codex\x1b\[0m/);
+  assert.match(out, / ◯ b {11}b does things\x1b\[2m {2}needs node\x1b\[0m/);
+});
+
+test('detail box shows needs; mods without needs show none', () => {
+  assert.match(view(initialState([gate], [])), /^ {2}Needs: gh, codex$/m);
+  assert.doesNotMatch(view(initialState(catalog, [])), /needs|Needs/);
 });
 
 // The loop, driven through fake streams.
