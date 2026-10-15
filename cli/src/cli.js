@@ -3,6 +3,7 @@ import { loadCatalog as defaultLoadCatalog, groupByCategory } from './catalog.js
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
 import { runChecklist } from './checklist.js';
+import { optionsLoader, collect, save, createPrompt } from './options.js';
 
 export const USAGE = `Usage: claude-code-mods [--pick a,b] [--project] [--dry-run]
 
@@ -51,6 +52,8 @@ export async function main(argv, {
   out = console.log,
   err = console.error,
   cwd = process.cwd(),
+  loadOptions = optionsLoader(run),
+  makePrompt = createPrompt,
   isTTY = !!(process.stdin.isTTY && process.stdout.isTTY),
   checklist = runChecklist,
 } = {}) {
@@ -82,6 +85,7 @@ export async function main(argv, {
       if (!opts.pick) return 0;
     }
     const names = new Set(mods.map((m) => m.name));
+    const byName = (n) => mods.find((m) => m.name === n);
     const unknown = opts.pick.filter((n) => !names.has(n));
     if (unknown.length) {
       err(`Unknown mod: ${unknown.join(', ')}`);
@@ -101,17 +105,35 @@ export async function main(argv, {
     }
     if (opts.dryRun) {
       for (const a of actions) out(toShell(a));
+      for (const a of actions.filter((a) => a.verb === 'install')) {
+        const keys = Object.keys(await loadOptions(byName(a.name)));
+        if (keys.length) out(`would ask ${a.name}: ${keys.join(', ')}`);
+      }
       return 0;
     }
 
     let failed = 0;
+    const report = (r, ok, bad) => {
+      if (r.code === 0) return out(`✓ ${ok}`);
+      failed++;
+      out(`✗ ${bad} (${firstLine(r.stderr || r.stdout || `exit ${r.code}`)})`);
+    };
+    const installed = [];
     for (const a of actions) {
       const r = await run(toArgs(a));
-      if (r.code === 0) out(`✓ ${doneLabel(a)}`);
-      else {
-        failed++;
-        out(`✗ ${label(a)} (${firstLine(r.stderr || r.stdout || `exit ${r.code}`)})`);
-      }
+      report(r, doneLabel(a), label(a));
+      if (r.code === 0 && a.verb === 'install') installed.push(a.name);
+    }
+    // Options for newly installed mods, in a terminal only.
+    for (const name of isTTY ? installed : []) {
+      const userConfig = await loadOptions(byName(name));
+      if (!Object.keys(userConfig).length) continue;
+      out(`\nOptions for ${name} (Enter keeps the default)`);
+      const prompt = makePrompt();
+      let answers;
+      try { answers = await collect(userConfig, prompt.ask, out); } finally { prompt.close(); }
+      const r = await save(run, `${name}@${MARKET}`, answers);
+      if (r) report(r, `configured ${name}`, `configure ${name}`);
     }
     out('\nRestart Claude Code to load your mods.');
     return failed ? 1 : 0;
