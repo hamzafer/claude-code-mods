@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import {
-  marketLocation, loadOptions, validate, collect, save, createPrompt, rawUrl,
+  marketLocation, loadOptions, optionsLoader, validate, collect, save, createPrompt, rawUrl,
 } from '../src/options.js';
 
 const prayer = { name: 'prayer-times', source: './mods/prayer-times' };
@@ -146,4 +146,14 @@ test('createPrompt echoes * for sensitive input', async () => {
   input.write('c\r');
   assert.equal(await plain, 'abc');
   p.close();
+});
+
+test('optionsLoader looks up the clone once, on first use', async () => {
+  let lists = 0;
+  const run = async () => { lists++; return ok([{ name: 'claude-code-mods', installLocation: '/clone' }]); };
+  const load = optionsLoader(run, { readFile: async () => JSON.stringify({ userConfig }) });
+  assert.equal(lists, 0);
+  await load(prayer);
+  await load(prayer);
+  assert.equal(lists, 1);
 });

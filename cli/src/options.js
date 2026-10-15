@@ -38,6 +38,12 @@ export async function loadOptions(mod, {
   return {};
 }
 
+// loadOptions with the clone looked up once, when first needed.
+export function optionsLoader(run, deps = {}) {
+  let location;
+  return async (mod) => loadOptions(mod, { ...deps, location: await (location ??= marketLocation(run)) });
+}
+
 // raw -> { value } (undefined means keep the default) or { error }.
 export function validate(option, raw) {
   const s = String(raw ?? '').trim();
