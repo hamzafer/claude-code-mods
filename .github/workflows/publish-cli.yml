@@ -1,7 +1,7 @@
 name: Publish CLI
 
 # A merge to main that carries a cli/package.json version npm doesn't have yet publishes it.
-# No token: npm trusts this workflow (trusted publishing, set up once on npmjs.com).
+# No token: npm trusts this workflow in the npm environment (trusted publishing, set up once on npmjs.com).
 on:
   push:
     branches: [main]
@@ -21,6 +21,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    environment: npm # only main may use it, and npm trusts only this environment
     defaults:
       run:
         working-directory: cli

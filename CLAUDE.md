@@ -16,4 +16,4 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created when
 
 ## Releasing the CLI
 
-Bump `cli/package.json`'s version in a PR. When it merges to main, `.github/workflows/publish-cli.yml` publishes it to npm (trusted publishing, no token). A version npm already has is skipped.
+Bump `cli/package.json`'s version in a PR. When it merges to main, `.github/workflows/publish-cli.yml` publishes it to npm (trusted publishing in the `npm` environment, which only `main` can use; no token). A version npm already has is skipped.
