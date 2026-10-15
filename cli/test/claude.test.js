@@ -18,3 +18,15 @@ test('passes input on stdin', async () => {
 test('a missing binary rejects with ENOENT', async () => {
   await assert.rejects(makeRunner('no-such-claude-binary')(['--version']), { code: 'ENOENT' });
 });
+
+test('a child that exits without reading stdin does not crash on EPIPE', async () => {
+  const r = await run(['-e', 'process.exit(0)'], { input: 'x'.repeat(8 * 1024 * 1024) });
+  assert.equal(r.code, 0);
+});
+
+test('a hung child is killed after the timeout and reported as a failure', async () => {
+  const slow = makeRunner(process.execPath, { timeoutMs: 200 });
+  const r = await slow(['-e', 'setInterval(() => {}, 1000)']);
+  assert.notEqual(r.code, 0);
+  assert.match(r.stderr, /timed out/);
+});
