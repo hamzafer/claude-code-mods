@@ -173,6 +173,9 @@
       "tags": [
         "pane",
         "command"
+      ],
+      "needs": [
+        "Playwright"
       ]
     },
     {

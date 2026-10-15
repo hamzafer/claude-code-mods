@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 
 const file = new URL("../../.claude-plugin/marketplace.json", import.meta.url);
 const { plugins } = JSON.parse(readFileSync(file, "utf8"));
@@ -30,3 +30,13 @@ for (const p of plugins) {
     }
   });
 }
+
+test("every mod folder has a marketplace entry, and every entry has a folder", () => {
+  const mods = new URL("../../mods/", import.meta.url);
+  const folders = readdirSync(mods, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(new URL(`${d.name}/.claude-plugin/plugin.json`, mods)))
+    .map((d) => d.name)
+    .sort();
+  const entries = plugins.map((p) => p.name).sort();
+  assert.deepEqual(entries, folders);
+});
