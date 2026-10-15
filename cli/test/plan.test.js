@@ -30,6 +30,7 @@ const state = readState(list, { scope: 'user' });
 test('installs, enables and disables to match the picks', () => {
   const actions = planActions({ state, picked: ['heatmap', 'bands'], scope: 'user' });
   assert.deepEqual(actions, [
+    { verb: 'refresh' },
     { verb: 'install', name: 'bands', scope: 'user' },
     { verb: 'enable', name: 'heatmap', scope: 'user' },
     { verb: 'disable', name: 'context-bar', scope: 'user' },
@@ -52,9 +53,22 @@ test('no marketplace add when only disabling', () => {
   ]);
 });
 
+test('refreshes the marketplace first when something turns on, so installs are current', () => {
+  const actions = planActions({ state, picked: ['context-bar', 'bands'], scope: 'user', hasMarketplace: true });
+  assert.deepEqual(actions[0], { verb: 'refresh' });
+  assert.equal(toShell(actions[0]), 'claude plugin marketplace update claude-code-mods');
+});
+
+test('no refresh when only disabling', () => {
+  assert.deepEqual(planActions({ state, picked: [], scope: 'user', hasMarketplace: true }), [
+    { verb: 'disable', name: 'context-bar', scope: 'user' },
+  ]);
+});
+
 test('enable and disable keep the scope the mod is installed in', () => {
   const s = readState(list, { scope: 'project', cwd: '/work/a' });
   assert.deepEqual(planActions({ state: s, picked: ['agent-radar'], scope: 'project' }), [
+    { verb: 'refresh' },
     { verb: 'enable', name: 'agent-radar', scope: 'local' },
     { verb: 'disable', name: 'where-am-i', scope: 'project' },
   ]);

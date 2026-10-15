@@ -70,7 +70,7 @@ Groups show in the README's order. A mod with no `category` lands in a last grou
 
 On Enter (or straight away with `--pick`), compare ticked against current state and run, in order:
 
-1. `claude plugin marketplace add hamzafer/claude-code-mods` if `claude plugin marketplace list --json` has no `claude-code-mods` (only when something will be installed or enabled).
+1. Only when something will be installed or enabled: `claude plugin marketplace add hamzafer/claude-code-mods` if `claude plugin marketplace list --json` has no `claude-code-mods`, otherwise `claude plugin marketplace update claude-code-mods`. A stale clone would install old versions.
 2. Ticked and not installed: `claude plugin install <name>@claude-code-mods --scope <scope>`.
 3. Ticked, installed, disabled: `claude plugin enable <name>@claude-code-mods --scope <scope>`.
 4. Unticked, installed, enabled: `claude plugin disable <name>@claude-code-mods --scope <scope>`. Never uninstall: saved options and keys stay.
@@ -83,7 +83,7 @@ Nothing changed: print "Nothing to change." and exit 0. A failed command is repo
 
 ## Options
 
-- A mod's options come from `userConfig` in its `plugin.json`: read from the marketplace clone (`installLocation` from `claude plugin marketplace list --json`, plus the plugin's `source` path), falling back to the raw GitHub URL.
+- A mod's options come from `userConfig` in its `plugin.json`: read from the raw GitHub URL first (it matches the live list), falling back to the marketplace clone (`installLocation` from `claude plugin marketplace list --json`, plus the plugin's `source` path) when offline.
 - For each option, one prompt line: title, description dimmed, default pre-filled. Enter keeps the default (or leaves it unset). `sensitive: true` options echo `*`.
 - Type checks before saving: `number` within `min`/`max`, `boolean` as y/n, `options` must be one of the list. A bad value asks again.
 - Saved with `claude plugin configure <id> --values-stdin`, given a JSON object of single-line strings. Only answered options are sent.

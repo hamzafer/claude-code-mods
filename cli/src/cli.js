@@ -29,8 +29,10 @@ export function parseArgs(argv) {
 }
 
 const DONE = { install: 'installed', enable: 'enabled', disable: 'disabled' };
-const label = (a) => a.verb === 'marketplace' ? `add the ${MARKET} marketplace` : `${a.verb} ${a.name}`;
-const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
+const label = (a) => a.verb === 'marketplace' ? `add the ${MARKET} marketplace`
+  : a.verb === 'refresh' ? `update the ${MARKET} marketplace` : `${a.verb} ${a.name}`;
+const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${MARKET} marketplace`
+  : a.verb === 'refresh' ? `updated the ${MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
 const firstLine = (s) => String(s).trim().split('\n')[0];
 
 async function listJson(run, args) {

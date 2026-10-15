@@ -23,22 +23,24 @@ test('marketLocation is null when missing or failing', async () => {
   assert.equal(await marketLocation(async () => { throw new Error('no claude'); }), null);
 });
 
-test('loadOptions reads plugin.json from the clone', async () => {
-  const seen = [];
-  const readFile = async (p) => { seen.push(p); return JSON.stringify({ userConfig }); };
-  const fetch = async () => { throw new Error('should not fetch'); };
-  assert.deepEqual(await loadOptions(prayer, { location: '/clone', readFile, fetch }), userConfig);
-  assert.match(seen[0].replaceAll('\\', '/'), /^\/clone\/mods\/prayer-times\/\.claude-plugin\/plugin\.json$/);
-});
-
-test('loadOptions falls back to raw GitHub', async () => {
+test('loadOptions reads raw GitHub first, so a stale clone does not hide new options', async () => {
   const urls = [];
-  const readFile = async () => { throw new Error('ENOENT'); };
+  let reads = 0;
+  const readFile = async () => { reads++; return JSON.stringify({ userConfig: {} }); };
   const fetch = async (u) => { urls.push(u); return { ok: true, json: async () => ({ userConfig }) }; };
   assert.deepEqual(await loadOptions(prayer, { location: '/clone', readFile, fetch }), userConfig);
   assert.deepEqual(urls, [rawUrl('prayer-times')]);
+  assert.equal(reads, 0);
   assert.equal(rawUrl('prayer-times'),
     'https://raw.githubusercontent.com/hamzafer/claude-code-mods/main/mods/prayer-times/.claude-plugin/plugin.json');
+});
+
+test('loadOptions falls back to the clone when offline', async () => {
+  const seen = [];
+  const readFile = async (p) => { seen.push(p); return JSON.stringify({ userConfig }); };
+  const fetch = async () => { throw new Error('offline'); };
+  assert.deepEqual(await loadOptions(prayer, { location: '/clone', readFile, fetch }), userConfig);
+  assert.match(seen[0].replaceAll('\\', '/'), /^\/clone\/mods\/prayer-times\/\.claude-plugin\/plugin\.json$/);
 });
 
 test('loadOptions gives {} when nothing loads or there are no options', async () => {
@@ -151,7 +153,7 @@ test('createPrompt echoes * for sensitive input', async () => {
 test('optionsLoader looks up the clone once, on first use', async () => {
   let lists = 0;
   const run = async () => { lists++; return ok([{ name: 'claude-code-mods', installLocation: '/clone' }]); };
-  const load = optionsLoader(run, { readFile: async () => JSON.stringify({ userConfig }) });
+  const load = optionsLoader(run, { readFile: async () => JSON.stringify({ userConfig }), fetch: async () => ({ ok: false }) });
   assert.equal(lists, 0);
   await load(prayer);
   await load(prayer);

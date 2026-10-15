@@ -18,23 +18,23 @@ export async function marketLocation(run) {
   }
 }
 
-// The clone's plugin.json first, then raw GitHub. {} when neither loads.
+// Raw GitHub first (the clone may be stale), then the clone when offline. {} when neither loads.
 export async function loadOptions(mod, {
   location,
   readFile = fsReadFile,
   fetch = globalThis.fetch,
   timeoutMs = 3000,
 } = {}) {
+  try {
+    const res = await fetch(rawUrl(mod.name), { signal: AbortSignal.timeout(timeoutMs) });
+    if (res.ok) return (await res.json()).userConfig || {};
+  } catch {}
   if (location) {
     try {
       const file = join(location, mod.source || `./mods/${mod.name}`, '.claude-plugin', 'plugin.json');
       return JSON.parse(await readFile(file, 'utf8')).userConfig || {};
     } catch {}
   }
-  try {
-    const res = await fetch(rawUrl(mod.name), { signal: AbortSignal.timeout(timeoutMs) });
-    if (res.ok) return (await res.json()).userConfig || {};
-  } catch {}
   return {};
 }
 

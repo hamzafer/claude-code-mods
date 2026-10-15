@@ -121,11 +121,13 @@ test('applies in order and ends with the restart hint', async () => {
   assert.deepEqual(r.calls, [
     'plugin list --json',
     'plugin marketplace list --json',
+    'plugin marketplace update claude-code-mods',
     'plugin install where-am-i@claude-code-mods --scope user',
     'plugin enable heatmap@claude-code-mods --scope user',
     'plugin disable context-bar@claude-code-mods --scope user',
   ]);
   assert.deepEqual(r.out.split('\n'), [
+    '✓ updated the claude-code-mods marketplace',
     '✓ installed where-am-i',
     '✓ enabled heatmap',
     '✓ disabled context-bar',
@@ -153,6 +155,7 @@ test('--project works in project scope for this folder', async () => {
   ];
   const r = await go(['--project', '--pick', 'where-am-i', '--dry-run'], fakeClaude({ plugins }));
   assert.deepEqual(r.out.split('\n'), [
+    'claude plugin marketplace update claude-code-mods',
     'claude plugin install where-am-i@claude-code-mods --scope project',
     'claude plugin disable heatmap@claude-code-mods --scope project',
   ]);

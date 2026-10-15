@@ -30,12 +30,14 @@ export function planActions({ state, picked, scope, hasMarketplace = true }) {
     if (s.enabled && !picked.includes(name)) disable.push({ verb: 'disable', name, scope: s.scope });
   }
   const turnsOn = install.length + enable.length > 0;
-  const market = turnsOn && !hasMarketplace ? [{ verb: 'marketplace' }] : [];
+  // A stale marketplace clone would install old versions, so refresh it first.
+  const market = !turnsOn ? [] : hasMarketplace ? [{ verb: 'refresh' }] : [{ verb: 'marketplace' }];
   return [...market, ...install, ...enable, ...disable];
 }
 
 export function toArgs(a) {
   if (a.verb === 'marketplace') return ['plugin', 'marketplace', 'add', MARKET_REPO];
+  if (a.verb === 'refresh') return ['plugin', 'marketplace', 'update', MARKET];
   return ['plugin', a.verb, `${a.name}@${MARKET}`, '--scope', a.scope];
 }
 
