@@ -186,6 +186,37 @@ test('quitting the checklist changes nothing and exits 0', async () => {
   assert.deepEqual(r.calls, ['plugin list --json']);
 });
 
+// Effects: the checklist hands ticks and previews back to cli.js.
+async function effects(list, extra = {}) {
+  const mods = [...catalog, { name: 'merge-gate', description: 'Gate', category: 'Guard your repo', tags: [], needs: ['gh', 'codex', 'Chrome'] }];
+  const results = [];
+  const checklist = async ({ onEffect }) => {
+    for (const e of list) results.push(await onEffect(e, {}));
+    return null;
+  };
+  await go([], fakeClaude(), { isTTY: true, checklist, loadCatalog: async () => mods, ...extra });
+  return results;
+}
+
+test('ticking a mod with a missing tool warns, without blocking', async () => {
+  const [r] = await effects([{ type: 'tick', name: 'merge-gate', ticked: true }], { checkNeeds: (needs) => needs.filter((n) => n === 'gh') });
+  assert.deepEqual(r, { message: "gh not found: merge-gate won't work until you install it" });
+});
+
+test('no warning when tools are there, or on untick', async () => {
+  const all = (needs) => needs.filter((n) => n === 'gh');
+  assert.deepEqual(await effects([{ type: 'tick', name: 'merge-gate', ticked: true }], { checkNeeds: () => [] }), [null]);
+  assert.deepEqual(await effects([{ type: 'tick', name: 'merge-gate', ticked: false }], { checkNeeds: all }), [null]);
+});
+
+test('p hands the mod name to the preview and shows its message', async () => {
+  const seen = [];
+  const showPreview = async (name) => { seen.push(name); return { message: 'No image yet' }; };
+  const [r] = await effects([{ type: 'preview', name: 'heatmap' }], { showPreview });
+  assert.deepEqual(seen, ['heatmap']);
+  assert.deepEqual(r, { message: 'No image yet' });
+});
+
 // Options: where-am-i has two, heatmap none.
 const whereOpts = {
   label: { type: 'string', title: 'Label' },

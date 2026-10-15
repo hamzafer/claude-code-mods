@@ -4,6 +4,8 @@ import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
 import { runChecklist } from './checklist.js';
 import { optionsLoader, collect, save, createPrompt } from './options.js';
+import { missing, warning } from './needs.js';
+import { preview } from './preview.js';
 
 export const USAGE = `Usage: claude-code-mods [--pick a,b] [--project] [--dry-run]
 
@@ -58,6 +60,8 @@ export async function main(argv, {
   makePrompt = createPrompt,
   isTTY = !!(process.stdin.isTTY && process.stdout.isTTY),
   checklist = runChecklist,
+  checkNeeds = missing,
+  showPreview = preview,
 } = {}) {
   let opts;
   try {
@@ -83,7 +87,14 @@ export async function main(argv, {
       }
       state = readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
       const ticked = Object.keys(state).filter((n) => state[n].enabled);
-      opts.pick = await checklist({ mods, ticked, scope });
+      // Ticks warn about missing tools; p opens the screenshot.
+      const onEffect = async (e) => {
+        if (e.type === 'preview') return showPreview(e.name);
+        if (e.type !== 'tick' || !e.ticked) return null;
+        const msg = warning(e.name, checkNeeds(mods.find((m) => m.name === e.name)?.needs || []));
+        return msg ? { message: msg } : null;
+      };
+      opts.pick = await checklist({ mods, ticked, scope, onEffect });
       if (!opts.pick) return 0;
     }
     const names = new Set(mods.map((m) => m.name));
