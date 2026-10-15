@@ -31,6 +31,7 @@ async function go(argv, claude = fakeClaude(), extra = {}) {
     err: (s) => err.push(s),
     cwd: '/work/a',
     loadOptions: async () => ({}),
+    isTTY: false,
     ...extra,
   });
   return { code, out: out.join('\n'), err: err.join('\n'), calls: claude.calls };
@@ -162,6 +163,24 @@ test('no --pick: prints the grouped list and exits 1', async () => {
   assert.equal(r.code, 1);
   assert.match(r.out, /See what's happening\n {2}context-bar +A bar\n {2}where-am-i +Where\n\nFor fun\n {2}heatmap/);
   assert.match(r.err, /Run in a terminal, or pass --pick/);
+});
+
+test('no --pick in a terminal: the checklist opens pre-ticked and its picks apply', async () => {
+  const seen = [];
+  const checklist = async (o) => { seen.push(o); return ['context-bar', 'where-am-i']; };
+  const r = await go(['--dry-run'], fakeClaude({ plugins: installed }), { isTTY: true, checklist });
+  assert.equal(r.code, 0);
+  assert.deepEqual(seen[0].ticked, ['context-bar']);
+  assert.equal(seen[0].scope, 'user');
+  assert.equal(seen[0].mods, catalog);
+  assert.match(r.out, /claude plugin install where-am-i@claude-code-mods --scope user/);
+  assert.equal(r.calls.filter((c) => c === 'plugin list --json').length, 1);
+});
+
+test('quitting the checklist changes nothing and exits 0', async () => {
+  const r = await go([], fakeClaude({ plugins: installed }), { isTTY: true, checklist: async () => null });
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.calls, ['plugin list --json']);
 });
 
 // Options: where-am-i has two, heatmap none.
