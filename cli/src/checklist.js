@@ -15,7 +15,7 @@ export const HINTS = ['↑↓ move', 'space pick', 'p preview', 'enter apply', '
 
 export const tagWords = (tags) => tags.map((t) => TAGS[t] || t).join(', ');
 
-export function initialState(catalog, ticked, { scope = 'user' } = {}) {
+export function initialState(catalog, ticked, { scope = 'user', profile } = {}) {
   const rows = [];
   for (const g of groupByCategory(catalog.map(tidy))) {
     rows.push({ type: 'header', category: g.category });
@@ -25,6 +25,7 @@ export function initialState(catalog, ticked, { scope = 'user' } = {}) {
   return {
     rows,
     scope,
+    profile,
     cursor: rows.findIndex((r) => r.type === 'mod'),
     ticked: rows.filter((r) => r.type === 'mod' && names.has(r.mod.name)).map((r) => r.mod.name),
     message: null, // shown in the detail box, cleared on move
@@ -88,7 +89,8 @@ export function render(state, { columns = 80, rows = 24, color = !process.env.NO
   const current = state.rows[state.cursor].mod;
   const width = Math.max(...state.rows.filter((r) => r.type === 'mod').map((r) => r.mod.name.length));
 
-  const head = [bold(fit(`  claude-code-mods · ${SCOPES[state.scope] || state.scope} · ${state.ticked.length} picked`)), ''];
+  const where = [state.profile, SCOPES[state.scope] || state.scope].filter(Boolean).join(' · ');
+  const head = [bold(fit(`  claude-code-mods · ${where} · ${state.ticked.length} picked`)), ''];
 
   const inner = Math.max(10, columns - 4);
   const rule = `  ── ${current.name} `;
@@ -136,10 +138,10 @@ export function runChecklist({
   color = !process.env.NO_COLOR,
   onEffect = async () => null,
   proc = process,
-  // Keys typed before the list shows (like the Enter after npx's "Ok to proceed?") are dropped.
   settleMs = 250,
+  profile,
 }) {
-  let state = initialState(mods, ticked, { scope });
+  let state = initialState(mods, ticked, { scope, profile });
   const draw = () => {
     const frame = render(state, { columns: output.columns || 80, rows: output.rows || 24, color });
     output.write('\x1b[H\x1b[2J' + frame.split('\n').join('\r\n'));
@@ -169,7 +171,9 @@ export function runChecklist({
       SIGHUP: () => { restore(); proc.exit(129); },
     };
     const onKey = (str, key) => {
-      if (state.done || Date.now() < readyAt) return;
+      if (state.done) return;
+      // An Enter typed before the list showed (npx's "Ok to proceed?") would apply at once; drop it.
+      if (key?.name === 'return' && Date.now() < readyAt) return;
       try {
         state = reduce(state, keyOf(str, key));
         if (state.done) return finish(() => resolve(state.done === 'apply' ? state.ticked : null));

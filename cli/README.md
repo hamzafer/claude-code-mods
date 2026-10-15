@@ -15,6 +15,8 @@ Tick the mods you want, see what each one adds, and press Enter to install. Unti
 - `--dry-run` prints the `claude` commands instead of running them
 - `--help` shows usage
 
+It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods`.
+
 ## Notes
 
 - It shells out to the `claude` CLI (`claude plugin ...`), so Claude Code must be installed.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, main } from '../src/cli.js';
+import { parseArgs, main, profileLabel } from '../src/cli.js';
 
 const catalog = [
   { name: 'context-bar', description: 'A bar', category: 'See what\'s happening', tags: [], needs: [] },
@@ -317,4 +317,10 @@ test('an empty mod list exits 1 before the checklist opens', async () => {
   assert.equal(r.code, 1);
   assert.equal(opened, false);
   assert.match(r.err, /mod list is empty/);
+});
+
+test('profileLabel names the profile claude will use', () => {
+  assert.equal(profileLabel({}, '/home/u'), '~/.claude');
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work' }, '/home/u'), '~/.claude-work');
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/opt/claude' }, '/home/u'), '/opt/claude');
 });

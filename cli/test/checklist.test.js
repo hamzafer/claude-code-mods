@@ -356,12 +356,24 @@ test('a late message is dropped once the cursor has moved on', async () => {
   await done;
 });
 
-test('runChecklist ignores keys typed before the list was drawn, like the Enter from npx\'s prompt', async () => {
+test('runChecklist drops only an Enter typed before the list showed, like npx\'s prompt', async () => {
   const t = fakeTty();
-  const done = runChecklist({ mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 50 });
+  const done = runChecklist({ mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 40 });
   t.input.write('\r');
-  await new Promise((r) => setTimeout(r, 80));
   t.input.write(' ');
+  await new Promise((r) => setTimeout(r, 200));
   t.input.write('\r');
   assert.deepEqual(await done, ['context-bar']);
+});
+
+test('runChecklist quits on ctrl-c right away, even in the settle window', async () => {
+  const t = fakeTty();
+  const done = runChecklist({ mods: catalog, ticked: [], input: t.input, output: t.output, color: false, settleMs: 10000 });
+  t.input.write('\x03');
+  assert.equal(await done, null);
+});
+
+test('render shows which Claude profile it edits', () => {
+  const s = initialState(catalog, [], { profile: '~/.claude-work' });
+  assert.match(render(s, { columns: 100, rows: 30, color: false }).split('\n')[0], /~\/\.claude-work/);
 });

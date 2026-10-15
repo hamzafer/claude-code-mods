@@ -1,4 +1,6 @@
 // Parse flags, wire the rest, exit codes.
+import { homedir } from 'node:os';
+import { sep } from 'node:path';
 import { loadCatalog as defaultLoadCatalog, groupByCategory, clean, tidy } from './catalog.js';
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
@@ -51,6 +53,13 @@ function printList(mods, out) {
   out(blocks.join('\n\n'));
 }
 
+// The profile claude uses here: CLAUDE_CONFIG_DIR, or ~/.claude.
+export function profileLabel(env = process.env, home = homedir()) {
+  const dir = env.CLAUDE_CONFIG_DIR;
+  if (!dir) return '~/.claude';
+  return dir === home || dir.startsWith(home + sep) ? '~' + dir.slice(home.length) : dir;
+}
+
 export async function main(argv, {
   run = defaultRun,
   loadCatalog = defaultLoadCatalog,
@@ -99,7 +108,7 @@ export async function main(argv, {
         const msg = warning(e.name, checkNeeds(mods.find((m) => m.name === e.name)?.needs || []));
         return msg ? { message: msg } : null;
       };
-      opts.pick = await checklist({ mods, ticked, scope, onEffect });
+      opts.pick = await checklist({ mods, ticked, scope, onEffect, profile: profileLabel() });
       if (!opts.pick) return 0;
     }
     const names = new Set(mods.map((m) => m.name));
