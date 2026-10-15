@@ -4,6 +4,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { CacheTtl, TokenWeatherReading } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const HISTORY = 12
 const BARS = '▁▂▃▄▅▆▇█'
@@ -34,6 +35,19 @@ const lastRequestAt = atom({ plugin: 'token-weather', key: 'lastRequestAt' } as 
 const detectedTtl = atom({ plugin: 'token-weather', key: 'detectedTtl' } as const, null as CacheTtl | null)
 // Whether the cache-clock mod draws the cache on the status line, from Claude Code's own figures.
 const cacheClockOn = atom({ plugin: 'token-weather', key: 'cacheClockOn' } as const, false)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
+}
 
 export const register: Register = (on, options) => {
   // `5m` or `1h` set by hand wins; `auto` (the default) goes by what was detected.
@@ -115,20 +129,19 @@ export const register: Register = (on, options) => {
       (isWide ? `  last turns ${sparkline(history)}${history.length > 1 ? trend(history) : ''}`.length : 0)
     const showCache = isWide && cache !== null && lineWidth + cache.text.length <= e.props.bodyColumns
 
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="row" paddingX={1}>
-          <Text color={f.color} bold>{`${f.icon} ${f.word}`}</Text>
-          <Text>{` ${now.percent}% of context`}</Text>
-          <Text dimColor>{` ${short(now.tokens)} / ${short(now.window)}`}</Text>
-          {isWide && <Text dimColor>{'  last turns '}</Text>}
-          {isWide && <Text color={f.color}>{sparkline(history)}</Text>}
-          {isWide && history.length > 1 && <Text dimColor>{trend(history)}</Text>}
-          {showCache && cache && <Text color={cache.color} dimColor={cache.isCold}>{cache.text}</Text>}
-        </Box>
-        {rest}
+    const mine = (
+      <Box flexDirection="row" paddingX={1}>
+        <Text color={f.color} bold>{`${f.icon} ${f.word}`}</Text>
+        <Text>{` ${now.percent}% of context`}</Text>
+        <Text dimColor>{` ${short(now.tokens)} / ${short(now.window)}`}</Text>
+        {isWide && <Text dimColor>{'  last turns '}</Text>}
+        {isWide && <Text color={f.color}>{sparkline(history)}</Text>}
+        {isWide && history.length > 1 && <Text dimColor>{trend(history)}</Text>}
+        {showCache && cache && <Text color={cache.color} dimColor={cache.isCold}>{cache.text}</Text>}
       </Box>
     )
+    bandOrder ??= readBandOrder($).catch(() => [])
+    return stackBands(rest, 'token-weather', mine, 'above', await bandOrder) // above what other mods draw, unless the band order says otherwise
   })
 }
 
