@@ -7,6 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reading, Slice } from '../types'
+import { bandOrder, stackBands } from './bands'
 
 const MIN_WIDTH = 20 // narrower than this, the bar is not drawn
 const SPLIT = '   '
@@ -61,41 +62,39 @@ export const register: Register = on => {
     const head = `${tokens(r.total)} of ${tokens(r.window)}${r.compactsAt ? ` · compacts at ${tokens(r.compactsAt)}` : ''}`
     const pct = ` ${r.percent}% `
     const level = r.compactsAt ? r.total / r.compactsAt : r.total / r.window
-    return (
-      <Box flexDirection="column">
-        {rest}
-        <Box flexDirection="column" borderStyle="round" borderColor="inactive" paddingX={1}>
-          <Box flexDirection="row" justifyContent="space-between">
-            <Text wrap="truncate-end">
-              <Text color="#d97757">{'◆ '}</Text>
-              <Text bold>context</Text>
-            </Text>
-            <Text wrap="truncate-start">
-              <Text dimColor>{`${head} `}</Text>
-              <Text bold color="black" backgroundColor={level >= 0.9 ? 'red' : level >= 0.7 ? 'yellow' : 'green'}>{pct}</Text>
-            </Text>
-          </Box>
-          <Text>
-            {cells(r, inner).map(c => (
-              <Text color={c.color}>{c.text}</Text>
+    const mine = (
+      <Box flexDirection="column" borderStyle="round" borderColor="inactive" paddingX={1}>
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text wrap="truncate-end">
+            <Text color="#d97757">{'◆ '}</Text>
+            <Text bold>context</Text>
+          </Text>
+          <Text wrap="truncate-start">
+            <Text dimColor>{`${head} `}</Text>
+            <Text bold color="black" backgroundColor={level >= 0.9 ? 'red' : level >= 0.7 ? 'yellow' : 'green'}>{pct}</Text>
+          </Text>
+        </Box>
+        <Text>
+          {cells(r, inner).map(c => (
+            <Text color={c.color}>{c.text}</Text>
+          ))}
+        </Text>
+        {legend(r, inner).map(line => (
+          <Text wrap="truncate-end">
+            {line.map((s, i) => (
+              <Text>
+                {i > 0 && <Text>{SPLIT}</Text>}
+                <Text color={s.color}>{s.kind === 'used' ? '■ ' : `${GLYPH[s.kind]} `}</Text>
+                <Text dimColor={s.kind !== 'used'}>{`${s.name} `}</Text>
+                <Text bold={s.kind === 'used'}>{tokens(s.tokens)}</Text>
+                {s.kind === 'used' && <Text dimColor>{` ${share(s.tokens, r.window)}`}</Text>}
+              </Text>
             ))}
           </Text>
-          {legend(r, inner).map(line => (
-            <Text wrap="truncate-end">
-              {line.map((s, i) => (
-                <Text>
-                  {i > 0 && <Text>{SPLIT}</Text>}
-                  <Text color={s.color}>{s.kind === 'used' ? '■ ' : `${GLYPH[s.kind]} `}</Text>
-                  <Text dimColor={s.kind !== 'used'}>{`${s.name} `}</Text>
-                  <Text bold={s.kind === 'used'}>{tokens(s.tokens)}</Text>
-                  {s.kind === 'used' && <Text dimColor>{` ${share(s.tokens, r.window)}`}</Text>}
-                </Text>
-              ))}
-            </Text>
-          ))}
-        </Box>
+        ))}
       </Box>
     )
+    return stackBands(rest, 'context-bar', mine, 'below', await bandOrder($)) // below what other mods draw, unless the band order says otherwise
   })
 }
 
