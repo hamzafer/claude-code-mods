@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { bar, colorFor, countdown } from '../hooks/register'
+import { bar, colorFor, countdown, resetBandOrder } from '../hooks/register'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
 const at = (ms: number) => new Date(NOW + ms).toISOString()
@@ -10,14 +10,14 @@ const HOUR = 60 * MIN
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, first: { rateLimits: Limit[]; cost?: { usd: number } }) {
+function engine(on: any, first: { rateLimits: Limit[]; cost?: { usd: number } }, beneath?: unknown) {
   const toasts: string[] = []
   const clock = mock.clock(on, { now: NOW })
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('session.usage', () => ({ value: { startedAt: NOW, context: { window: 200_000 }, ...first } }))
   on('session.measure', (_$: any, e: any) => ({ changed: e.changed }))
   on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'engine band' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'engine band' }))
   return { toasts, clock }
 }
 
@@ -195,5 +195,29 @@ describe('usage-meter', () => {
     expect(thinText).toContain('5h ██▂▁▁ 42%')
     expect(thinText).not.toContain('$4.32')
     await thin.unmount()
+  })
+
+  test('keys its band and follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    resetBandOrder()
+    const files: Record<string, string> = { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","usage-meter"]}' }
+    on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+    on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+    on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
+    engine(on, { rateLimits: [{ kind: 'five_hour', percentUsed: 42, resetsAt: at(2 * HOUR) }] }, beneath)
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'usage-meter', surface: 'terminal', ...band() } as any)
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    // with no order it would sit above where-am-i; the order file puts it last
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:usage-meter'])
+    expect(await line(ui)).toContain('5h ██▂▁▁ 42%')
+    await ui.unmount()
+    resetBandOrder()
   })
 })
