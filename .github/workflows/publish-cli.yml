@@ -1,0 +1,56 @@
+name: Publish CLI
+
+# A merge to main that carries a cli/package.json version npm doesn't have yet publishes it.
+# No token: npm trusts this workflow (trusted publishing, set up once on npmjs.com).
+on:
+  push:
+    branches: [main]
+    paths:
+      - cli/package.json
+      - .github/workflows/publish-cli.yml
+
+permissions:
+  contents: read
+  id-token: write # proves this workflow to npm, and signs the provenance
+
+concurrency:
+  group: publish-cli
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+
+      - name: Check the version is new
+        id: version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already on npm. Nothing to publish."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing $name@$version."
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test the CLI
+        if: steps.version.outputs.new == 'true'
+        run: node --test
+
+      - name: Publish
+        if: steps.version.outputs.new == 'true'
+        run: |
+          npm install -g npm@^11.5.1 # trusted publishing needs npm 11.5.1 or newer
+          npm publish --access public

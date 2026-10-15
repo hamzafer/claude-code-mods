@@ -13,3 +13,7 @@ The five default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created when needed. See `docs/agents/domain.md`.
+
+## Releasing the CLI
+
+Bump `cli/package.json`'s version in a PR. When it merges to main, `.github/workflows/publish-cli.yml` publishes it to npm (trusted publishing, no token). A version npm already has is skipped.
