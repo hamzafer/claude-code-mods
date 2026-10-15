@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import { EventEmitter } from 'node:events';
-import { initialState, reduce, render, keyOf, tagWords, runChecklist } from '../src/checklist.js';
+import { initialState, reduce, render, keyOf, tagWords, runChecklist, HINTS } from '../src/checklist.js';
 
 const mod = (name, category, extra = {}) => ({ name, description: `${name} does things`, category, tags: [], needs: [], ...extra });
 const catalog = [
@@ -137,7 +137,7 @@ test('detail box skips Adds when there are no tags, shows message and keys', () 
   const out = view({ ...initialState(catalog, []), cursor: 2, message: 'Something to say' });
   assert.doesNotMatch(out.split('── where-am-i')[1], /Adds:/);
   assert.match(out, /Something to say/);
-  assert.match(out, /↑↓ move · space pick · p preview · enter apply · q quit/);
+  assert.match(out, /↑↓ move · space pick · p preview · o order · enter apply · q quit/);
 });
 
 test('lines are cut to the terminal width', () => {
@@ -376,4 +376,129 @@ test('runChecklist quits on ctrl-c right away, even in the settle window', async
 test('render shows which Claude profile it edits', () => {
   const s = initialState(catalog, [], { profile: '~/.claude-work' });
   assert.match(render(s, { columns: 100, rows: 30, color: false }).split('\n')[0], /~\/\.claude-work/);
+});
+
+// Band order: o opens a second screen over the same state.
+const bands = [
+  mod('where-am-i', 'See what\'s happening', { tags: ['band'] }),
+  mod('context-bar', 'See what\'s happening', { tags: ['band', 'command'] }),
+  mod('token-weather', 'See what\'s happening', { tags: ['band'] }),
+  mod('heatmap', 'For fun', { tags: ['pane'] }),
+];
+const allBands = ['where-am-i', 'context-bar', 'token-weather', 'heatmap'];
+const orderOf = (s) => s.order.names;
+
+test('o lists the ticked bands in catalog order when there is no order file', () => {
+  const s = press(initialState(bands, allBands), 'o');
+  assert.equal(s.screen, 'order');
+  assert.deepEqual(orderOf(s), ['where-am-i', 'context-bar', 'token-weather']);
+  assert.equal(s.order.cursor, 0);
+});
+
+test('o pre-fills from the order file: unlisted bands on top, then file order', () => {
+  const s = press(initialState(bands, allBands, { bandOrder: ['token-weather', 'gone', 'where-am-i'] }), 'o');
+  assert.deepEqual(orderOf(s), ['context-bar', 'token-weather', 'where-am-i']);
+});
+
+test('o with no ticked bands stays on the checklist and says why', () => {
+  const s = press(initialState(bands, ['heatmap']), 'o');
+  assert.notEqual(s.screen, 'order');
+  assert.equal(s.message, 'Tick a band mod first.');
+});
+
+test('in the order screen, arrows and j/k move the cursor, not the bands', () => {
+  let s = press(initialState(bands, allBands), 'o', 'down', 'j');
+  assert.equal(s.order.cursor, 2);
+  s = press(s, 'down');
+  assert.equal(s.order.cursor, 2);
+  s = press(s, 'k', 'up', 'up');
+  assert.equal(s.order.cursor, 0);
+  assert.deepEqual(orderOf(s), ['where-am-i', 'context-bar', 'token-weather']);
+});
+
+test('shift-arrows and K/J move the band under the cursor', () => {
+  let s = press(initialState(bands, allBands), 'o', 'shift-down');
+  assert.deepEqual(orderOf(s), ['context-bar', 'where-am-i', 'token-weather']);
+  assert.equal(s.order.cursor, 1);
+  s = press(s, 'J');
+  assert.deepEqual(orderOf(s), ['context-bar', 'token-weather', 'where-am-i']);
+  s = press(s, 'J');
+  assert.deepEqual(orderOf(s), ['context-bar', 'token-weather', 'where-am-i']);
+  s = press(s, 'K', 'shift-up');
+  assert.deepEqual(orderOf(s), ['where-am-i', 'context-bar', 'token-weather']);
+  assert.equal(s.order.cursor, 0);
+});
+
+test('esc and q go back to the checklist without saving', () => {
+  for (const k of ['escape', 'q']) {
+    const s = press(initialState(bands, allBands), 'o', 'J', k);
+    assert.equal(s.screen, 'list');
+    assert.equal(s.done, null);
+    assert.equal(s.effect, null);
+    assert.deepEqual(s.bandOrder, []);
+  }
+});
+
+test('enter saves: an effect with the order, old unticked names kept after', () => {
+  const s = press(initialState(bands, ['where-am-i', 'context-bar'], { bandOrder: ['token-weather', 'context-bar', 'old-one'] }), 'o', 'J', 'return');
+  assert.equal(s.screen, 'list');
+  assert.equal(s.done, null);
+  assert.deepEqual(s.effect, { type: 'order', order: ['context-bar', 'where-am-i', 'token-weather', 'old-one'] });
+  assert.deepEqual(s.bandOrder, ['context-bar', 'where-am-i', 'token-weather', 'old-one']);
+  // Opening again shows the saved order.
+  assert.deepEqual(orderOf(press(s, 'o')), ['context-bar', 'where-am-i']);
+});
+
+test('ctrl-c still quits from the order screen', () => {
+  assert.equal(press(initialState(bands, allBands), 'o', 'ctrl-c').done, 'quit');
+});
+
+test('keyOf maps shift-arrows and K/J, plain j/k stay', () => {
+  assert.equal(keyOf(undefined, { name: 'up', shift: true }), 'shift-up');
+  assert.equal(keyOf(undefined, { name: 'down', shift: true }), 'shift-down');
+  assert.equal(keyOf('J', { name: 'j', shift: true }), 'J');
+  assert.equal(keyOf('K', { name: 'k', shift: true }), 'K');
+  assert.equal(keyOf('j', { name: 'j', shift: false }), 'j');
+  assert.equal(keyOf('k', { name: 'k' }), 'k');
+});
+
+test('render shows the order screen: profile, top, bands, prompt line, keys', () => {
+  const s = press(initialState(bands, allBands, { profile: '~/.claude-work' }), 'o', 'down');
+  const lines = view(s).split('\n');
+  assert.deepEqual(lines, [
+    '  Band order · ~/.claude-work',
+    '  top',
+    '    where-am-i',
+    '  ▸ context-bar',
+    '    token-weather',
+    '  ── your prompt ──',
+    '  ↑↓ move · ⇧↑ ⇧↓ or K J reorder · enter save · esc back',
+  ]);
+});
+
+test('the order screen fits narrow terminals and highlights the cursor in color', () => {
+  const s = press(initialState(bands, allBands), 'o');
+  for (const line of view(s, { columns: 20 }).split('\n')) assert.ok(line.length <= 20, `too wide: ${line}`);
+  assert.match(render(s, { columns: 80, rows: 30, color: true }), /\x1b\[7m {2}▸ where-am-i/);
+});
+
+test('the hints name o for the order screen', () => {
+  assert.ok(HINTS.includes('o order'));
+});
+
+test('runChecklist: shift-down then enter hands the order to onEffect and shows its message', async () => {
+  const t = fakeTty();
+  const seen = [];
+  const done = runChecklist({
+    mods: bands, ticked: allBands, input: t.input, output: t.output, color: false, settleMs: 0, proc: fakeProc(),
+    onEffect: async (e) => { seen.push(e); return { message: 'Saved. Restart Claude Code to apply.' }; },
+  });
+  t.input.write('o');
+  t.input.write('\x1b[1;2B');
+  t.input.write('\r');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(seen, [{ type: 'order', order: ['context-bar', 'where-am-i', 'token-weather'] }]);
+  assert.match(t.written(), /Saved\. Restart Claude Code to apply\./);
+  t.input.write('q');
+  assert.equal(await done, null);
 });

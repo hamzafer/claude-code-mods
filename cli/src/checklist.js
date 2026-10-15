@@ -11,11 +11,12 @@ const TAGS = {
   command: 'a command',
 };
 const SCOPES = { user: 'everywhere (user scope)', project: 'this project (project scope)' };
-export const HINTS = ['↑↓ move', 'space pick', 'p preview', 'enter apply', 'q quit'];
+export const HINTS = ['↑↓ move', 'space pick', 'p preview', 'o order', 'enter apply', 'q quit'];
+export const ORDER_HINTS = ['↑↓ move', '⇧↑ ⇧↓ or K J reorder', 'enter save', 'esc back'];
 
 export const tagWords = (tags) => tags.map((t) => TAGS[t] || t).join(', ');
 
-export function initialState(catalog, ticked, { scope = 'user', profile } = {}) {
+export function initialState(catalog, ticked, { scope = 'user', profile, bandOrder = [] } = {}) {
   const rows = [];
   for (const g of groupByCategory(catalog.map(tidy))) {
     rows.push({ type: 'header', category: g.category });
@@ -29,9 +30,47 @@ export function initialState(catalog, ticked, { scope = 'user', profile } = {}) 
     cursor: rows.findIndex((r) => r.type === 'mod'),
     ticked: rows.filter((r) => r.type === 'mod' && names.has(r.mod.name)).map((r) => r.mod.name),
     message: null, // shown in the detail box, cleared on move
-    effect: null, // for the loop to act on: { type: 'preview' | 'tick', name }
+    effect: null, // for the loop to act on: { type: 'preview' | 'tick', name } or { type: 'order', order }
     done: null, // 'apply' | 'quit'
+    screen: 'list', // 'list' | 'order'
+    bandOrder, // the order file's names, top to bottom
+    order: null, // on the order screen: { names, cursor }
   };
+}
+
+// The ticked bands as the mods stack them: bands not in the file on top, then file order.
+function bandsInOrder(state) {
+  const bands = state.rows
+    .filter((r) => r.type === 'mod' && r.mod.tags.includes('band') && state.ticked.includes(r.mod.name))
+    .map((r) => r.mod.name);
+  const listed = state.bandOrder.filter((n) => bands.includes(n));
+  return [...bands.filter((n) => !listed.includes(n)), ...listed];
+}
+
+function reduceOrder(state, key) {
+  const { names, cursor } = state.order;
+  const to = (c) => ({ ...state, order: { names, cursor: c } });
+  const swap = (step) => {
+    const j = cursor + step;
+    if (j < 0 || j >= names.length) return state;
+    const next = [...names];
+    [next[cursor], next[j]] = [next[j], next[cursor]];
+    return { ...state, order: { names: next, cursor: j } };
+  };
+  switch (key) {
+    case 'up': case 'k': return cursor > 0 ? to(cursor - 1) : state;
+    case 'down': case 'j': return cursor < names.length - 1 ? to(cursor + 1) : state;
+    case 'shift-up': case 'K': return swap(-1);
+    case 'shift-down': case 'J': return swap(1);
+    case 'return': {
+      // Names in the old file that are not ticked now keep their place after.
+      const order = [...names, ...state.bandOrder.filter((n) => !names.includes(n))];
+      return { ...state, screen: 'list', order: null, bandOrder: order, effect: { type: 'order', order } };
+    }
+    case 'q': case 'escape': return { ...state, screen: 'list', order: null };
+    case 'ctrl-c': return { ...state, done: 'quit' };
+    default: return state;
+  }
 }
 
 function move(state, step) {
@@ -43,6 +82,7 @@ function move(state, step) {
 
 export function reduce(state, key) {
   const s = state.effect ? { ...state, effect: null } : state;
+  if (s.screen === 'order') return reduceOrder(s, key);
   const name = s.rows[s.cursor]?.mod.name;
   switch (key) {
     case 'up': case 'k': return move(s, -1);
@@ -54,6 +94,11 @@ export function reduce(state, key) {
       return { ...s, ticked, effect: { type: 'tick', name, ticked: on } };
     }
     case 'p': return { ...s, effect: { type: 'preview', name } };
+    case 'o': {
+      const names = bandsInOrder(s);
+      if (!names.length) return { ...s, message: 'Tick a band mod first.' };
+      return { ...s, screen: 'order', order: { names, cursor: 0 } };
+    }
     case 'return': return { ...s, done: 'apply' };
     case 'q': case 'escape': case 'ctrl-c': return { ...s, done: 'quit' };
     default: return state;
@@ -64,6 +109,8 @@ export function reduce(state, key) {
 export function keyOf(str, key = {}) {
   if (key.ctrl && key.name === 'c') return 'ctrl-c';
   if (key.name === 'enter') return 'return';
+  if (key.shift && (key.name === 'up' || key.name === 'down')) return `shift-${key.name}`;
+  if (key.shift && (key.name === 'j' || key.name === 'k')) return key.name.toUpperCase();
   return key.name || str;
 }
 
@@ -82,9 +129,26 @@ function wrap(text, width) {
 
 const cut = (s, n) => (s.length > n ? s.slice(0, Math.max(0, n - 1)) + '…' : s);
 
+function renderOrder(state, { columns, rows, bold, dim, inverse }) {
+  const fit = (s) => cut(s, columns);
+  const { names, cursor } = state.order;
+  const head = [bold(fit(['  Band order', state.profile].filter(Boolean).join(' · '))), dim(fit('  top'))];
+  const foot = [dim(fit('  ── your prompt ──')), dim(fit(`  ${ORDER_HINTS.join(' · ')}`))];
+  const height = Math.max(3, rows - head.length - foot.length);
+  let top = 0;
+  if (names.length > height && cursor >= height - 1) top = Math.min(cursor - height + 2, names.length - height);
+  const list = names.slice(top, top + height).map((n, i) => {
+    const here = top + i === cursor;
+    const line = fit(`  ${here ? '▸' : ' '} ${clean(n)}`);
+    return here ? inverse(line) : line;
+  });
+  return [...head, ...list, ...foot].join('\n');
+}
+
 export function render(state, { columns = 80, rows = 24, color = !process.env.NO_COLOR } = {}) {
   const st = (code) => (s) => (color ? `\x1b[${code}m${s}\x1b[0m` : s);
   const [bold, dim, inverse] = [st(1), st(2), st(7)];
+  if (state.screen === 'order') return renderOrder(state, { columns, rows, bold, dim, inverse });
   const fit = (s) => cut(s, columns);
   const current = state.rows[state.cursor].mod;
   const width = Math.max(...state.rows.filter((r) => r.type === 'mod').map((r) => r.mod.name.length));
@@ -140,8 +204,9 @@ export function runChecklist({
   proc = process,
   settleMs = 250,
   profile,
+  bandOrder = [],
 }) {
-  let state = initialState(mods, ticked, { scope, profile });
+  let state = initialState(mods, ticked, { scope, profile, bandOrder });
   const draw = () => {
     const frame = render(state, { columns: output.columns || 80, rows: output.rows || 24, color });
     output.write('\x1b[H\x1b[2J' + frame.split('\n').join('\r\n'));
