@@ -253,3 +253,11 @@ test('runChecklist restores the terminal when onEffect throws', async () => {
   await assert.rejects(done, /nope/);
   assert.deepEqual(t.input.raw, [true, false]);
 });
+
+test('render survives odd mod fields and strips control characters', () => {
+  const odd = { name: 'odd', category: 'For fun', description: 'a\x1b[2Jb', tags: 'band', needs: [3, 'g\x07h'] };
+  const out = render(initialState([odd], []), { columns: 80, rows: 30, color: false });
+  assert.doesNotMatch(out, /[\x00-\x09\x0b-\x1f\x7f-\x9f]/);
+  assert.match(out, /a\[2Jb/);
+  assert.match(out, /needs gh/);
+});

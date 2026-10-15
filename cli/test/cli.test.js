@@ -278,3 +278,13 @@ test('an enabled mod missing from the catalog is never disabled', async () => {
   const r = await go(['--pick', 'context-bar', '--dry-run'], fakeClaude({ plugins }));
   assert.equal(r.out, 'Nothing to change.');
 });
+
+test('claude error lines are shown without control characters', async () => {
+  const claude = fakeClaude({ plugins: installed });
+  const run = async (args) => {
+    if (args[1] === 'install') return { code: 1, stdout: '', stderr: '\x1b[31mbad\x1b]0;t\x07 thing\nmore' };
+    return claude.run(args);
+  };
+  const r = await go(['--pick', 'context-bar,where-am-i'], { run, calls: [] });
+  assert.match(r.out, /✗ install where-am-i \(\[31mbad\]0;t thing\)/);
+});

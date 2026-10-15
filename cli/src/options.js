@@ -3,6 +3,7 @@ import { readFile as fsReadFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import readline from 'node:readline';
 import { MARKET, MARKET_REPO } from './plan.js';
+import { clean, cleanList } from './catalog.js';
 
 export const rawUrl = (name) =>
   `https://raw.githubusercontent.com/${MARKET_REPO}/main/mods/${name}/.claude-plugin/plugin.json`;
@@ -18,6 +19,8 @@ export async function marketLocation(run) {
   }
 }
 
+const asConfig = (c) => (c && typeof c === 'object' && !Array.isArray(c) ? c : {});
+
 // Raw GitHub first (the clone may be stale), then the clone when offline. {} when neither loads.
 export async function loadOptions(mod, {
   location,
@@ -27,12 +30,12 @@ export async function loadOptions(mod, {
 } = {}) {
   try {
     const res = await fetch(rawUrl(mod.name), { signal: AbortSignal.timeout(timeoutMs) });
-    if (res.ok) return (await res.json()).userConfig || {};
+    if (res.ok) return asConfig((await res.json())?.userConfig);
   } catch {}
   if (location) {
     try {
       const file = join(location, mod.source || `./mods/${mod.name}`, '.claude-plugin', 'plugin.json');
-      return JSON.parse(await readFile(file, 'utf8')).userConfig || {};
+      return asConfig(JSON.parse(await readFile(file, 'utf8'))?.userConfig);
     } catch {}
   }
   return {};
@@ -60,8 +63,8 @@ export function validate(option, raw) {
     if (/^(n|no|false)$/i.test(s)) return { value: 'false' };
     return { error: 'Enter y or n.' };
   }
-  if (option.options?.length && !option.options.includes(s)) {
-    return { error: `One of: ${option.options.join(', ')}.` };
+  if (Array.isArray(option.options) && option.options.length && !option.options.includes(s)) {
+    return { error: `One of: ${cleanList(option.options).join(', ')}.` };
   }
   return { value: s };
 }
@@ -72,9 +75,12 @@ const shown = (option, v) => option.type === 'boolean' ? (v ? 'y' : 'n') : Strin
 export async function collect(userConfig, ask, out = console.log) {
   const answers = {};
   for (const [key, option] of Object.entries(userConfig)) {
-    const hint = option.type === 'boolean' ? ' (y/n)' : option.options?.length ? ` (${option.options.join(', ')})` : '';
-    out(`${option.title || key}${hint}`);
-    if (option.description) out(`\x1b[2m${option.description}\x1b[22m`);
+    if (!option || typeof option !== 'object') continue;
+    const choices = cleanList(option.options);
+    const hint = option.type === 'boolean' ? ' (y/n)' : choices.length ? ` (${choices.join(', ')})` : '';
+    out(`${clean(option.title) || clean(key)}${hint}`);
+    const about = clean(option.description);
+    if (about) out(`\x1b[2m${about}\x1b[22m`);
     const prefill = option.default !== undefined && option.default !== '' && !option.sensitive
       ? shown(option, option.default) : undefined;
     for (;;) {

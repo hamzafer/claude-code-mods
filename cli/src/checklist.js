@@ -1,6 +1,6 @@
 // The checklist: pure state, keys -> new state, state -> string. A thin raw-mode loop drives it.
 import { emitKeypressEvents } from 'node:readline';
-import { groupByCategory } from './catalog.js';
+import { groupByCategory, tidy, clean } from './catalog.js';
 
 const TAGS = {
   band: 'a line above the prompt',
@@ -17,7 +17,7 @@ export const tagWords = (tags) => tags.map((t) => TAGS[t] || t).join(', ');
 
 export function initialState(catalog, ticked, { scope = 'user' } = {}) {
   const rows = [];
-  for (const g of groupByCategory(catalog)) {
+  for (const g of groupByCategory(catalog.map(tidy))) {
     rows.push({ type: 'header', category: g.category });
     for (const mod of g.mods) rows.push({ type: 'mod', mod });
   }
@@ -98,7 +98,7 @@ export function render(state, { columns = 80, rows = 24, color = !process.env.NO
     ...(current.tags.length ? wrap(`Adds: ${tagWords(current.tags)}`, inner).map((l) => `  ${l}`) : []),
     ...wrap(current.description, inner).map((l) => `  ${l}`),
     ...(current.needs?.length ? wrap(`Needs: ${current.needs.join(', ')}`, inner).map((l) => dim(`  ${l}`)) : []),
-    ...(state.message ? wrap(state.message, inner).map((l) => bold(`  ${l}`)) : []),
+    ...(state.message ? wrap(clean(state.message), inner).map((l) => bold(`  ${l}`)) : []),
     dim(fit(`  ${HINTS.join(' · ')}`)),
   ];
 

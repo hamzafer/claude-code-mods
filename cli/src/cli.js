@@ -1,5 +1,5 @@
 // Parse flags, wire the rest, exit codes.
-import { loadCatalog as defaultLoadCatalog, groupByCategory } from './catalog.js';
+import { loadCatalog as defaultLoadCatalog, groupByCategory, clean, tidy } from './catalog.js';
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
 import { runChecklist } from './checklist.js';
@@ -35,7 +35,7 @@ const label = (a) => a.verb === 'marketplace' ? `add the ${MARKET} marketplace`
   : a.verb === 'refresh' ? `update the ${MARKET} marketplace` : `${a.verb} ${a.name}`;
 const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${MARKET} marketplace`
   : a.verb === 'refresh' ? `updated the ${MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
-const firstLine = (s) => String(s).trim().split('\n')[0];
+const firstLine = (s) => clean(String(s).trim().split('\n')[0]).trim();
 
 async function listJson(run, args) {
   const r = await run(args);
@@ -44,6 +44,7 @@ async function listJson(run, args) {
 }
 
 function printList(mods, out) {
+  mods = mods.map(tidy);
   const width = Math.max(...mods.map((m) => m.name.length));
   const blocks = groupByCategory(mods).map((g) =>
     [g.category, ...g.mods.map((m) => `  ${m.name.padEnd(width)}  ${m.description}`)].join('\n'));

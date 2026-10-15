@@ -38,15 +38,27 @@ export async function loadCatalog({
   throw new Error('Could not load the mod list (offline, and no local copy).');
 }
 
+// Live text goes to the terminal: keep strings only, no control characters (no ANSI injection).
+export const clean = (v) => typeof v === 'string' || typeof v === 'number'
+  ? String(v).replace(/[\t\n\r]/g, ' ').replace(/[\x00-\x1f\x7f-\x9f]/g, '') : '';
+export const cleanList = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string').map(clean).filter(Boolean) : []);
+
+// Names go into claude args (a shell on Windows) and URLs, so only plain ones pass.
+export const NAME = /^[a-z0-9][a-z0-9._-]*$/;
+
+// One mod with every field a clean string or string list.
+export const tidy = (p) => ({
+  name: clean(p.name),
+  description: clean(p.description),
+  source: typeof p.source === 'string' ? p.source : undefined,
+  category: clean(p.category) || 'Other',
+  tags: cleanList(p.tags),
+  needs: cleanList(p.needs),
+});
+
 export function normalize(market) {
-  return (market.plugins || []).map((p) => ({
-    name: p.name,
-    description: p.description || '',
-    source: p.source,
-    category: p.category || 'Other',
-    tags: p.tags || [],
-    needs: p.needs || [],
-  }));
+  const plugins = Array.isArray(market?.plugins) ? market.plugins : [];
+  return plugins.filter((p) => typeof p?.name === 'string' && NAME.test(p.name)).map(tidy);
 }
 
 export function groupByCategory(mods) {

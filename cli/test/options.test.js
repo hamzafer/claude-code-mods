@@ -159,3 +159,23 @@ test('optionsLoader looks up the clone once, on first use', async () => {
   await load(prayer);
   assert.equal(lists, 1);
 });
+
+test('collect skips non-object entries and strips control characters from text', async () => {
+  const cfg = {
+    broken: 'nope',
+    nothing: null,
+    label: { type: 'string', title: 'La\x1b[31mbel', description: 'Wh\x1b]0;x\x07ere', options: ['a\x1bb', 'c'] },
+  };
+  const { ask, calls } = fakeAsk(['c']);
+  const out = [];
+  assert.deepEqual(await collect(cfg, ask, (s) => out.push(s)), { label: 'c' });
+  assert.equal(calls.length, 1);
+  const text = out.join(' ').replace(/\x1b\[2m|\x1b\[22m/g, '');
+  assert.doesNotMatch(text, /[\x00-\x1f\x7f-\x9f]/);
+  assert.match(text, /La\[31mbel \(ab, c\)/);
+});
+
+test('loadOptions gives {} when userConfig is not an object', async () => {
+  const fetch = async () => ({ ok: true, json: async () => ({ userConfig: 'x' }) });
+  assert.deepEqual(await loadOptions(prayer, { fetch }), {});
+});
