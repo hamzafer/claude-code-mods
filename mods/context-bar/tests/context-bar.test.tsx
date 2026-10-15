@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { resetBandOrder } from '../hooks/bands'
-import { cells, legend, share, toReading, tokens } from '../hooks/register'
+import { cells, legend, resetBandOrder, share, toReading, tokens } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 84 } }
 
@@ -35,10 +34,11 @@ const BREAKDOWN = {
 // Stands for the engine beneath the mod.
 function engine(on: any, store: Record<string, unknown> = {}, files: Record<string, string> = {}, beneath?: unknown) {
   const asked: unknown[] = []
+  const reads: string[] = []
   resetBandOrder()
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
-  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
+  on('fs.read', (_$: any, e: any) => (reads.push(e.path), { value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('turn.complete', () => ({ text: '' }))
@@ -49,7 +49,7 @@ function engine(on: any, store: Record<string, unknown> = {}, files: Record<stri
     return { value: { startedAt: 0, context: { tokens: 204_000, window: 1_000_000, percent: 20, breakdown: BREAKDOWN }, rateLimits: {}, cost: { usd: 0 } } }
   })
   on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
-  return { asked, store }
+  return { asked, store, reads }
 }
 
 const settle = () => new Promise(done => (globalThis as any).setTimeout(done, 20)) // the first refresh runs in the background
@@ -123,6 +123,18 @@ describe('context-bar', () => {
     const root: any = await band.drawn()
     expect(root.children.map((c: any) => c.props.key)).toEqual(['band:context-bar', 'band:where-am-i'])
     await band.unmount()
+  })
+
+  test('reads the band order file once per session', async ($, on) => {
+    const { reads } = engine(on, {}, { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["context-bar"]}' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    for (let i = 0; i < 2; i++) {
+      const band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+      await band.drawn()
+      await band.unmount()
+    }
+    expect(reads).toEqual(['/home/me/.claude/claude-code-mods/bands.json'])
   })
 
   test('refreshes after a main turn, not after a subagent turn', async ($, on) => {

@@ -4,33 +4,27 @@
 //   `band:<name>` and returns one column keyed `bands`; the next band mod unpacks that
 //   column, adds its own band and sorts again, so the last one to draw sorts them all.
 //   Edit shared/bands.ts, then copy it over every mod's hooks/bands.ts (a repo test checks).
-import type { EngineInterface, RenderElement, RenderNode } from 'claude-code'
+//   Reading the file needs $, which Claude Code follows only within one file, so each mod
+//   reads it in its own register file with bandsFile and parseOrder, once per session.
+import type { RenderElement, RenderNode } from 'claude-code'
 
 const COLUMN = 'bands'
 const PREFIX = 'band:'
 
-let cached: Promise<string[]> | undefined
-
-// The order from the file, read once per session (restart to apply); [] on any error.
-export function bandOrder($: EngineInterface): Promise<string[]> {
-  cached ??= readOrder($).catch(() => [])
-  return cached
+// Where the checklist saves the order: CLAUDE_CONFIG_DIR, or ~/.claude. Undefined with neither.
+export function bandsFile(configDir: string | undefined, home: string | undefined): string | undefined {
+  const dir = configDir ? configDir.replace(/\/+$/, '') : home ? `${home}/.claude` : ''
+  return dir ? `${dir}/claude-code-mods/bands.json` : undefined
 }
 
-// Forgets the cached order, for tests.
-export function resetBandOrder() {
-  cached = undefined
-}
-
-async function readOrder($: EngineInterface): Promise<string[]> {
-  const custom = await $.env.get('CLAUDE_CONFIG_DIR')
-  const home = await $.env.get('HOME')
-  const dir = custom ? custom.replace(/\/+$/, '') : home ? `${home}/.claude` : ''
-  if (!dir) return []
-  const file = `${dir}/claude-code-mods/bands.json`
-  if (!(await $.fs.exists(file))) return []
-  const order = (JSON.parse(await $.fs.read(file)) as { order?: unknown } | null)?.order
-  return Array.isArray(order) && order.every(n => typeof n === 'string') ? order : []
+// The names in an order file; [] when it is no JSON or not { order: string[] }.
+export function parseOrder(text: string): string[] {
+  try {
+    const order = (JSON.parse(text) as { order?: unknown } | null)?.order
+    return Array.isArray(order) && order.every(n => typeof n === 'string') ? order : []
+  } catch {
+    return []
+  }
 }
 
 /**

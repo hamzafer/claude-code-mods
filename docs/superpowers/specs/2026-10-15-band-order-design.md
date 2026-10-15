@@ -42,13 +42,14 @@ What it does, in the mod's `ui.render` hook for `AbovePrompt`:
 
 Attribution: the engine stamps each hook's returned root with `part: { plugin }`. When the helper unpacks a `bands` column whose `part` names a plugin, and that plugin's band item has no `part` of its own, the stamp moves onto that band item, so each band keeps its owner (buttons, hover) after re-parenting.
 
-Reading the file: once per session, on the first render, cached in the helper (restart to apply). Any error reading or parsing means no order. The helper uses `$.env.get` and `$.fs.read`, no new permissions.
+Reading the file: once per session, on the first render, cached in the mod (restart to apply). Any error reading or parsing means no order. Claude Code (2.1.288, the minimum CI pins) only follows `$` into functions declared in the same file, so the helper is pure: each mod has a small same-file `readBandOrder($)` that calls `$.env.get`, `$.fs.exists` and `$.fs.read` and hands the text to the helper. No new permissions.
 
-Proposed shape (names may change in the build):
+Shape:
 
 ```ts
-export async function bandOrder($): Promise<string[]>        // cached, [] on any error
-export function stackBands(Box, rest, name, mine, at: 'above' | 'below', order: string[]): RenderElement
+export function bandsFile(configDir?: string, home?: string): string | undefined
+export function parseOrder(text: string): string[]           // [] on any error
+export function stackBands(rest, name, mine, at: 'above' | 'below', order: string[]): RenderElement
 ```
 
 blast-radius is a special case: while it holds a command it takes the whole band (it returns its own prompt and drops `rest`) until answered. That stays, wrapped by the helper so the key is there; when idle it returns `rest` as today.

@@ -1,7 +1,7 @@
 // The shared band helper (hooks/bands.ts, a copy of shared/bands.ts).
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bandOrder, resetBandOrder, stackBands } from '../hooks/bands'
+import { bandsFile, parseOrder, stackBands } from '../hooks/bands'
 
 const text = (s: string): any => ({ type: 'Text', children: [s] })
 const band = (name: string, part?: string): any => ({
@@ -17,23 +17,6 @@ const column = (children: any[], part?: string): any => ({
   ...(part ? { part: { plugin: part } } : {}),
 })
 const keys = (el: any) => (el.children as any[]).map(c => (typeof c === 'string' ? c : (c.props?.key ?? c.children?.[0])))
-
-// Stands for the env and files a mod's `$` reaches.
-function world(files: Record<string, string>, env: Record<string, string> = { HOME: '/home/me' }) {
-  const reads: string[] = []
-  const $: any = {
-    env: { get: async (name: string) => env[name] },
-    fs: {
-      exists: async (path: string) => path in files,
-      read: async (path: string) => {
-        reads.push(path)
-        if (!(path in files)) throw new Error('ENOENT')
-        return files[path]
-      },
-    },
-  }
-  return { $, reads }
-}
 
 describe('stackBands', () => {
   test('wraps its own band in a keyed Box inside one keyed column', () => {
@@ -95,46 +78,25 @@ describe('stackBands', () => {
   })
 })
 
-describe('bandOrder', () => {
-  test('reads the order file from the config folder', async () => {
-    resetBandOrder()
-    const { $ } = world({ '/home/me/.claude/claude-code-mods/bands.json': '{"order":["a","b"]}' })
-    expect(await bandOrder($)).toEqual(['a', 'b'])
+describe('the order file', () => {
+  test('lives in the config folder', () => {
+    expect(bandsFile(undefined, '/home/me')).toBe('/home/me/.claude/claude-code-mods/bands.json')
   })
 
-  test('follows CLAUDE_CONFIG_DIR, trailing slashes removed', async () => {
-    resetBandOrder()
-    const { $ } = world({ '/cfg/claude-code-mods/bands.json': '{"order":["b"]}' }, { HOME: '/home/me', CLAUDE_CONFIG_DIR: '/cfg//' })
-    expect(await bandOrder($)).toEqual(['b'])
+  test('follows CLAUDE_CONFIG_DIR, trailing slashes removed', () => {
+    expect(bandsFile('/cfg//', '/home/me')).toBe('/cfg/claude-code-mods/bands.json')
   })
 
-  test('reads once per session', async () => {
-    resetBandOrder()
-    const { $, reads } = world({ '/home/me/.claude/claude-code-mods/bands.json': '{"order":["a"]}' })
-    await bandOrder($)
-    await bandOrder($)
-    expect(reads.length).toBe(1)
+  test('no HOME and no CLAUDE_CONFIG_DIR means no file', () => {
+    expect(bandsFile(undefined, undefined)).toBeUndefined()
+    expect(bandsFile('', '')).toBeUndefined()
   })
 
-  test('a missing file means no order', async () => {
-    resetBandOrder()
-    const { $ } = world({})
-    expect(await bandOrder($)).toEqual([])
+  test('reads the names', () => {
+    expect(parseOrder('{"order":["a","b"]}')).toEqual(['a', 'b'])
   })
 
-  test('broken JSON or a wrong shape means no order', async () => {
-    const files: Record<string, string> = {}
-    const { $ } = world(files)
-    for (const body of ['{not json', '[]', '{"order":"a"}', '{"order":["a",2]}', 'null']) {
-      resetBandOrder()
-      files['/home/me/.claude/claude-code-mods/bands.json'] = body
-      expect(await bandOrder($)).toEqual([])
-    }
-  })
-
-  test('no HOME and no CLAUDE_CONFIG_DIR means no order', async () => {
-    resetBandOrder()
-    const { $ } = world({}, {})
-    expect(await bandOrder($)).toEqual([])
+  test('broken JSON or a wrong shape means no order', () => {
+    for (const body of ['{not json', '[]', '{"order":"a"}', '{"order":["a",2]}', 'null', '']) expect(parseOrder(body)).toEqual([])
   })
 })

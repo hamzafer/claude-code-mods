@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reading, Slice } from '../types'
-import { bandOrder, stackBands } from './bands'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const MIN_WIDTH = 20 // narrower than this, the bar is not drawn
 const SPLIT = '   '
@@ -21,6 +21,8 @@ const GLYPH = { used: '█', free: '─', buffer: '░' } as const
 // Held by the host, so the bar survives a hot reload of this file.
 const reading = atom({ plugin: 'context-bar', key: 'reading' } as const, null as Reading | null)
 const isHidden = atom({ plugin: 'context-bar', key: 'isHidden' } as const, false)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -94,8 +96,19 @@ export const register: Register = on => {
         ))}
       </Box>
     )
-    return stackBands(rest, 'context-bar', mine, 'below', await bandOrder($)) // below what other mods draw, unless the band order says otherwise
+    return stackBands(rest, 'context-bar', mine, 'below', await (bandOrder ??= readBandOrder($).catch(() => []))) // below what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Asks the engine for /context's breakdown, estimated locally (no token-count calls).
