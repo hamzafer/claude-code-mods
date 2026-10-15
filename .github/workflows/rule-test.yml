@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     steps:
-      - run: echo "should never run: only main may use the npm environment"
+      - run: echo "should never run, only main may use the npm environment"
