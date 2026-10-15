@@ -1,0 +1,28 @@
+{
+  "name": "claude-code-mods",
+  "version": "0.1.0",
+  "description": "Pick the Claude Code mods you want from one checklist.",
+  "type": "module",
+  "bin": {
+    "claude-code-mods": "bin.js"
+  },
+  "files": [
+    "bin.js",
+    "src",
+    "marketplace.json"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "prepack": "cp ../.claude-plugin/marketplace.json marketplace.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamzafer/claude-code-mods.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/hamzafer/claude-code-mods",
+  "license": "MIT"
+}
