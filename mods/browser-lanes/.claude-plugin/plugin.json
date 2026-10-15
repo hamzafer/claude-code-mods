@@ -1,6 +1,6 @@
 {
   "name": "browser-lanes",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. A subagent that wants the browser waits until the one using it is done.",
   "author": {
     "name": "Hamza Zafar",

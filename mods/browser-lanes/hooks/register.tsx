@@ -11,6 +11,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Attachment, Lane } from '../types'
 import { attachment, browsers, describeAttachment, otherHolders, parsePs } from './attach'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const BROWSER_TOOL = /^mcp__.*playwright.*__browser_/
 const IDLE_MS = 90_000 // a driver this quiet lets go
@@ -20,6 +21,8 @@ const MAX_WAIT_MS = 5 * 60_000
 const holder = atom({ plugin: 'browser-lanes', key: 'holder' } as const, null as Lane | null)
 const waiting = atom({ plugin: 'browser-lanes', key: 'waiting' } as const, [] as string[])
 const attached = atom({ plugin: 'browser-lanes', key: 'attachment' } as const, null as Attachment | null)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   const names = new Map<string, string>() // agent id → a short label
@@ -120,21 +123,30 @@ export const register: Register = on => {
     const lane = await read($, holder)
     const isDriving = lane !== null && Date.now() - lane.last <= IDLE_MS
     const queue = await read($, waiting)
-    const { Box, Text } = $.ui.resolve(e)
+    const { Text } = $.ui.resolve(e)
     const color = a.state === 'attached' ? 'green' : a.state === 'blocked' ? 'red' : undefined
-    return (
-      <Box flexDirection="column">
-        <Text wrap="truncate-end">
-          <Text color="magenta" bold>{' ◎ browser: '}</Text>
-          <Text color={color} dimColor={a.state === 'ready'}>{describeAttachment(a)}</Text>
-          {isDriving && <Text dimColor>{`  ·  driving: ${lane.label}`}</Text>}
-          {queue.length > 0 && <Text color="yellow">{`  ·  ${queue.length} waiting (${queue.join(', ')})`}</Text>}
-          {a.state === 'blocked' && <Text dimColor>{'  ·  /browser'}</Text>}
-        </Text>
-        {rest}
-      </Box>
+    const mine = (
+      <Text wrap="truncate-end">
+        <Text color="magenta" bold>{' ◎ browser: '}</Text>
+        <Text color={color} dimColor={a.state === 'ready'}>{describeAttachment(a)}</Text>
+        {isDriving && <Text dimColor>{`  ·  driving: ${lane.label}`}</Text>}
+        {queue.length > 0 && <Text color="yellow">{`  ·  ${queue.length} waiting (${queue.join(', ')})`}</Text>}
+        {a.state === 'blocked' && <Text dimColor>{'  ·  /browser'}</Text>}
+      </Text>
     )
+    return stackBands(rest, 'browser-lanes', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Reads `ps` to see whose Chrome is whose, and keeps the answer for the band.

@@ -3,6 +3,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, McpToolResult, Register } from 'claude-code'
 
 import type { Dm, Issue, Meeting, Pr, Source } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 import type { Part } from './pick'
 import {
   PR_QUERY, SEPARATOR, clock, dmPart, dmsFrom, fit, issuePart, issuesFrom, meetingPart, meetingsFrom, mergeDms, prPart, prsFrom, slackIdFrom, when,
@@ -19,6 +20,8 @@ const issues = atom({ plugin: 'glance', key: 'issues' } as const, { items: [], f
 const dms = atom({ plugin: 'glance', key: 'dms' } as const, { items: [], fetchedAt: 0, isFailed: false } as Source<Dm>)
 const triedAt = atom({ plugin: 'glance', key: 'triedAt' } as const, 0)
 const minute = atom({ plugin: 'glance', key: 'minute' } as const, 0)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -53,19 +56,28 @@ export const register: Register = on => {
     const texts = fit(parts, e.props.bodyColumns - 2)
     const { Box, Text } = $.ui.resolve(e)
     const shown = parts.map((part, k) => ({ part, text: texts[k] })).filter(x => x.part && x.text)
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="row" paddingX={1}>
-          {shown.map(({ part, text }, k) => (
-            <Text key={String(k)} wrap="truncate" color={part!.isDim ? undefined : part!.color} dimColor={part!.isDim}>
-              {(k > 0 ? SEPARATOR : '') + text}
-            </Text>
-          ))}
-        </Box>
-        {rest}
+    const mine = (
+      <Box flexDirection="row" paddingX={1}>
+        {shown.map(({ part, text }, k) => (
+          <Text key={String(k)} wrap="truncate" color={part!.isDim ? undefined : part!.color} dimColor={part!.isDim}>
+            {(k > 0 ? SEPARATOR : '') + text}
+          </Text>
+        ))}
       </Box>
     )
+    return stackBands(rest, 'glance', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // A source that failed to refresh still shows its last answer, dimmed.

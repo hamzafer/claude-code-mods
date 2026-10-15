@@ -7,6 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ToolCallResult } from 'claude-code'
 
 import type { GateStatus } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const LUNA = 'gpt-5.6-luna'
 
@@ -34,6 +35,8 @@ const status = atom({ plugin: 'merge-gate', key: 'status' } as const, null as Ga
 
 type Pr = { number: number; title: string; branch: string }
 type Checks = { pass: number; fail: number; pending: number; failing: string[] }
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -70,24 +73,33 @@ export const register: Register = on => {
     const s = await read($, status)
     if (e.props.hasSurvey || !s) return rest
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Text } = $.ui.resolve(e)
     const ci = s.fail > 0 ? 'red' : s.pending > 0 ? 'yellow' : 'green'
-    return (
-      <Box flexDirection="column">
-        <Text wrap="truncate-end">
-          <Text bold>{` ⛙ PR #${s.pr} `}</Text>
-          <Text color={ci}>
-            {s.fail > 0 ? `CI ✗ ${s.fail} failing` : s.pending > 0 ? `CI … ${s.pending} running` : `CI ✓ ${s.pass}`}
-          </Text>
-          <Text dimColor>{'  ·  '}</Text>
-          <Text color={s.codex > 0 ? 'green' : 'yellow'}>{`Codex ${Math.min(s.codex, 1)}/1`}</Text>
-          {s.fail > 0 && <Text dimColor>{'  ·  /gate rerun'}</Text>}
-          <Text dimColor>{`  ·  ${s.title}`}</Text>
+    const mine = (
+      <Text wrap="truncate-end">
+        <Text bold>{` ⛙ PR #${s.pr} `}</Text>
+        <Text color={ci}>
+          {s.fail > 0 ? `CI ✗ ${s.fail} failing` : s.pending > 0 ? `CI … ${s.pending} running` : `CI ✓ ${s.pass}`}
         </Text>
-        {rest}
-      </Box>
+        <Text dimColor>{'  ·  '}</Text>
+        <Text color={s.codex > 0 ? 'green' : 'yellow'}>{`Codex ${Math.min(s.codex, 1)}/1`}</Text>
+        {s.fail > 0 && <Text dimColor>{'  ·  /gate rerun'}</Text>}
+        <Text dimColor>{`  ·  ${s.title}`}</Text>
+      </Text>
     )
+    return stackBands(rest, 'merge-gate', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 async function codexReview($: EngineInterface, command: string, run: () => Promise<ToolCallResult>): Promise<ToolCallResult> {
