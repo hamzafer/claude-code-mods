@@ -11,7 +11,7 @@ const TAGS = {
   command: 'a command',
 };
 const SCOPES = { user: 'everywhere (user scope)', project: 'this project (project scope)' };
-export const HINTS = ['↑↓ move', 'space pick', 'enter apply', 'q quit'];
+export const HINTS = ['↑↓ move', 'space pick', 'p preview', 'enter apply', 'q quit'];
 
 export const tagWords = (tags) => tags.map((t) => TAGS[t] || t).join(', ');
 
@@ -97,6 +97,7 @@ export function render(state, { columns = 80, rows = 24, color = !process.env.NO
     dim(fit(rule + '─'.repeat(Math.max(0, columns - rule.length - 2)))),
     ...(current.tags.length ? wrap(`Adds: ${tagWords(current.tags)}`, inner).map((l) => `  ${l}`) : []),
     ...wrap(current.description, inner).map((l) => `  ${l}`),
+    ...(current.needs?.length ? wrap(`Needs: ${current.needs.join(', ')}`, inner).map((l) => dim(`  ${l}`)) : []),
     ...(state.message ? wrap(state.message, inner).map((l) => bold(`  ${l}`)) : []),
     dim(fit(`  ${HINTS.join(' · ')}`)),
   ];
@@ -110,8 +111,17 @@ export function render(state, { columns = 80, rows = 24, color = !process.env.NO
     if (r.type === 'header') return bold(fit(`  ${r.category}`));
     const on = state.ticked.includes(r.mod.name);
     const here = top + i === state.cursor;
-    const line = fit(`${here ? '▸' : ' '} ${on ? '◉' : '◯'} ${r.mod.name.padEnd(width)}  ${r.mod.description}`);
-    return here ? inverse(line) : line;
+    const start = `${here ? '▸' : ' '} ${on ? '◉' : '◯'} ${r.mod.name.padEnd(width)}  `;
+    const needs = r.mod.needs?.length ? `  needs ${r.mod.needs.join(', ')}` : '';
+    const room = columns - start.length - needs.length;
+    // Too narrow to keep the needs readable: cut the whole row instead.
+    if (!needs || room < 8) {
+      const line = fit(start + r.mod.description);
+      return here ? inverse(line) : line;
+    }
+    const main = start + cut(r.mod.description, room);
+    if (!color) return main + needs;
+    return `${here ? '\x1b[7m' : ''}${main}\x1b[2m${needs}\x1b[0m`;
   });
 
   return [...head, ...list, ...detail].join('\n');
