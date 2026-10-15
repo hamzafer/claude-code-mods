@@ -1,6 +1,6 @@
 {
   "name": "now-playing",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "What Spotify is playing, one line above the prompt: track, progress and the lyric being sung, with ⏮ ⏸ ⏭ buttons. /music controls it too. macOS.",
   "author": {
     "name": "Hamza Zafar",

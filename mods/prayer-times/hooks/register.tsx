@@ -6,7 +6,9 @@
 //   /prayers lists today's times. A toast says when a prayer begins, and again when its time
 //   is nearly over.
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
+
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const MIN = 60_000
 const SOON_MIN = 20 // the time left turns yellow under this many minutes
@@ -37,6 +39,8 @@ export type Times = { fajr: number; sunrise: number; noon: number; dhuhr: number
 
 // Held by the host, so the line keeps ticking across a hot reload.
 const now = atom({ plugin: 'prayer-times', key: 'now' } as const, 0)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = (on, options) => {
   const cfg = configFrom(options)
@@ -93,38 +97,45 @@ export const register: Register = (on, options) => {
     const t = (await read($, now)) || Date.now() // subscribes the line to the clock
     const { Box, Text } = $.ui.resolve(e)
     if (!cfg) {
-      return (
-        <Box flexDirection="column">
-          <Box paddingX={1}>
-            <Text dimColor wrap="truncate-end">{'🕌 prayer-times: set your latitude and longitude in /config. They stay on this computer'}</Text>
-          </Box>
-          {rest}
+      const ask = (
+        <Box paddingX={1}>
+          <Text dimColor wrap="truncate-end">{'🕌 prayer-times: set your latitude and longitude in /config. They stay on this computer'}</Text>
         </Box>
       )
+      return stackBands(rest, 'prayer-times', ask, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
     }
     const s = status(cfg, new Date(t), makruh, zawal)
-    return (
-      <Box flexDirection="column">
-        <Box paddingX={1}>
-          <Text wrap="truncate-end">
-            {s.parts.map((p, i) => {
-              // A leading emoji is drawn plain: some terminals shift or clip a bold one.
-              const icon = /^(\p{Extended_Pictographic}\uFE0F?) /u.exec(p.text)?.[1]
-              const label = icon ? p.text.slice(icon.length) : p.text
-              return (
-                <Text>
-                  {i > 0 && <Text dimColor>{' · '}</Text>}
-                  {icon && <Text>{icon}</Text>}
-                  <Text color={p.color} bold={p.bold} dimColor={p.dim}>{label}</Text>
-                </Text>
-              )
-            })}
-          </Text>
-        </Box>
-        {rest}
+    const mine = (
+      <Box paddingX={1}>
+        <Text wrap="truncate-end">
+          {s.parts.map((p, i) => {
+            // A leading emoji is drawn plain: some terminals shift or clip a bold one.
+            const icon = /^(\p{Extended_Pictographic}\uFE0F?) /u.exec(p.text)?.[1]
+            const label = icon ? p.text.slice(icon.length) : p.text
+            return (
+              <Text>
+                {i > 0 && <Text dimColor>{' · '}</Text>}
+                {icon && <Text>{icon}</Text>}
+                <Text color={p.color} bold={p.bold} dimColor={p.dim}>{label}</Text>
+              </Text>
+            )
+          })}
+        </Text>
       </Box>
     )
+    return stackBands(rest, 'prayer-times', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 const DHUHR_AFTER = 2 / 60 // Dhuhr starts this long after the sun's highest point

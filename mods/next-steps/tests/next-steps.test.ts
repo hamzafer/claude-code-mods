@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { displayWidth, fitsOnOneLine, parseSteps } from '../hooks/register'
+import { displayWidth, fitsOnOneLine, parseSteps, resetBandOrder } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160 } }
 const ANSWER = 'I wrote tests for the login form and they pass locally.'
@@ -9,9 +9,13 @@ const REPLY = 'Run the tests you just wrote\nDo the same for settings\nOpen a dr
 const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
 
 // Stands for the engine beneath the mod. `reply` may hold the model call until the test lets it go.
-function engine(on: any, reply: () => Promise<string> | string, agents: unknown[] = []) {
+function engine(on: any, reply: () => Promise<string> | string, agents: unknown[] = [], files: Record<string, string> = {}, beneath?: unknown) {
   let calls = 0
   let system = ''
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('prompt.submit', () => ({ text: '' }))
   on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
@@ -30,7 +34,7 @@ function engine(on: any, reply: () => Promise<string> | string, agents: unknown[
   })
   on('ui.render', ($: any, e: any) => {
     const { Text } = $.ui.resolve(e)
-    return Text({ children: 'band below' }) // stands for other mods' bands
+    return beneath ?? Text({ children: 'band below' }) // stands for other mods' bands
   })
   return { calls: () => calls, system: () => system }
 }
@@ -65,6 +69,25 @@ describe('next-steps', () => {
     expect(await ui.find({ type: 'Text', text: /^Open a draft PR$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^dismiss$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /band below/ })).toBeDefined()
+    // its band is keyed for the band order, above what other mods draw
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:next-steps', undefined])
+    await ui.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, () => REPLY, [], { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","next-steps"]}' }, beneath)
+    await finishTurn($)
+    const ui = await band($)
+    const root: any = await ui.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:next-steps'])
     await ui.unmount()
   })
 
