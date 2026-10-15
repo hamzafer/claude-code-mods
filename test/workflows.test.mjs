@@ -38,7 +38,7 @@ test('only the publish and Pages workflows can mint an OIDC token', () => {
 
 test('the publish workflow runs on main only, in the npm environment', { skip: !existsSync(join(dir, PUBLISHER)) }, () => {
   const text = code(readFileSync(join(dir, PUBLISHER), 'utf8'))
-  assert.match(text, /^\s+environment: npm\b/m, `${PUBLISHER}: the job must use the npm environment`)
+  assert.match(text, /^\s+environment:\s*(npm\b|\n\s+name: npm\b)/m, `${PUBLISHER}: the job must use the npm environment`)
   assert.match(text, /branches: \[main\]/, `${PUBLISHER}: publish from main only`)
   assert.doesNotMatch(text, /pull_request|workflow_dispatch|registry-url/, `${PUBLISHER}: no PR or manual triggers, no registry-url`)
 })
