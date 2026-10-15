@@ -1,0 +1,108 @@
+// A mod's userConfig: read it, ask for it, check it, save it.
+import { readFile as fsReadFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import readline from 'node:readline';
+import { MARKET, MARKET_REPO } from './plan.js';
+
+export const rawUrl = (name) =>
+  `https://raw.githubusercontent.com/${MARKET_REPO}/main/mods/${name}/.claude-plugin/plugin.json`;
+
+// Where claude cloned our marketplace, or null.
+export async function marketLocation(run) {
+  try {
+    const r = await run(['plugin', 'marketplace', 'list', '--json']);
+    if (r.code !== 0) return null;
+    return JSON.parse(r.stdout).find((m) => m.name === MARKET)?.installLocation || null;
+  } catch {
+    return null;
+  }
+}
+
+// The clone's plugin.json first, then raw GitHub. {} when neither loads.
+export async function loadOptions(mod, {
+  location,
+  readFile = fsReadFile,
+  fetch = globalThis.fetch,
+  timeoutMs = 3000,
+} = {}) {
+  if (location) {
+    try {
+      const file = join(location, mod.source || `./mods/${mod.name}`, '.claude-plugin', 'plugin.json');
+      return JSON.parse(await readFile(file, 'utf8')).userConfig || {};
+    } catch {}
+  }
+  try {
+    const res = await fetch(rawUrl(mod.name), { signal: AbortSignal.timeout(timeoutMs) });
+    if (res.ok) return (await res.json()).userConfig || {};
+  } catch {}
+  return {};
+}
+
+// raw -> { value } (undefined means keep the default) or { error }.
+export function validate(option, raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return { value: undefined };
+  if (option.type === 'number') {
+    const n = Number(s);
+    if (!Number.isFinite(n)) return { error: 'Enter a number.' };
+    if (option.min !== undefined && n < option.min) return { error: `At least ${option.min}.` };
+    if (option.max !== undefined && n > option.max) return { error: `At most ${option.max}.` };
+    return { value: s };
+  }
+  if (option.type === 'boolean') {
+    if (/^(y|yes|true)$/i.test(s)) return { value: 'true' };
+    if (/^(n|no|false)$/i.test(s)) return { value: 'false' };
+    return { error: 'Enter y or n.' };
+  }
+  if (option.options?.length && !option.options.includes(s)) {
+    return { error: `One of: ${option.options.join(', ')}.` };
+  }
+  return { value: s };
+}
+
+const shown = (option, v) => option.type === 'boolean' ? (v ? 'y' : 'n') : String(v);
+
+// Asks each option until valid. Returns only the answers that differ from the default.
+export async function collect(userConfig, ask, out = console.log) {
+  const answers = {};
+  for (const [key, option] of Object.entries(userConfig)) {
+    const hint = option.type === 'boolean' ? ' (y/n)' : option.options?.length ? ` (${option.options.join(', ')})` : '';
+    out(`${option.title || key}${hint}`);
+    if (option.description) out(`\x1b[2m${option.description}\x1b[22m`);
+    const prefill = option.default !== undefined && option.default !== '' && !option.sensitive
+      ? shown(option, option.default) : undefined;
+    for (;;) {
+      const r = validate(option, await ask('> ', { sensitive: !!option.sensitive, prefill }));
+      if (r.error) { out(r.error); continue; }
+      const same = r.value !== undefined && prefill !== undefined && validate(option, prefill).value === r.value;
+      if (r.value !== undefined && !same) answers[key] = r.value;
+      break;
+    }
+  }
+  return answers;
+}
+
+// Null when there is nothing to send.
+export async function save(run, id, answers) {
+  if (!Object.keys(answers).length) return null;
+  return run(['plugin', 'configure', id, '--values-stdin'], { input: JSON.stringify(answers) });
+}
+
+// Line input. Sensitive answers echo `*`; prefill puts the default on the line.
+export function createPrompt({ input = process.stdin, output = process.stdout } = {}) {
+  const rl = readline.createInterface({ input, output, terminal: true });
+  const write = rl._writeToOutput.bind(rl);
+  let mask = false;
+  rl._writeToOutput = (s) => write(mask ? s.replace(/[^\r\n]/g, '*') : s);
+  return {
+    ask(question, { sensitive = false, prefill } = {}) {
+      output.write(question);
+      return new Promise((resolve) => {
+        mask = sensitive;
+        rl.question('', (a) => { mask = false; resolve(a); });
+        if (prefill) rl.write(prefill);
+      });
+    },
+    close: () => rl.close(),
+  };
+}
