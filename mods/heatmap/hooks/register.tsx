@@ -19,11 +19,12 @@ import {
   parseLedger,
   parseTimes,
   projectName,
+  rampFor,
   thousands,
   weekdayName,
   weeksFor,
 } from './heat'
-import type { Row, SessionLog } from './heat'
+import type { Ramp, Row, SessionLog } from './heat'
 import type { Scope } from '../types'
 
 const PANE = 'heatmap'
@@ -40,7 +41,7 @@ const isLoading = atom({ plugin: 'heatmap', key: 'isLoading' } as const, false)
 // The ledger as last read or written; a hot reload starts over and reads it again.
 let rows: Row[] | null = null
 let refreshing: Promise<void> | null = null
-let isLight: boolean | null = null // the person's theme, read once
+let ramp: Ramp | null = null // from the person's theme, read once
 let failure: string | null = null // why the last refresh failed, shown while there are no rows
 
 export const register: Register = on => {
@@ -108,7 +109,7 @@ export const register: Register = on => {
       cells: v.days.map(d => [d.min, d.s, d.top]),
       months: monthLabels(v.start, weeks),
       labels: v.days.map(d => d.d),
-      isLight: (isLight ??= await isLightTheme($)),
+      ramp: (ramp ??= await themeRamp($)),
     }
     const toggle = () => update($, scope, s => (s === 'all' ? 'here' : 'all'))
 
@@ -171,15 +172,14 @@ function refresh($: EngineInterface): Promise<void> {
   return refreshing
 }
 
-/** Whether the saved theme is a light one; Claude Code keeps it in .claude.json. Unknown or auto: dark. */
-async function isLightTheme($: EngineInterface): Promise<boolean> {
+/** The ramp for the saved theme; Claude Code keeps it in .claude.json. Auto, or unreadable: the ramp that reads on both. */
+async function themeRamp($: EngineInterface): Promise<Ramp> {
   try {
     const custom = await $.env.get('CLAUDE_CONFIG_DIR')
     const file = custom ? `${custom.replace(/\/+$/, '')}/.claude.json` : `${await $.env.get('HOME')}/.claude.json`
-    const theme = (JSON.parse(await $.fs.read(file)) as { theme?: unknown }).theme
-    return typeof theme === 'string' && theme.startsWith('light')
+    return rampFor((JSON.parse(await $.fs.read(file)) as { theme?: unknown }).theme)
   } catch {
-    return false
+    return 'auto'
   }
 }
 

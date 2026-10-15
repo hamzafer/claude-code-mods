@@ -44,7 +44,7 @@
     {
       "name": "heatmap",
       "description": "A GitHub-style grid of your Claude Code time in a /heatmap pane, with streaks, peaks and top projects.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./mods/heatmap"
     },
     {

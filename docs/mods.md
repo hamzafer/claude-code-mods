@@ -124,6 +124,7 @@ A GitHub-style grid of your Claude Code time, one square per day.
 
 - `/heatmap` opens the pane. Each square is one day of **active minutes**: the time between messages, where a pause over 5 minutes adds nothing. A pause over midnight is split between the two days
 - Four levels, in two sizes and a ramp of Claude orange: under 15 minutes, under an hour, under 3 hours, 3 hours and more
+- The ramp follows your theme: brighter is busier on a dark theme, darker on a light one. With the Auto theme the background is unknown, so every level has the same lightness and only the color strengthens, from near gray to full orange
 - Shows as many weeks as fit the pane, up to a year, ending today
 - Under the grid: your current and best streak, active hours and sessions, your busiest weekday and hour, and your top 3 projects
 - `p` switches between all projects and this repo. Click the grid, then the arrow keys move a day cursor that shows that day's time, sessions and top project. `q` closes

@@ -12,6 +12,7 @@ import {
   parseLedger,
   parseTimes,
   projectName,
+  rampFor,
   sessionDays,
   streaks,
   weeksFor,
@@ -190,6 +191,11 @@ describe('layout', () => {
   test('labels months over the week holding the 1st', () => {
     const labels = monthLabels('2026-09-07', 6) // weeks of Sep 7, 14, 21, 28, Oct 5, 12
     expect(labels).toBe('      Oct')
+  })
+
+  test('picks a ramp from the saved theme; Auto or unknown gets one that reads on both', () => {
+    expect([rampFor('dark'), rampFor('dark-daltonized'), rampFor('light'), rampFor('light-ansi')]).toEqual(['dark', 'dark', 'light', 'light'])
+    expect([rampFor('auto'), rampFor(undefined), rampFor(42), rampFor('')]).toEqual(['auto', 'auto', 'auto', 'auto'])
   })
 
   test('formats durations, days and names', () => {

@@ -287,6 +287,18 @@ export function monthLabels(start: string, weeks: number): string {
   return out.slice(0, weeks * 2)
 }
 
+export type Ramp = 'dark' | 'light' | 'auto'
+
+/**
+ * The color ramp for a saved theme (`dark…` or `light…`). Auto, or a theme we
+ * can't read, says nothing about the background, so it gets the ramp that reads
+ * the same on both.
+ */
+export function rampFor(theme: unknown): Ramp {
+  if (typeof theme !== 'string') return 'auto'
+  return theme.startsWith('light') ? 'light' : theme.startsWith('dark') ? 'dark' : 'auto'
+}
+
 /** 3h 12m, 47m, 0m. */
 export function duration(min: number): string {
   const h = Math.floor(min / 60)

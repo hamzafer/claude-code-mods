@@ -18,7 +18,7 @@ A new public mod people want to screenshot and share. It should be easy to recog
 - Value = **active minutes**: the time between consecutive messages in a session, where a gap longer than 5 minutes adds nothing. A counted gap that crosses midnight is split between the two days.
 - Levels: none `·`, then `< 15m`, `15-60m`, `1-3h` and `3h+`, drawn as `▪ ▪ ■ ■` in a ramp of Claude orange.
 - Two square sizes carry the level along with the color, so no level depends on telling colors apart alone.
-- The ramp follows the saved theme in `.claude.json` (a light ramp for light themes, else dark). Block glyphs (`░▒▓█`) were tried and dropped: they fill the line height, so rows merge into stripes.
+- The ramp follows the saved theme in `.claude.json`: a dark ramp (brighter is busier), a light ramp (darker is busier), and for Auto or an unreadable theme one ramp at a single lightness where only the saturation rises, so the order holds on any background. Block glyphs (`░▒▓█`) were tried and dropped: they fill the line height, so rows merge into stripes.
 
 ## Data
 

@@ -2,6 +2,7 @@
 import type { ClientModule } from 'claude-code'
 
 import { LABEL_COLUMNS, dayLabel, duration, level, thousands } from './heat'
+import type { Ramp } from './heat'
 
 /** One day: active minutes, sessions, top project. */
 export type Cell = [number, number, string | null]
@@ -12,7 +13,7 @@ export type GridProps = {
   cells: Cell[] // from start to today
   months: string // the month row, already laid out
   labels: string[] // one per day in order, for the detail line
-  isLight: boolean // the person's theme is a light one
+  ramp: Ramp // from the person's saved theme
 }
 
 type GridText = Parameters<ClientModule<GridProps, Local>>[1]['elements']['Text']
@@ -20,9 +21,12 @@ type Local = { cursor: string | null; live: { props: GridProps } } // the day un
 
 // Two sizes and a ramp of Claude orange: a level never depends on telling colors apart alone.
 export const GLYPHS = ['·', '▪', '▪', '■', '■']
-const RAMPS = {
-  dark: ['#5c3426', '#8f4a33', '#c4613f', '#f08a63'],
-  light: ['#f5c9b6', '#ec9c79', '#d97757', '#a8492b'],
+const RAMPS: Record<Ramp, string[]> = {
+  dark: ['#5c3426', '#8f4a33', '#c4613f', '#f08a63'], // brighter is busier
+  light: ['#f5c9b6', '#ec9c79', '#d97757', '#a8492b'], // darker is busier
+  // One lightness, so each sits as far from a light background as from a dark one;
+  // only the color strengthens (from near gray to full orange), so busier reads busier on both.
+  auto: ['#8c807b', '#a5796a', '#c26b4d', '#dc5a2e'],
 }
 const ROW_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
 
@@ -65,7 +69,7 @@ const Grid: ClientModule<GridProps, Local> = (props, surface) => {
             const lv = level(cell[0], cell[1])
             return (
               <Text>
-                {square(Text, lv, i === cursor, props.isLight)}
+                {square(Text, lv, i === cursor, props.ramp)}
                 {' '}
               </Text>
             )
@@ -76,7 +80,7 @@ const Grid: ClientModule<GridProps, Local> = (props, surface) => {
         <Text dimColor>{`${' '.repeat(LABEL_COLUMNS)}less `}</Text>
         {GLYPHS.map((_, lv) => (
           <Text>
-            {square(Text, lv, false, props.isLight)}{' '}
+            {square(Text, lv, false, props.ramp)}{' '}
           </Text>
         ))}
         <Text dimColor>more</Text>
@@ -90,8 +94,8 @@ const Grid: ClientModule<GridProps, Local> = (props, surface) => {
 
 export default Grid
 
-function square(Text: GridText, level: number, isCursor: boolean, isLight: boolean) {
-  const color = level === 0 ? 'subtle' : RAMPS[isLight ? 'light' : 'dark'][level - 1]!
+function square(Text: GridText, level: number, isCursor: boolean, ramp: Ramp) {
+  const color = level === 0 ? 'subtle' : RAMPS[ramp][level - 1]!
   return (
     <Text color={color} inverse={isCursor}>
       {GLYPHS[level]}
