@@ -43,7 +43,7 @@ function bandsInOrder(state) {
   const bands = state.rows
     .filter((r) => r.type === 'mod' && r.mod.tags.includes('band') && state.ticked.includes(r.mod.name))
     .map((r) => r.mod.name);
-  const listed = state.bandOrder.filter((n) => bands.includes(n));
+  const listed = [...new Set(state.bandOrder)].filter((n) => bands.includes(n));
   return [...bands.filter((n) => !listed.includes(n)), ...listed];
 }
 
@@ -64,7 +64,7 @@ function reduceOrder(state, key) {
     case 'shift-down': case 'J': return swap(1);
     case 'return': {
       // Names in the old file that are not ticked now keep their place after.
-      const order = [...names, ...state.bandOrder.filter((n) => !names.includes(n))];
+      const order = [...new Set([...names, ...state.bandOrder])];
       return { ...state, screen: 'list', order: null, bandOrder: order, effect: { type: 'order', order } };
     }
     case 'q': case 'escape': return { ...state, screen: 'list', order: null };
@@ -85,8 +85,8 @@ export function reduce(state, key) {
   if (s.screen === 'order') return reduceOrder(s, key);
   const name = s.rows[s.cursor]?.mod.name;
   switch (key) {
-    case 'up': case 'k': return move(s, -1);
-    case 'down': case 'j': return move(s, 1);
+    case 'up': case 'k': case 'shift-up': case 'K': return move(s, -1);
+    case 'down': case 'j': case 'shift-down': case 'J': return move(s, 1);
     case 'space': {
       const on = !s.ticked.includes(name);
       const set = new Set(on ? [...s.ticked, name] : s.ticked.filter((n) => n !== name));

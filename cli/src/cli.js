@@ -69,11 +69,11 @@ export function bandsPath(env = process.env, home = homedir()) {
   return join(configEnv(env) || join(home, '.claude'), 'claude-code-mods', 'bands.json');
 }
 
-// The file's names, top to bottom; a missing or odd file means no order, as in the mods.
+// The file's names, top to bottom, each once; a missing or odd file means no order, as in the mods.
 export function parseBandOrder(text) {
   try {
     const { order } = JSON.parse(text);
-    return Array.isArray(order) && order.every((n) => typeof n === 'string') ? order : [];
+    return Array.isArray(order) && order.every((n) => typeof n === 'string') ? [...new Set(order)] : [];
   } catch {
     return [];
   }
@@ -133,6 +133,7 @@ export async function main(argv, {
       const ticked = Object.keys(state).filter((n) => state[n].enabled);
       const bandsFile = bandsPath(env, home);
       const bandOrder = parseBandOrder(await read(bandsFile).catch(() => null));
+      let savedOrder = bandOrder; // what is on disk, put back if a save fails
       let dryBands = null;
       // Ticks warn about missing tools; p opens the screenshot; the order screen saves bands.json.
       const onEffect = async (e) => {
@@ -145,9 +146,10 @@ export async function main(argv, {
           }
           try {
             await write(bandsFile, text);
+            savedOrder = e.order;
             return { message: 'Saved. Restart Claude Code to apply.' };
           } catch (failure) {
-            return { message: `Could not save the band order: ${failure.message}` };
+            return { message: `Could not save the band order: ${failure.message}`, bandOrder: savedOrder };
           }
         }
         if (e.type !== 'tick' || !e.ticked) return null;

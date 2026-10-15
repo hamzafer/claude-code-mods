@@ -35,3 +35,17 @@ test('every band mod reads the order file the same way', () => {
   assert.ok(first, `mods/${bandMods[0]}/hooks/register.tsx has no readBandOrder`)
   for (const mod of bandMods) assert.equal(reader(mod), first, `mods/${mod}/hooks/register.tsx: readBandOrder differs from mods/${bandMods[0]}`)
 })
+
+// A band's slot in the order file is its plugin name, so the name it stacks under must match.
+test('every band mod stacks its band under its own plugin name', () => {
+  for (const mod of bandMods) {
+    const { name } = JSON.parse(readFileSync(join(root, 'mods', mod, '.claude-plugin/plugin.json'), 'utf8'))
+    const src = readFileSync(join(root, 'mods', mod, 'hooks/register.tsx'), 'utf8')
+    const calls = src.match(/stackBands\([^,]*,[^,]*/g) ?? []
+    assert.ok(calls.length > 0, `mods/${mod}/hooks/register.tsx never calls stackBands(rest, '${name}', ...)`)
+    const own = new RegExp(`^stackBands\\([^,]+,\\s*'${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'$`)
+    for (const call of calls) {
+      assert.match(call.trim(), own, `mods/${mod}/hooks/register.tsx: "${call.trim()}, ..." should name the band '${name}' (its plugin.json name), or the band order file cannot place it`)
+    }
+  }
+})

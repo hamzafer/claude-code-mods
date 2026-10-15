@@ -45,7 +45,7 @@ Tick the mods you want in a checklist, see what each one adds, and press Enter t
 
 ### Order your bands
 
-Press `o` in the checklist to order your bands (the lines above the prompt). Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top. Needs a version of the CLI with the band order screen.
+Press `o` in the checklist to order your bands (the lines above the prompt). Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top. Needs claude-code-mods 0.2.0 or newer and the latest band mods.
 
 It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods`.
 

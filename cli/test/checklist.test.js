@@ -449,6 +449,26 @@ test('enter saves: an effect with the order, old unticked names kept after', () 
   assert.deepEqual(orderOf(press(s, 'o')), ['context-bar', 'where-am-i']);
 });
 
+test('on the list, shift-arrows and K/J move the cursor like up/down', () => {
+  for (const [down, up] of [['shift-down', 'shift-up'], ['J', 'K']]) {
+    let s = initialState(catalog, []);
+    s = press(s, down);
+    assert.equal(current(s), 'where-am-i', down);
+    s = press(s, down);
+    assert.equal(current(s), 'heatmap', down);
+    s = press(s, up, up);
+    assert.equal(current(s), 'context-bar', up);
+  }
+});
+
+test('duplicate names in the order file show once and save once', () => {
+  let s = press(initialState(bands, allBands, { bandOrder: ['context-bar', 'context-bar', 'where-am-i', 'old-one', 'old-one'] }), 'o');
+  assert.deepEqual(orderOf(s), ['token-weather', 'context-bar', 'where-am-i']);
+  s = press(s, 'return');
+  assert.deepEqual(s.effect.order, ['token-weather', 'context-bar', 'where-am-i', 'old-one']);
+  assert.deepEqual(s.bandOrder, ['token-weather', 'context-bar', 'where-am-i', 'old-one']);
+});
+
 test('ctrl-c still quits from the order screen', () => {
   assert.equal(press(initialState(bands, allBands), 'o', 'ctrl-c').done, 'quit');
 });

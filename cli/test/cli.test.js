@@ -339,6 +339,10 @@ test('parseBandOrder reads names, anything odd means no order', () => {
   }
 });
 
+test('parseBandOrder drops repeated names, first place wins', () => {
+  assert.deepEqual(parseBandOrder('{"order":["a","a","b","a"]}'), ['a', 'b']);
+});
+
 async function ordering(list, extra = {}) {
   const writes = [];
   const reads = [];
@@ -380,7 +384,25 @@ test('saving writes bands.json and says to restart', async () => {
 
 test('a failed save shows why, without leaving the checklist', async () => {
   const r = await ordering([{ type: 'order', order: ['a'] }], { failWrite: true });
-  assert.deepEqual(r.results, [{ message: 'Could not save the band order: disk full' }]);
+  assert.deepEqual(r.results, [{ message: 'Could not save the band order: disk full', bandOrder: [] }]);
+});
+
+test('a failed save puts back the order on disk, so o shows it again', async () => {
+  const r = await ordering([
+    { type: 'order', order: ['where-am-i', 'context-bar'] },
+  ], { file: '{"order":["context-bar","where-am-i"]}', failWrite: true });
+  assert.deepEqual(r.results[0].bandOrder, ['context-bar', 'where-am-i']);
+});
+
+test('after a good save, a later failed save puts back the saved order', async () => {
+  let fail = false;
+  const writes = [];
+  const r = await ordering([
+    { type: 'order', order: ['where-am-i'] },
+    { type: 'order', order: ['context-bar'] },
+  ], { main: { writeText: async (path, text) => { if (fail) throw new Error('disk full'); writes.push(text); fail = true; } } });
+  assert.equal(writes.length, 1);
+  assert.deepEqual(r.results[1], { message: 'Could not save the band order: disk full', bandOrder: ['where-am-i'] });
 });
 
 test('--dry-run writes nothing, shows the path and JSON, and prints them after', async () => {
