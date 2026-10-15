@@ -1,6 +1,7 @@
 // Parse flags, wire the rest, exit codes.
 import { homedir } from 'node:os';
-import { sep } from 'node:path';
+import { sep, join, dirname } from 'node:path';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { loadCatalog as defaultLoadCatalog, groupByCategory, clean, tidy } from './catalog.js';
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
@@ -53,11 +54,36 @@ function printList(mods, out) {
   out(blocks.join('\n\n'));
 }
 
+// CLAUDE_CONFIG_DIR without trailing slashes, or null.
+const configEnv = (env) => (env.CLAUDE_CONFIG_DIR || '').replace(/(.)\/+$/, '$1') || null;
+
 // The profile claude uses here: CLAUDE_CONFIG_DIR, or ~/.claude.
 export function profileLabel(env = process.env, home = homedir()) {
-  const dir = env.CLAUDE_CONFIG_DIR;
+  const dir = configEnv(env);
   if (!dir) return '~/.claude';
   return dir === home || dir.startsWith(home + sep) ? '~' + dir.slice(home.length) : dir;
+}
+
+// The band order file the band mods read, in that same profile.
+export function bandsPath(env = process.env, home = homedir()) {
+  return join(configEnv(env) || join(home, '.claude'), 'claude-code-mods', 'bands.json');
+}
+
+// The file's names, top to bottom; a missing or odd file means no order, as in the mods.
+export function parseBandOrder(text) {
+  try {
+    const { order } = JSON.parse(text);
+    return Array.isArray(order) && order.every((n) => typeof n === 'string') ? order : [];
+  } catch {
+    return [];
+  }
+}
+
+const bandsJson = (order) => JSON.stringify({ order }, null, 2) + '\n';
+const readText = (path) => readFile(path, 'utf8');
+async function writeText(path, text) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, text);
 }
 
 export async function main(argv, {
@@ -72,6 +98,10 @@ export async function main(argv, {
   checklist = runChecklist,
   checkNeeds = missing,
   showPreview = preview,
+  env = process.env,
+  home = homedir(),
+  readText: read = readText,
+  writeText: write = writeText,
 } = {}) {
   let opts;
   try {
@@ -101,14 +131,31 @@ export async function main(argv, {
       }
       state = readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
       const ticked = Object.keys(state).filter((n) => state[n].enabled);
-      // Ticks warn about missing tools; p opens the screenshot.
+      const bandsFile = bandsPath(env, home);
+      const bandOrder = parseBandOrder(await read(bandsFile).catch(() => null));
+      let dryBands = null;
+      // Ticks warn about missing tools; p opens the screenshot; the order screen saves bands.json.
       const onEffect = async (e) => {
         if (e.type === 'preview') return showPreview(e.name);
+        if (e.type === 'order') {
+          const text = bandsJson(e.order);
+          if (opts.dryRun) {
+            dryBands = `would write ${bandsFile}\n${text.trimEnd()}`;
+            return { message: `Dry run: would write ${bandsFile}: ${JSON.stringify({ order: e.order })}` };
+          }
+          try {
+            await write(bandsFile, text);
+            return { message: 'Saved. Restart Claude Code to apply.' };
+          } catch (failure) {
+            return { message: `Could not save the band order: ${failure.message}` };
+          }
+        }
         if (e.type !== 'tick' || !e.ticked) return null;
         const msg = warning(e.name, checkNeeds(mods.find((m) => m.name === e.name)?.needs || []));
         return msg ? { message: msg } : null;
       };
-      opts.pick = await checklist({ mods, ticked, scope, onEffect, profile: profileLabel() });
+      opts.pick = await checklist({ mods, ticked, scope, onEffect, profile: profileLabel(env, home), bandOrder });
+      if (dryBands) out(dryBands);
       if (!opts.pick) return 0;
     }
     const names = new Set(mods.map((m) => m.name));

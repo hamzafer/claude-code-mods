@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, main, profileLabel } from '../src/cli.js';
+import { parseArgs, main, profileLabel, bandsPath, parseBandOrder } from '../src/cli.js';
 
 const catalog = [
   { name: 'context-bar', description: 'A bar', category: 'See what\'s happening', tags: [], needs: [] },
@@ -323,4 +323,71 @@ test('profileLabel names the profile claude will use', () => {
   assert.equal(profileLabel({}, '/home/u'), '~/.claude');
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work' }, '/home/u'), '~/.claude-work');
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/opt/claude' }, '/home/u'), '/opt/claude');
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work/' }, '/home/u'), '~/.claude-work');
+});
+
+// Band order: read the file in, save it from the order screen's effect.
+test('bandsPath sits in the profile folder, trailing slashes dropped', () => {
+  assert.equal(bandsPath({}, '/home/u'), '/home/u/.claude/claude-code-mods/bands.json');
+  assert.equal(bandsPath({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work//' }, '/home/u'), '/home/u/.claude-work/claude-code-mods/bands.json');
+});
+
+test('parseBandOrder reads names, anything odd means no order', () => {
+  assert.deepEqual(parseBandOrder('{"order":["a","b"]}'), ['a', 'b']);
+  for (const bad of [null, '', 'nope', '{}', '{"order":"a"}', '{"order":["a",3]}', '[]', 'null']) {
+    assert.deepEqual(parseBandOrder(bad), [], String(bad));
+  }
+});
+
+async function ordering(list, extra = {}) {
+  const writes = [];
+  const reads = [];
+  const results = [];
+  let seen;
+  const checklist = async (o) => {
+    seen = o;
+    for (const e of list) results.push(await o.onEffect(e, {}));
+    return null;
+  };
+  const r = await go(extra.argv || [], fakeClaude(), {
+    isTTY: true, checklist,
+    env: { CLAUDE_CONFIG_DIR: '/p/.claude-work/' }, home: '/p',
+    readText: async (path) => { reads.push(path); if (extra.file === undefined) throw Object.assign(new Error('no'), { code: 'ENOENT' }); return extra.file; },
+    writeText: async (path, text) => { if (extra.failWrite) throw new Error('disk full'); writes.push([path, text]); },
+    ...extra.main,
+  });
+  return { ...r, writes, reads, results, seen };
+}
+
+const PATH = '/p/.claude-work/claude-code-mods/bands.json';
+
+test('the order file is read from the profile and handed to the checklist', async () => {
+  const r = await ordering([], { file: '{"order":["context-bar","where-am-i"]}' });
+  assert.deepEqual(r.reads, [PATH]);
+  assert.deepEqual(r.seen.bandOrder, ['context-bar', 'where-am-i']);
+  assert.equal(r.seen.profile, '~/.claude-work');
+});
+
+test('a missing order file means no order', async () => {
+  assert.deepEqual((await ordering([])).seen.bandOrder, []);
+});
+
+test('saving writes bands.json and says to restart', async () => {
+  const r = await ordering([{ type: 'order', order: ['where-am-i', 'context-bar'] }]);
+  assert.deepEqual(r.writes, [[PATH, '{\n  "order": [\n    "where-am-i",\n    "context-bar"\n  ]\n}\n']]);
+  assert.deepEqual(r.results, [{ message: 'Saved. Restart Claude Code to apply.' }]);
+});
+
+test('a failed save shows why, without leaving the checklist', async () => {
+  const r = await ordering([{ type: 'order', order: ['a'] }], { failWrite: true });
+  assert.deepEqual(r.results, [{ message: 'Could not save the band order: disk full' }]);
+});
+
+test('--dry-run writes nothing, shows the path and JSON, and prints them after', async () => {
+  const r = await ordering([{ type: 'order', order: ['where-am-i'] }], { argv: ['--dry-run'] });
+  assert.deepEqual(r.writes, []);
+  assert.equal(r.code, 0);
+  assert.match(r.results[0].message, /Dry run: would write \/p\/\.claude-work\/claude-code-mods\/bands\.json/);
+  assert.match(r.results[0].message, /"where-am-i"/);
+  assert.equal(r.out, `would write ${PATH}\n{\n  "order": [\n    "where-am-i"\n  ]\n}`);
 });
