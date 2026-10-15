@@ -33,22 +33,24 @@
 
 ## 🚀 Install
 
-Add the marketplace once, then install any mod by name:
+```sh
+npx claude-code-mods
+```
+
+Tick the mods you want in a checklist, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after.
+
+- `--project` installs for this project only
+- `--dry-run` prints the `claude` commands instead of running them
+- `--pick a,b` turns on exactly these mods, no checklist
+
+Or by hand:
 
 ```sh
 claude plugin marketplace add hamzafer/claude-code-mods
 claude plugin install context-bar@claude-code-mods
 ```
 
-Or install the general-purpose set in one go:
-
-```sh
-for m in context-bar token-weather usage-meter heatmap where-am-i next-steps agent-radar review-watch replay-theater md-preview blast-radius mission-control; do
-  claude plugin install "$m@claude-code-mods"
-done
-```
-
-Restart Claude Code after installing. To try one without installing:
+To try one without installing:
 
 ```sh
 git clone https://github.com/hamzafer/claude-code-mods && cd claude-code-mods
