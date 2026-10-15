@@ -19,7 +19,7 @@ test('every workflow sets its token permissions at the top', () => {
 
 test('every action is pinned to a full commit sha', () => {
   for (const w of workflows) {
-    for (const [, ref] of w.text.matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)) {
+    for (const [, ref] of w.text.matchAll(/^\s*-?\s*uses:\s*["']?([^\s"']+)/gm)) {
       if (ref.startsWith('./')) continue
       assert.match(ref, /@[0-9a-f]{40}$/, `${w.name}: pin ${ref} to a commit sha (a tag can be moved)`)
     }
@@ -27,12 +27,12 @@ test('every action is pinned to a full commit sha', () => {
 })
 
 test('no workflow runs untrusted pull request code with secrets', () => {
-  for (const w of workflows) assert.doesNotMatch(w.text, /pull_request_target/, `${w.name}: pull_request_target runs with secrets on fork PRs`)
+  for (const w of workflows) assert.doesNotMatch(w.text, /pull_request_target|workflow_run/, `${w.name}: pull_request_target and workflow_run run with secrets on fork code`)
 })
 
 test('only the publish and Pages workflows can mint an OIDC token', () => {
   for (const w of workflows) {
-    if (!OIDC.includes(w.name)) assert.doesNotMatch(w.text, /id-token:\s*write/, `${w.name}: only ${OIDC.join(' and ')} may have id-token: write`)
+    if (!OIDC.includes(w.name)) assert.doesNotMatch(w.text, /id-token\s*:\s*write/, `${w.name}: only ${OIDC.join(' and ')} may have id-token: write`)
   }
 })
 

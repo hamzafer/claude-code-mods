@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   settings:
+    if: github.repository == 'hamzafer/claude-code-mods' # a fork has none of these settings
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
