@@ -77,3 +77,6 @@ jobs:
 
       - name: Test the CLI
         run: node --test
+
+      - name: Check the package contents
+        run: npm pack --dry-run
