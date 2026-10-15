@@ -1,5 +1,5 @@
 // Parse flags, wire the rest, exit codes.
-import { loadCatalog as defaultLoadCatalog, groupByCategory } from './catalog.js';
+import { loadCatalog as defaultLoadCatalog, groupByCategory, clean, tidy } from './catalog.js';
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
 import { runChecklist } from './checklist.js';
@@ -35,7 +35,7 @@ const label = (a) => a.verb === 'marketplace' ? `add the ${MARKET} marketplace`
   : a.verb === 'refresh' ? `update the ${MARKET} marketplace` : `${a.verb} ${a.name}`;
 const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${MARKET} marketplace`
   : a.verb === 'refresh' ? `updated the ${MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
-const firstLine = (s) => String(s).trim().split('\n')[0];
+const firstLine = (s) => clean(String(s).trim().split('\n')[0]).trim();
 
 async function listJson(run, args) {
   const r = await run(args);
@@ -44,6 +44,7 @@ async function listJson(run, args) {
 }
 
 function printList(mods, out) {
+  mods = mods.map(tidy);
   const width = Math.max(...mods.map((m) => m.name.length));
   const blocks = groupByCategory(mods).map((g) =>
     [g.category, ...g.mods.map((m) => `  ${m.name.padEnd(width)}  ${m.description}`)].join('\n'));
@@ -77,6 +78,10 @@ export async function main(argv, {
 
   try {
     const mods = await loadCatalog();
+    if (!mods.length) {
+      err('The mod list is empty. Try again later, or update claude-code-mods.');
+      return 1;
+    }
     const scope = opts.project ? 'project' : 'user';
     let state;
     if (opts.pick === null) {
@@ -106,10 +111,11 @@ export async function main(argv, {
     }
 
     state ??= readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
-    let actions = planActions({ state, picked: opts.pick, scope });
+    const catalog = [...names];
+    let actions = planActions({ state, picked: opts.pick, scope, catalog });
     if (actions.some((a) => a.verb === 'install' || a.verb === 'enable')) {
       const markets = await listJson(run, ['plugin', 'marketplace', 'list', '--json']);
-      actions = planActions({ state, picked: opts.pick, scope, hasMarketplace: markets.some((m) => m.name === MARKET) });
+      actions = planActions({ state, picked: opts.pick, scope, catalog, hasMarketplace: markets.some((m) => m.name === MARKET) });
     }
 
     if (!actions.length) {
@@ -137,19 +143,32 @@ export async function main(argv, {
       report(r, doneLabel(a), label(a));
       if (r.code === 0 && a.verb === 'install') installed.push(a.name);
     }
-    // Options for newly installed mods, in a terminal only.
-    for (const name of isTTY ? installed : []) {
+    // Options for newly installed mods, in a terminal only; elsewhere, say how.
+    let stopped = false;
+    for (const name of installed) {
       const userConfig = await loadOptions(byName(name));
       if (!Object.keys(userConfig).length) continue;
+      if (!isTTY) {
+        out(`${name} has options: run claude plugin configure ${name}@${MARKET}`);
+        continue;
+      }
       out(`\nOptions for ${name} (Enter keeps the default)`);
       const prompt = makePrompt();
       let answers;
-      try { answers = await collect(userConfig, prompt.ask, out); } finally { prompt.close(); }
+      try {
+        answers = await collect(userConfig, prompt.ask, out);
+      } catch (e) {
+        if (e.code !== 'ABORT') throw e;
+        // Ctrl-C or Ctrl-D: the mods are in, only their options wait.
+        out(`\nSkipped configuring. Later: claude plugin configure <mod>@${MARKET}`);
+        stopped = true;
+        break;
+      } finally { prompt.close(); }
       const r = await save(run, `${name}@${MARKET}`, answers);
       if (r) report(r, `configured ${name}`, `configure ${name}`);
     }
     out('\nRestart Claude Code to load your mods.');
-    return failed ? 1 : 0;
+    return stopped ? 130 : failed ? 1 : 0;
   } catch (e) {
     err(e.code === 'ENOENT' ? 'Install Claude Code first: the claude command was not found.' : e.message);
     return 1;

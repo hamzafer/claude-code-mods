@@ -73,13 +73,13 @@ On Enter (or straight away with `--pick`), compare ticked against current state 
 1. Only when something will be installed or enabled: `claude plugin marketplace add hamzafer/claude-code-mods` if `claude plugin marketplace list --json` has no `claude-code-mods`, otherwise `claude plugin marketplace update claude-code-mods`. A stale clone would install old versions.
 2. Ticked and not installed: `claude plugin install <name>@claude-code-mods --scope <scope>`.
 3. Ticked, installed, disabled: `claude plugin enable <name>@claude-code-mods --scope <scope>`.
-4. Unticked, installed, enabled: `claude plugin disable <name>@claude-code-mods --scope <scope>`. Never uninstall: saved options and keys stay.
+4. Unticked, installed, enabled: `claude plugin disable <name>@claude-code-mods --scope <scope>`. Never uninstall: saved options and keys stay. Only mods in the current catalog are disabled; an installed mod that left the catalog is left alone.
 5. Options (below), for each newly installed mod that has any.
 6. Print a summary (`✓ installed context-bar`, `✓ disabled token-weather`, `✗ ... (error)`) and "Restart Claude Code to load your mods."
 
 Nothing changed: print "Nothing to change." and exit 0. A failed command is reported and the rest still run; exit 1 at the end if any failed.
 
-`--dry-run` prints each command as one shell line (`claude plugin install where-am-i@claude-code-mods --scope user`) and runs none. Options are listed as `would ask: latitude, longitude, ...`.
+`--dry-run` prints each command as one shell line (`claude plugin install where-am-i@claude-code-mods --scope user`) and runs none. Options are listed one line per new mod as `would ask <name>: opt1, opt2`.
 
 ## Options
 

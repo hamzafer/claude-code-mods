@@ -76,3 +76,29 @@ test('groups follow the README order with Other last', () => {
 test('works with no fallbacks when the live list loads', async () => {
   assert.equal((await loadCatalog({ fetch: okFetch(market), readFile: noFiles })).length, 4);
 });
+
+test('normalize strips control characters and coerces odd types', () => {
+  const [m] = normalize({ plugins: [{
+    name: 'ok-mod', description: 'bad \x1b[31mred\x1b[0m\x9b text', category: 7,
+    tags: ['band', 3, null, 'x\x07'], needs: 'gh',
+  }] });
+  assert.equal(m.description, 'bad [31mred[0m text');
+  assert.equal(m.category, '7');
+  assert.deepEqual(m.tags, ['band', 'x']);
+  assert.deepEqual(m.needs, []);
+  const [d] = normalize({ plugins: [{ name: 'd', description: { a: 1 } }] });
+  assert.equal(typeof d.description, 'string');
+});
+
+test('normalize drops plugins with unsafe names', () => {
+  const names = normalize({ plugins: [
+    { name: 'good.mod_1-x' }, { name: 'Bad' }, { name: 'a&calc' }, { name: '../x' },
+    { name: '-flag' }, { name: 5 }, null, { name: 'a b' },
+  ] }).map((m) => m.name);
+  assert.deepEqual(names, ['good.mod_1-x']);
+});
+
+test('normalize survives a plugins field that is not an array', () => {
+  assert.deepEqual(normalize({ plugins: 'nope' }), []);
+  assert.deepEqual(normalize(null), []);
+});

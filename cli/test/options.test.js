@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import {
-  marketLocation, loadOptions, optionsLoader, validate, collect, save, createPrompt, rawUrl,
+  marketLocation, loadOptions, optionsLoader, validate, collect, save, createPrompt, rawUrl, maskText,
 } from '../src/options.js';
 
 const prayer = { name: 'prayer-times', source: './mods/prayer-times' };
@@ -158,4 +158,56 @@ test('optionsLoader looks up the clone once, on first use', async () => {
   await load(prayer);
   await load(prayer);
   assert.equal(lists, 1);
+});
+
+test('collect skips non-object entries and strips control characters from text', async () => {
+  const cfg = {
+    broken: 'nope',
+    nothing: null,
+    label: { type: 'string', title: 'La\x1b[31mbel', description: 'Wh\x1b]0;x\x07ere', options: ['a\x1bb', 'c'] },
+  };
+  const { ask, calls } = fakeAsk(['c']);
+  const out = [];
+  assert.deepEqual(await collect(cfg, ask, (s) => out.push(s)), { label: 'c' });
+  assert.equal(calls.length, 1);
+  const text = out.join(' ').replace(/\x1b\[2m|\x1b\[22m/g, '');
+  assert.doesNotMatch(text, /[\x00-\x1f\x7f-\x9f]/);
+  assert.match(text, /La\[31mbel \(ab, c\)/);
+});
+
+test('loadOptions gives {} when userConfig is not an object', async () => {
+  const fetch = async () => ({ ok: true, json: async () => ({ userConfig: 'x' }) });
+  assert.deepEqual(await loadOptions(prayer, { fetch }), {});
+});
+
+for (const [key, label] of [['\x03', 'ctrl-c'], ['\x04', 'ctrl-d']]) {
+  test(`createPrompt rejects a pending question on ${label}`, async () => {
+    const input = new PassThrough(), output = new PassThrough();
+    output.resume();
+    const p = createPrompt({ input, output });
+    const answer = p.ask('> ');
+    input.write(key);
+    await assert.rejects(answer, { code: 'ABORT' });
+    p.close();
+  });
+}
+
+test('maskText hides printable characters and keeps escape sequences', () => {
+  assert.equal(maskText('ab\x1b[1Dc\x1b[0J\x1b[12G\r\n'), '**\x1b[1D*\x1b[0J\x1b[12G\r\n');
+  assert.equal(maskText('é漢'), '**');
+});
+
+test('createPrompt masking keeps backspace working', async () => {
+  const input = new PassThrough(), output = new PassThrough();
+  let shown = '';
+  output.on('data', (d) => (shown += d));
+  const p = createPrompt({ input, output });
+  const answer = p.ask('Key: ', { sensitive: true });
+  input.write('abc');
+  input.write('\x7f');
+  input.write('d\r');
+  assert.equal(await answer, 'abd');
+  assert.doesNotMatch(shown, /[abcd]/);
+  assert.match(shown, /\x1b\[/);
+  p.close();
 });

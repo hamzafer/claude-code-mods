@@ -9,11 +9,12 @@
   "files": [
     "bin.js",
     "src",
-    "marketplace.json"
+    "marketplace.json",
+    "LICENSE"
   ],
   "scripts": {
     "test": "node --test",
-    "prepack": "cp ../.claude-plugin/marketplace.json marketplace.json"
+    "prepack": "cp ../.claude-plugin/marketplace.json marketplace.json && cp ../LICENSE LICENSE"
   },
   "engines": {
     "node": ">=18"

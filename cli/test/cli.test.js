@@ -272,3 +272,49 @@ test('a failed install is not asked; a failed configure is reported', async () =
   assert.equal(r.code, 1);
   assert.match(r.out, /✗ configure where-am-i \(boom\)/);
 });
+
+test('an enabled mod missing from the catalog is never disabled', async () => {
+  const plugins = [...installed, { id: 'retired@claude-code-mods', scope: 'user', enabled: true }];
+  const r = await go(['--pick', 'context-bar', '--dry-run'], fakeClaude({ plugins }));
+  assert.equal(r.out, 'Nothing to change.');
+});
+
+test('claude error lines are shown without control characters', async () => {
+  const claude = fakeClaude({ plugins: installed });
+  const run = async (args) => {
+    if (args[1] === 'install') return { code: 1, stdout: '', stderr: '\x1b[31mbad\x1b]0;t\x07 thing\nmore' };
+    return claude.run(args);
+  };
+  const r = await go(['--pick', 'context-bar,where-am-i'], { run, calls: [] });
+  assert.match(r.out, /✗ install where-am-i \(\[31mbad\]0;t thing\)/);
+});
+
+test('ctrl-c while asking options skips configuring, keeps the restart hint, exits 130', async () => {
+  let closed = false;
+  const makePrompt = () => ({
+    ask: async () => { throw Object.assign(new Error('Stopped'), { code: 'ABORT' }); },
+    close: () => { closed = true; },
+  });
+  const claude = fakeClaude({ plugins: installed });
+  const r = await go(['--pick', 'heatmap,where-am-i'], claude, { loadOptions, isTTY: true, makePrompt });
+  assert.equal(r.code, 130);
+  assert.ok(closed);
+  assert.ok(!r.calls.some((c) => c.includes('configure')));
+  assert.match(r.out, /Skipped configuring/);
+  assert.match(r.out, /Restart Claude Code to load your mods\.$/);
+});
+
+test('outside a terminal, new mods with options get a configure hint', async () => {
+  const r = await go(['--pick', 'heatmap,where-am-i,context-bar'], fakeClaude({ plugins: [] }), { loadOptions, isTTY: false });
+  assert.equal(r.code, 0);
+  assert.match(r.out, /^where-am-i has options: run claude plugin configure where-am-i@claude-code-mods$/m);
+  assert.doesNotMatch(r.out, /heatmap has options/);
+});
+
+test('an empty mod list exits 1 before the checklist opens', async () => {
+  let opened = false;
+  const r = await go([], fakeClaude(), { isTTY: true, loadCatalog: async () => [], checklist: async () => { opened = true; return null; } });
+  assert.equal(r.code, 1);
+  assert.equal(opened, false);
+  assert.match(r.err, /mod list is empty/);
+});
