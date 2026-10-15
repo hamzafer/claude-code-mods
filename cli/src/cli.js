@@ -2,6 +2,7 @@
 import { loadCatalog as defaultLoadCatalog, groupByCategory } from './catalog.js';
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
+import { runChecklist } from './checklist.js';
 
 export const USAGE = `Usage: claude-code-mods [--pick a,b] [--project] [--dry-run]
 
@@ -50,6 +51,8 @@ export async function main(argv, {
   out = console.log,
   err = console.error,
   cwd = process.cwd(),
+  isTTY = !!(process.stdin.isTTY && process.stdout.isTTY),
+  checklist = runChecklist,
 } = {}) {
   let opts;
   try {
@@ -65,11 +68,18 @@ export async function main(argv, {
 
   try {
     const mods = await loadCatalog();
+    const scope = opts.project ? 'project' : 'user';
+    let state;
     if (opts.pick === null) {
-      // The interactive checklist plugs in here.
-      printList(mods, out);
-      err('\nRun in a terminal, or pass --pick');
-      return 1;
+      if (!isTTY) {
+        printList(mods, out);
+        err('\nRun in a terminal, or pass --pick');
+        return 1;
+      }
+      state = readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
+      const ticked = Object.keys(state).filter((n) => state[n].enabled);
+      opts.pick = await checklist({ mods, ticked, scope });
+      if (!opts.pick) return 0;
     }
     const names = new Set(mods.map((m) => m.name));
     const unknown = opts.pick.filter((n) => !names.has(n));
@@ -78,8 +88,7 @@ export async function main(argv, {
       return 1;
     }
 
-    const scope = opts.project ? 'project' : 'user';
-    const state = readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
+    state ??= readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
     let actions = planActions({ state, picked: opts.pick, scope });
     if (actions.some((a) => a.verb === 'install' || a.verb === 'enable')) {
       const markets = await listJson(run, ['plugin', 'marketplace', 'list', '--json']);
