@@ -7,7 +7,7 @@ import { githubRepo, MD_FILE } from '../hooks/register'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const PANE = { component: 'Pane', requestId: 'md-preview', props: { title: 'Markdown', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } }
 
-type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean }
+type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean; lsFails?: boolean }
 
 // Stands for the engine beneath the mod: a small disk, gh, git and Chrome.
 function engine(on: any, opts: Opts = {}) {
@@ -18,7 +18,7 @@ function engine(on: any, opts: Opts = {}) {
     '/repo/opt/a.md': '# Plan\n\nOption A text.\n',
     '/repo/opt/b.md': '# Plan\n\nOption B text.\n',
   }
-  const runs: { argv: string[]; stdin?: string }[] = []
+  const runs: { argv: string[]; stdin?: string; timeoutMs?: number }[] = []
   const toasts: string[] = []
   const writes: Record<string, string> = {}
   let isOpen = false
@@ -51,9 +51,10 @@ function engine(on: any, opts: Opts = {}) {
   on('fs.exists', (_$: any, e: any) => ({ value: e.path === CHROME ? opts.chrome !== false : e.path === '/usr/bin/open' ? true : disk[e.path] !== undefined }))
   on('env.get', (_$: any, e: any) => ({ value: ({ TERM_PROGRAM: opts.term ?? 'ghostty', TMPDIR: '/tmp/', HOME: '/home/me' } as Record<string, string>)[e.name] }))
   on('process.run', (_$: any, e: any) => {
-    runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
+    runs.push({ argv: [...e.argv], stdin: e.init?.stdin, timeoutMs: e.init?.timeoutMs })
     const cmd = e.argv[0]
     if (cmd === 'git' && e.argv[1] === 'ls-files') {
+      if (opts.lsFails) throw new Error('timed out')
       const md = Object.keys(disk).filter(f => f.startsWith('/repo/') && /\.(md|mdx|markdown)$/.test(f)).map(f => f.slice('/repo/'.length))
       const sep = e.argv.includes('-z') ? '\0' : '\n'
       return { value: { exitCode: 0, stdout: md.join(sep) + sep, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
@@ -124,6 +125,22 @@ describe('md-preview', () => {
     await settle()
     expect(toasts).toEqual([])
     expect(runs.some(r => r.argv.includes('ls-files'))).toBe(false)
+  })
+
+  test('the snapshot has a time limit, and a failed one is not retried in the same turn (#120)', async ($, on) => {
+    const { runs } = engine(on, { lsFails: true })
+    const lists = () => runs.filter(r => r.argv.includes('ls-files'))
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: 'ls' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'ls docs' } as any)
+    expect(lists()).toHaveLength(1)
+    expect(lists()[0]?.timeoutMs).toBeGreaterThan(0)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(lists()).toHaveLength(1) // no listing at turn end either
+    await $.turn.start({ text: 'again', turnId: 't2' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'ls' } as any)
+    expect(lists()).toHaveLength(2) // a new turn tries again
   })
 
   test('a Write/Edit change is not reported twice at turn end', async ($, on) => {

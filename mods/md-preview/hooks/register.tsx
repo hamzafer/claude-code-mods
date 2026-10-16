@@ -88,7 +88,7 @@ const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '',
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
 // Markdown files before the turn's first shell command, to catch writes that skip Write/Edit (`cat > README.md`).
-const shot = { taken: false, isFull: false, listed: new Set<string>(), texts: new Map<string, string>(), tooBig: new Set<string>() }
+const shot = { taken: false, isOff: false, isFull: false, listed: new Set<string>(), texts: new Map<string, string>(), tooBig: new Set<string>() }
 const SNAPSHOT_FILES = 200
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])
 let snapshotting: Promise<void> | null = null // shared, so parallel shell calls take one snapshot
@@ -176,7 +176,7 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     // Shell commands can write Markdown without Write/Edit: snapshot before the turn's first one,
     // compare at turn end. Turns without a shell command cost nothing.
-    if (SHELL_TOOLS.has(e.tool) && !shot.taken) {
+    if (SHELL_TOOLS.has(e.tool) && !shot.taken && !shot.isOff) {
       snapshotting ??= takeSnapshot($).catch(() => {}).finally(() => (snapshotting = null))
       await snapshotting
     }
@@ -374,6 +374,7 @@ async function command($: EngineInterface, args: string) {
 
 function resetSnapshot() {
   shot.taken = false
+  shot.isOff = false
   shot.isFull = false
   shot.listed.clear()
   shot.texts.clear()
@@ -384,7 +385,7 @@ function resetSnapshot() {
 async function listMarkdown($: EngineInterface): Promise<string[] | null> {
   if (!session.cwd) return null
   const git = await $.process
-    .run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '*.md', '*.mdx', '*.markdown'], { cwd: session.cwd })
+    .run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '*.md', '*.mdx', '*.markdown'], { cwd: session.cwd, timeoutMs: 5000 }) // a shell command waits on it
     .catch(() => null)
   if (!git || git.exitCode !== 0) return null
   const root = session.cwd.replace(/\/$/, '')
@@ -402,7 +403,10 @@ async function readAll($: EngineInterface, paths: string[]): Promise<(string | n
 
 async function takeSnapshot($: EngineInterface) {
   const all = await listMarkdown($)
-  if (all === null) return // not a git repo, or git failed: stay off for this turn
+  if (all === null) {
+    shot.isOff = true // not a git repo, or git failed or timed out: stay off for this turn
+    return
+  }
   const paths = all.slice(0, SNAPSHOT_FILES)
   shot.isFull = all.length > SNAPSHOT_FILES
   const texts = await readAll($, paths)
