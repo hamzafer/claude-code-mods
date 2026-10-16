@@ -124,10 +124,11 @@ These are built around my own tools and rules. Fork them and change the rules to
 
 ## 🤝 Community mods
 
-Mods by other people, in their own marketplaces. They're not maintained here, so read the code before you install.
+Mods by other people, in their own marketplaces. They're not maintained here, so read the code before you install. They also show up last in the `npx claude-code-mods@latest` checklist.
 
 | | Mod | What it does | Install |
 | --- | --- | --- | --- |
+| 🖼️ | **[image-view](https://github.com/jarrodwatts/claude-image-view)** by [@jarrodwatts](https://github.com/jarrodwatts) | See the images you paste into Claude Code: thumbnails above the prompt instead of bare [Image #1] tags | `claude plugin marketplace add jarrodwatts/claude-image-view` then `claude plugin install image-view@claude-image-view` |
 | 🏷️ | **[last-prompt-title](https://github.com/zhangbububu/session-titles)** by [@zhangbububu](https://github.com/zhangbububu) | Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar | `claude plugin marketplace add zhangbububu/session-titles` then `claude plugin install last-prompt-title@session-titles` |
 | 🌏 | **[cc-zh](https://github.com/jiangnanquan/claude-code-zh)** by [@jiangnanquan](https://github.com/jiangnanquan) | Simplified Chinese UI localization via static dictionary: slash-command descriptions, `/config` labels, spinner, hints, notices, command output, tool summaries and turn duration. Zero tokens / network; verified on CC 2.1.296 | `claude plugin marketplace add jiangnanquan/claude-code-zh` then `claude plugin install cc-zh@claude-code-zh` |
 | 🎛️ | **[subagent-tuner](https://github.com/Kruhlikau/subagent-tuner)** by [@Kruhlikau](https://github.com/Kruhlikau) | Picks the model and effort of every subagent: a Manual/Auto band, a pick pane, review → Opus and search → Haiku, and a saved default that overrides what the agent asked for | `claude plugin marketplace add Kruhlikau/subagent-tuner` then `claude plugin install subagent-tuner@subagent-tuner` |

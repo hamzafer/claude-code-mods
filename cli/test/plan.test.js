@@ -107,3 +107,76 @@ test('readState matches this folder through symlinks and trailing slashes', asyn
   // Root-exact: a parent folder is not this folder.
   assert.deepEqual(readState(entry(root), { scope: 'project', cwd: real }), {});
 });
+
+// Community mods: each lives in its own marketplace.
+const community = [
+  { name: 'image-view', marketplace: 'claude-image-view', repo: 'jarrodwatts/claude-image-view' },
+  { name: 'cache-meter', marketplace: 'T-AI-Labs', repo: 'T-AI-Labs/claude-code-mods' },
+  { name: 'usage-limits', marketplace: 'T-AI-Labs', repo: 'T-AI-Labs/claude-code-mods' },
+];
+
+test('readState knows an installed community mod by its own marketplace', () => {
+  const l = [
+    ...list,
+    { id: 'image-view@claude-image-view', scope: 'user', enabled: true },
+    { id: 'cache-meter@someone-else', scope: 'user', enabled: true },
+  ];
+  assert.deepEqual(readState(l, { scope: 'user', community }), {
+    'context-bar': { enabled: true, scope: 'user' },
+    heatmap: { enabled: false, scope: 'user' },
+    'image-view': { enabled: true, scope: 'user', marketplace: 'claude-image-view' },
+  });
+});
+
+test('community installs add each missing marketplace once, refresh the rest', () => {
+  const actions = planActions({
+    state, picked: ['context-bar', 'bands', 'image-view', 'cache-meter', 'usage-limits'], scope: 'user',
+    community, markets: ['claude-code-mods', 'claude-image-view'],
+  });
+  assert.deepEqual(actions, [
+    { verb: 'refresh' },
+    { verb: 'refresh', market: 'claude-image-view' },
+    { verb: 'marketplace', market: 'T-AI-Labs', repo: 'T-AI-Labs/claude-code-mods' },
+    { verb: 'install', name: 'bands', scope: 'user' },
+    { verb: 'install', name: 'image-view', scope: 'user', market: 'claude-image-view' },
+    { verb: 'install', name: 'cache-meter', scope: 'user', market: 'T-AI-Labs' },
+    { verb: 'install', name: 'usage-limits', scope: 'user', market: 'T-AI-Labs' },
+  ]);
+  assert.deepEqual(actions.map(toShell), [
+    'claude plugin marketplace update claude-code-mods',
+    'claude plugin marketplace update claude-image-view',
+    'claude plugin marketplace add T-AI-Labs/claude-code-mods',
+    'claude plugin install bands@claude-code-mods --scope user',
+    'claude plugin install image-view@claude-image-view --scope user',
+    'claude plugin install cache-meter@T-AI-Labs --scope user',
+    'claude plugin install usage-limits@T-AI-Labs --scope user',
+  ]);
+});
+
+test('only community mods turning on: our marketplace is left alone', () => {
+  const actions = planActions({ state, picked: ['context-bar', 'image-view'], scope: 'user', community, markets: [] });
+  assert.deepEqual(actions.map(toShell), [
+    'claude plugin marketplace add jarrodwatts/claude-image-view',
+    'claude plugin install image-view@claude-image-view --scope user',
+  ]);
+});
+
+test('community enable and disable use the mod\'s own marketplace', () => {
+  const s = {
+    'image-view': { enabled: true, scope: 'user', marketplace: 'claude-image-view' },
+    'cache-meter': { enabled: false, scope: 'project', marketplace: 'T-AI-Labs' },
+  };
+  const actions = planActions({ state: s, picked: ['cache-meter'], scope: 'user', community, markets: ['T-AI-Labs'] });
+  assert.deepEqual(actions.map(toShell), [
+    'claude plugin marketplace update T-AI-Labs',
+    'claude plugin enable cache-meter@T-AI-Labs --scope project',
+    'claude plugin disable image-view@claude-image-view --scope user',
+  ]);
+});
+
+test('unticking a community mod only disables it', () => {
+  const s = { 'image-view': { enabled: true, scope: 'user', marketplace: 'claude-image-view' } };
+  assert.deepEqual(planActions({ state: s, picked: [], scope: 'user', community, markets: [] }).map(toShell), [
+    'claude plugin disable image-view@claude-image-view --scope user',
+  ]);
+});

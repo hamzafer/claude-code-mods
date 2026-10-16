@@ -1,6 +1,6 @@
 {
   "name": "claude-code-mods",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Pick the Claude Code mods you want from one checklist.",
   "type": "module",
   "bin": {
@@ -10,11 +10,12 @@
     "bin.js",
     "src",
     "marketplace.json",
+    "community.json",
     "LICENSE"
   ],
   "scripts": {
     "test": "node --test",
-    "prepack": "cp ../.claude-plugin/marketplace.json marketplace.json && cp ../LICENSE LICENSE"
+    "prepack": "cp ../.claude-plugin/marketplace.json marketplace.json && cp ../community.json community.json && cp ../LICENSE LICENSE"
   },
   "engines": {
     "node": ">=18"

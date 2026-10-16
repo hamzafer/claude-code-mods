@@ -2,7 +2,7 @@
 import { homedir } from 'node:os';
 import { sep, join, dirname } from 'node:path';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { loadCatalog as defaultLoadCatalog, groupByCategory, clean, tidy } from './catalog.js';
+import { loadAll as defaultLoadCatalog, groupByCategory, clean, tidy } from './catalog.js';
 import { run as defaultRun } from './claude.js';
 import { readState, planActions, toArgs, toShell, MARKET } from './plan.js';
 import { runChecklist } from './checklist.js';
@@ -34,10 +34,12 @@ export function parseArgs(argv) {
 }
 
 const DONE = { install: 'installed', enable: 'enabled', disable: 'disabled' };
-const label = (a) => a.verb === 'marketplace' ? `add the ${MARKET} marketplace`
-  : a.verb === 'refresh' ? `update the ${MARKET} marketplace` : `${a.verb} ${a.name}`;
-const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${MARKET} marketplace`
-  : a.verb === 'refresh' ? `updated the ${MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
+const label = (a) => a.verb === 'marketplace' ? `add the ${a.market || MARKET} marketplace`
+  : a.verb === 'refresh' ? `update the ${a.market || MARKET} marketplace` : `${a.verb} ${a.name}`;
+const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${a.market || MARKET} marketplace`
+  : a.verb === 'refresh' ? `updated the ${a.market || MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
+// Shown when a community mod is ticked: it is someone else's code.
+export const communityNote = (m) => `Community mod by @${m.author}, not maintained here. Read its code first: ${m.url}`;
 const firstLine = (s) => clean(String(s).trim().split('\n')[0]).trim();
 
 async function listJson(run, args) {
@@ -122,6 +124,7 @@ export async function main(argv, {
       return 1;
     }
     const scope = opts.project ? 'project' : 'user';
+    const community = mods.filter((m) => m.marketplace);
     let state;
     if (opts.pick === null) {
       if (!isTTY) {
@@ -129,7 +132,7 @@ export async function main(argv, {
         err('\nRun in a terminal, or pass --pick');
         return 1;
       }
-      state = readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
+      state = readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd, community });
       const ticked = Object.keys(state).filter((n) => state[n].enabled);
       const bandsFile = bandsPath(env, home);
       const bandOrder = parseBandOrder(await read(bandsFile).catch(() => null));
@@ -153,7 +156,9 @@ export async function main(argv, {
           }
         }
         if (e.type !== 'tick' || !e.ticked) return null;
-        const msg = warning(e.name, checkNeeds(mods.find((m) => m.name === e.name)?.needs || []));
+        const mod = mods.find((m) => m.name === e.name);
+        if (mod?.marketplace) return { message: communityNote(mod) };
+        const msg = warning(e.name, checkNeeds(mod?.needs || []));
         return msg ? { message: msg } : null;
       };
       opts.pick = await checklist({ mods, ticked, scope, onEffect, profile: profileLabel(env, home), bandOrder });
@@ -168,13 +173,15 @@ export async function main(argv, {
       return 1;
     }
 
-    state ??= readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd });
+    state ??= readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd, community });
     const catalog = [...names];
-    let actions = planActions({ state, picked: opts.pick, scope, catalog });
+    let actions = planActions({ state, picked: opts.pick, scope, catalog, community });
     if (actions.some((a) => a.verb === 'install' || a.verb === 'enable')) {
-      const markets = await listJson(run, ['plugin', 'marketplace', 'list', '--json']);
-      actions = planActions({ state, picked: opts.pick, scope, catalog, hasMarketplace: markets.some((m) => m.name === MARKET) });
+      const markets = (await listJson(run, ['plugin', 'marketplace', 'list', '--json'])).map((m) => m.name);
+      actions = planActions({ state, picked: opts.pick, scope, catalog, community, markets });
     }
+    // Options come from our repo's plugin.json, so only our own mods are asked.
+    const ours = (name) => !byName(name)?.marketplace;
 
     if (!actions.length) {
       out('Nothing to change.');
@@ -182,7 +189,7 @@ export async function main(argv, {
     }
     if (opts.dryRun) {
       for (const a of actions) out(toShell(a));
-      for (const a of actions.filter((a) => a.verb === 'install')) {
+      for (const a of actions.filter((a) => a.verb === 'install' && ours(a.name))) {
         const keys = Object.keys(await loadOptions(byName(a.name)));
         if (keys.length) out(`would ask ${a.name}: ${keys.join(', ')}`);
       }
@@ -199,7 +206,7 @@ export async function main(argv, {
     for (const a of actions) {
       const r = await run(toArgs(a));
       report(r, doneLabel(a), label(a));
-      if (r.code === 0 && a.verb === 'install') installed.push(a.name);
+      if (r.code === 0 && a.verb === 'install' && ours(a.name)) installed.push(a.name);
     }
     // Options for newly installed mods, in a terminal only; elsewhere, say how.
     let stopped = false;

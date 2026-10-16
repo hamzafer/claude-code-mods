@@ -1,0 +1,67 @@
+{
+  "mods": [
+    {
+      "name": "image-view",
+      "marketplace": "claude-image-view",
+      "repo": "jarrodwatts/claude-image-view",
+      "author": "jarrodwatts",
+      "url": "https://github.com/jarrodwatts/claude-image-view",
+      "description": "See the images you paste into Claude Code: thumbnails above the prompt instead of bare [Image #1] tags",
+      "tags": ["band"]
+    },
+    {
+      "name": "last-prompt-title",
+      "marketplace": "session-titles",
+      "repo": "zhangbububu/session-titles",
+      "author": "zhangbububu",
+      "url": "https://github.com/zhangbububu/session-titles",
+      "description": "Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar",
+      "tags": []
+    },
+    {
+      "name": "cc-zh",
+      "marketplace": "claude-code-zh",
+      "repo": "jiangnanquan/claude-code-zh",
+      "author": "jiangnanquan",
+      "url": "https://github.com/jiangnanquan/claude-code-zh",
+      "description": "Simplified Chinese UI localization via static dictionary: slash-command descriptions, /config labels, spinner, hints, notices, command output, tool summaries and turn duration. Zero tokens / network; verified on CC 2.1.296",
+      "tags": []
+    },
+    {
+      "name": "subagent-tuner",
+      "marketplace": "subagent-tuner",
+      "repo": "Kruhlikau/subagent-tuner",
+      "author": "Kruhlikau",
+      "url": "https://github.com/Kruhlikau/subagent-tuner",
+      "description": "Picks the model and effort of every subagent: a Manual/Auto band, a pick pane, review → Opus and search → Haiku, and a saved default that overrides what the agent asked for",
+      "tags": ["band", "pane"]
+    },
+    {
+      "name": "mod-store",
+      "marketplace": "mod-store",
+      "repo": "hellosverre/mod-store",
+      "author": "hellosverre",
+      "url": "https://github.com/hellosverre/mod-store",
+      "description": "An app store in a pane: /mods browses, searches and installs about 2,700 community mods, with what each one can access shown before you install. Or ask Claude to find one",
+      "tags": ["pane", "command"]
+    },
+    {
+      "name": "cache-meter",
+      "marketplace": "T-AI-Labs",
+      "repo": "T-AI-Labs/claude-code-mods",
+      "author": "T-AI-Labs",
+      "url": "https://github.com/T-AI-Labs/claude-code-mods#cache-meter",
+      "description": "The share of each turn the prompt cache served, next to the context fill, with an auto-compact threshold and Compact and Clear buttons",
+      "tags": []
+    },
+    {
+      "name": "usage-limits",
+      "marketplace": "T-AI-Labs",
+      "repo": "T-AI-Labs/claude-code-mods",
+      "author": "T-AI-Labs",
+      "url": "https://github.com/T-AI-Labs/claude-code-mods#usage-limits",
+      "description": "5-hour and weekly plan limits in percent, with the time left until each resets",
+      "tags": []
+    }
+  ]
+}

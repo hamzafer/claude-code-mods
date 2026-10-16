@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadCatalog, normalize, groupByCategory, LIVE_URL } from '../src/catalog.js';
+import {
+  loadCatalog, normalize, groupByCategory, LIVE_URL,
+  loadCommunity, normalizeCommunity, loadAll, COMMUNITY, COMMUNITY_URL, COMMUNITY_FALLBACKS,
+} from '../src/catalog.js';
+import { readFile } from 'node:fs/promises';
 
 const market = {
   name: 'claude-code-mods',
@@ -101,4 +105,100 @@ test('normalize drops plugins with unsafe names', () => {
 test('normalize survives a plugins field that is not an array', () => {
   assert.deepEqual(normalize({ plugins: 'nope' }), []);
   assert.deepEqual(normalize(null), []);
+});
+
+// Community mods: other people's, each in its own marketplace.
+const community = {
+  mods: [
+    {
+      name: 'image-view', marketplace: 'claude-image-view', repo: 'jarrodwatts/claude-image-view',
+      author: 'jarrodwatts', url: 'https://github.com/jarrodwatts/claude-image-view',
+      description: 'Thumbnails', tags: ['band'],
+    },
+    {
+      name: 'cache-meter', marketplace: 'T-AI-Labs', repo: 'T-AI-Labs/claude-code-mods',
+      author: 'T-AI-Labs', url: 'https://github.com/T-AI-Labs/claude-code-mods#cache-meter',
+      description: 'Cache share',
+    },
+  ],
+};
+
+test('normalizeCommunity keeps who made it and where, in the Community group', () => {
+  const [m, c] = normalizeCommunity(community);
+  assert.deepEqual(m, {
+    name: 'image-view', description: 'Thumbnails', source: undefined, category: COMMUNITY,
+    tags: ['band'], needs: [],
+    marketplace: 'claude-image-view', repo: 'jarrodwatts/claude-image-view',
+    author: 'jarrodwatts', url: 'https://github.com/jarrodwatts/claude-image-view',
+  });
+  assert.equal(c.marketplace, 'T-AI-Labs');
+  assert.deepEqual(c.tags, []);
+});
+
+test('normalizeCommunity drops entries with unsafe or missing fields', () => {
+  const good = community.mods[0];
+  const names = normalizeCommunity({ mods: [
+    good,
+    { ...good, name: 'a&b' },
+    { ...good, name: 'no-market', marketplace: '-x' },
+    { ...good, name: 'no-repo', repo: 'a b/c' },
+    { ...good, name: 'bad-author', author: 'x;rm' },
+    { ...good, name: 'bad-url', url: 'http://evil.example/x' },
+    { ...good, name: 'no-url', url: undefined },
+    null,
+  ] }).map((m) => m.name);
+  assert.deepEqual(names, ['image-view']);
+  assert.deepEqual(normalizeCommunity({ mods: 'nope' }), []);
+  assert.deepEqual(normalizeCommunity(null), []);
+});
+
+test('loadCommunity loads the live list first, then the fallbacks, else none', async () => {
+  let asked;
+  const mods = await loadCommunity({
+    fetch: async (url) => { asked = url; return { ok: true, json: async () => community }; },
+    readFile: noFiles,
+  });
+  assert.equal(asked, COMMUNITY_URL);
+  assert.equal(mods.length, 2);
+  const read = [];
+  const offline = await loadCommunity({
+    fetch: async () => { throw new Error('offline'); },
+    readFile: async (p) => { read.push(p); return JSON.stringify(community); },
+    fallbacks: ['/bundled.json'],
+  });
+  assert.deepEqual(read, ['/bundled.json']);
+  assert.equal(offline.length, 2);
+  assert.deepEqual(await loadCommunity({ fetch: async () => { throw new Error('offline'); }, readFile: noFiles, fallbacks: ['/x'] }), []);
+});
+
+test('loadAll puts community mods after ours and drops names that clash', async () => {
+  const clash = { mods: [...community.mods, { ...community.mods[0], name: 'heatmap' }] };
+  const mods = await loadAll({
+    loadCatalog: async () => normalize(market),
+    loadCommunity: async () => normalizeCommunity(clash),
+  });
+  assert.deepEqual(mods.map((m) => m.name), ['heatmap', 'context-bar', 'mystery', 'merge-gate', 'image-view', 'cache-meter']);
+  assert.equal(mods[0].category, 'For fun');
+});
+
+test('loadAll still loads ours when the community list fails', async () => {
+  const mods = await loadAll({
+    loadCatalog: async () => normalize(market),
+    loadCommunity: async () => { throw new Error('boom'); },
+  });
+  assert.equal(mods.length, 4);
+});
+
+test('the Community group comes last, after Other', () => {
+  const groups = groupByCategory([...normalizeCommunity(community), ...normalize(market)]);
+  assert.deepEqual(groups.map((g) => g.category).slice(-2), ['Other', COMMUNITY]);
+  assert.equal(COMMUNITY, 'Community (not maintained here)');
+});
+
+test('the repo copy of community.json loads in full', async () => {
+  const repoCopy = COMMUNITY_FALLBACKS.at(-1);
+  const raw = JSON.parse(await readFile(repoCopy, 'utf8'));
+  const mods = normalizeCommunity(raw);
+  assert.equal(mods.length, raw.mods.length);
+  assert.ok(mods.some((m) => m.name === 'image-view' && m.marketplace === 'claude-image-view'));
 });

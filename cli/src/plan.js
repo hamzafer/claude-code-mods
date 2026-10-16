@@ -16,42 +16,54 @@ function samePath(a, b) {
 }
 
 // `claude plugin list --json` -> { name: { enabled, scope } } for our mods in the chosen scope.
+// A community mod counts when it comes from its own marketplace, and keeps that name.
 // Project scope means project or local entries for this folder.
-export function readState(list, { scope, cwd }) {
+export function readState(list, { scope, cwd, community = [] }) {
   const state = {};
   for (const p of list) {
     const [name, market] = String(p.id).split('@');
-    if (market !== MARKET) continue;
+    const theirs = market !== MARKET && community.some((c) => c.name === name && c.marketplace === market);
+    if (market !== MARKET && !theirs) continue;
     const ok = scope === 'user'
       ? p.scope === 'user'
       : (p.scope === 'project' || p.scope === 'local') && (!p.projectPath || samePath(p.projectPath, cwd));
-    if (ok) state[name] = { enabled: !!p.enabled, scope: p.scope };
+    if (ok) state[name] = { enabled: !!p.enabled, scope: p.scope, ...(theirs ? { marketplace: market } : {}) };
   }
   return state;
 }
 
 // Never uninstalls. Enable and disable use the scope the mod is installed in.
 // Only disables mods in the current catalog, so a retired mod is left alone.
-export function planActions({ state, picked, scope, hasMarketplace = true, catalog }) {
+// Community mods carry their own marketplace (`market`); ours leave it out.
+// markets: the marketplace names claude has; without it, only ours is checked (hasMarketplace).
+export function planActions({ state, picked, scope, hasMarketplace = true, catalog, community = [], markets }) {
+  const theirs = (name) => community.find((c) => c.name === name);
+  const at = (market) => (market ? { market } : {});
   const install = [], enable = [], disable = [];
   for (const name of picked) {
     const s = state[name];
-    if (!s) install.push({ verb: 'install', name, scope });
-    else if (!s.enabled) enable.push({ verb: 'enable', name, scope: s.scope });
+    if (!s) install.push({ verb: 'install', name, scope, ...at(theirs(name)?.marketplace) });
+    else if (!s.enabled) enable.push({ verb: 'enable', name, scope: s.scope, ...at(s.marketplace) });
   }
   for (const [name, s] of Object.entries(state)) {
-    if (s.enabled && !picked.includes(name) && (!catalog || catalog.includes(name))) disable.push({ verb: 'disable', name, scope: s.scope });
+    if (s.enabled && !picked.includes(name) && (!catalog || catalog.includes(name))) {
+      disable.push({ verb: 'disable', name, scope: s.scope, ...at(s.marketplace) });
+    }
   }
-  const turnsOn = install.length + enable.length > 0;
-  // A stale marketplace clone would install old versions, so refresh it first.
-  const market = !turnsOn ? [] : hasMarketplace ? [{ verb: 'refresh' }] : [{ verb: 'marketplace' }];
+  // Each marketplace a mod turns on from, once: added when missing, else refreshed,
+  // since a stale clone would install old versions.
+  const has = (m) => (markets ? markets.includes(m) : m === MARKET ? hasMarketplace : true);
+  const market = [...new Set([...install, ...enable].map((a) => a.market || MARKET))].map((m) => {
+    if (m === MARKET) return has(m) ? { verb: 'refresh' } : { verb: 'marketplace' };
+    return has(m) ? { verb: 'refresh', market: m } : { verb: 'marketplace', market: m, repo: community.find((c) => c.marketplace === m).repo };
+  });
   return [...market, ...install, ...enable, ...disable];
 }
 
 export function toArgs(a) {
-  if (a.verb === 'marketplace') return ['plugin', 'marketplace', 'add', MARKET_REPO];
-  if (a.verb === 'refresh') return ['plugin', 'marketplace', 'update', MARKET];
-  return ['plugin', a.verb, `${a.name}@${MARKET}`, '--scope', a.scope];
+  if (a.verb === 'marketplace') return ['plugin', 'marketplace', 'add', a.repo || MARKET_REPO];
+  if (a.verb === 'refresh') return ['plugin', 'marketplace', 'update', a.market || MARKET];
+  return ['plugin', a.verb, `${a.name}@${a.market || MARKET}`, '--scope', a.scope];
 }
 
 export function toShell(a) {

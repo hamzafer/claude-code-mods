@@ -39,9 +39,10 @@ export function initialState(catalog, ticked, { scope = 'user', profile, bandOrd
 }
 
 // The ticked bands as the mods stack them: bands not in the file on top, then file order.
+// Community bands don't read our order file, so they stay off this screen.
 function bandsInOrder(state) {
   const bands = state.rows
-    .filter((r) => r.type === 'mod' && r.mod.tags.includes('band') && state.ticked.includes(r.mod.name))
+    .filter((r) => r.type === 'mod' && !r.mod.marketplace && r.mod.tags.includes('band') && state.ticked.includes(r.mod.name))
     .map((r) => r.mod.name);
   const listed = [...new Set(state.bandOrder)].filter((n) => bands.includes(n));
   return [...bands.filter((n) => !listed.includes(n)), ...listed];
@@ -163,6 +164,7 @@ export function render(state, { columns = 80, rows = 24, color = !process.env.NO
     dim(fit(rule + '─'.repeat(Math.max(0, columns - rule.length - 2)))),
     ...(current.tags.length ? wrap(`Adds: ${tagWords(current.tags)}`, inner).map((l) => `  ${l}`) : []),
     ...wrap(current.description, inner).map((l) => `  ${l}`),
+    ...(current.author ? wrap(`By @${current.author}: ${current.url}`, inner).map((l) => `  ${l}`) : []),
     ...(current.needs?.length ? wrap(`Needs: ${current.needs.join(', ')}`, inner).map((l) => dim(`  ${l}`)) : []),
     ...(state.message ? wrap(clean(state.message), inner).map((l) => bold(`  ${l}`)) : []),
     dim(fit(`  ${HINTS.join(' · ')}`)),

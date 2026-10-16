@@ -413,3 +413,75 @@ test('--dry-run writes nothing, shows the path and JSON, and prints them after',
   assert.match(r.results[0].message, /"where-am-i"/);
   assert.equal(r.out, `would write ${PATH}\n{\n  "order": [\n    "where-am-i"\n  ]\n}`);
 });
+
+// Community mods: other people's, each in its own marketplace.
+const COMMUNITY = 'Community (not maintained here)';
+const theirs = (name, marketplace, repo, url) => ({
+  name, description: `${name} does things`, category: COMMUNITY, tags: [], needs: [],
+  marketplace, repo, author: repo.split('/')[0], url,
+});
+const withCommunity = [
+  ...catalog,
+  theirs('image-view', 'claude-image-view', 'jarrodwatts/claude-image-view', 'https://github.com/jarrodwatts/claude-image-view'),
+  theirs('cache-meter', 'T-AI-Labs', 'T-AI-Labs/claude-code-mods', 'https://github.com/T-AI-Labs/claude-code-mods#cache-meter'),
+  theirs('usage-limits', 'T-AI-Labs', 'T-AI-Labs/claude-code-mods', 'https://github.com/T-AI-Labs/claude-code-mods#usage-limits'),
+];
+const goCommunity = (argv, claude, extra = {}) => go(argv, claude, { loadCatalog: async () => withCommunity, ...extra });
+
+test('--pick takes community names; --dry-run adds their marketplace once, then installs', async () => {
+  const r = await goCommunity(
+    ['--pick', 'context-bar,image-view,cache-meter,usage-limits', '--dry-run'],
+    fakeClaude({ plugins: installed, markets: [{ name: 'claude-code-mods' }, { name: 'claude-image-view' }] }),
+  );
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.out.split('\n'), [
+    'claude plugin marketplace update claude-image-view',
+    'claude plugin marketplace add T-AI-Labs/claude-code-mods',
+    'claude plugin install image-view@claude-image-view --scope user',
+    'claude plugin install cache-meter@T-AI-Labs --scope user',
+    'claude plugin install usage-limits@T-AI-Labs --scope user',
+  ]);
+});
+
+test('an installed community mod counts as ticked, and unticking it only disables', async () => {
+  const plugins = [...installed, { id: 'image-view@claude-image-view', scope: 'user', enabled: true }];
+  const seen = [];
+  const checklist = async (o) => { seen.push(o); return null; };
+  await goCommunity([], fakeClaude({ plugins }), { isTTY: true, checklist });
+  assert.deepEqual(seen[0].ticked, ['context-bar', 'image-view']);
+  const r = await goCommunity(['--pick', 'context-bar', '--dry-run'], fakeClaude({ plugins }));
+  assert.deepEqual(r.out.split('\n'), ['claude plugin disable image-view@claude-image-view --scope user']);
+});
+
+test('applying a community mod reports its marketplace and asks no options', async () => {
+  let asked = 0;
+  const r = await goCommunity(['--pick', 'context-bar,image-view'], fakeClaude({ plugins: installed, markets: [] }), {
+    loadOptions: async () => { asked++; return {}; },
+  });
+  assert.equal(r.code, 0);
+  assert.equal(asked, 0);
+  assert.deepEqual(r.calls.slice(2), [
+    'plugin marketplace add jarrodwatts/claude-image-view',
+    'plugin install image-view@claude-image-view --scope user',
+  ]);
+  assert.match(r.out, /✓ added the claude-image-view marketplace\n✓ installed image-view/);
+});
+
+test('ticking a community mod says who made it and where to read its code', async () => {
+  const results = [];
+  const checklist = async ({ onEffect }) => {
+    results.push(await onEffect({ type: 'tick', name: 'image-view', ticked: true }, {}));
+    results.push(await onEffect({ type: 'tick', name: 'image-view', ticked: false }, {}));
+    return null;
+  };
+  await goCommunity([], fakeClaude(), { isTTY: true, checklist });
+  assert.deepEqual(results, [
+    { message: 'Community mod by @jarrodwatts, not maintained here. Read its code first: https://github.com/jarrodwatts/claude-image-view' },
+    null,
+  ]);
+});
+
+test('no --pick: the community mods print last in their own group', async () => {
+  const r = await goCommunity([]);
+  assert.match(r.out, /For fun\n {2}heatmap .*\n\nCommunity \(not maintained here\)\n {2}image-view/);
+});

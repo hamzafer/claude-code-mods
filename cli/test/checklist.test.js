@@ -522,3 +522,24 @@ test('runChecklist: shift-down then enter hands the order to onEffect and shows 
   t.input.write('q');
   assert.equal(await done, null);
 });
+
+// Community mods: other people's, in their own group at the end.
+const theirs = mod('image-view', 'Community (not maintained here)', {
+  tags: ['band'], marketplace: 'claude-image-view', repo: 'jarrodwatts/claude-image-view',
+  author: 'jarrodwatts', url: 'https://github.com/jarrodwatts/claude-image-view',
+});
+
+test('community mods sit last and their detail says who made it and where', () => {
+  let s = initialState([...catalog, theirs], []);
+  assert.deepEqual(s.rows.filter((r) => r.type === 'header').map((r) => r.category).slice(-1), ['Community (not maintained here)']);
+  s = { ...s, cursor: s.rows.length - 1 };
+  const out = view(s);
+  assert.match(out, /By @jarrodwatts: https:\/\/github\.com\/jarrodwatts\/claude-image-view/);
+  assert.doesNotMatch(view(initialState(catalog, [])), /By @/);
+});
+
+test('community band mods stay off the order screen: they do not read our order file', () => {
+  const s = press(initialState([...catalog, theirs], ['context-bar', 'image-view']), 'o');
+  assert.deepEqual(s.order.names, ['context-bar']);
+  assert.equal(press(initialState([...catalog, theirs], ['image-view']), 'o').message, 'Tick a band mod first.');
+});
