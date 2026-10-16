@@ -16,14 +16,17 @@ function samePath(a, b) {
 }
 
 // `claude plugin list --json` -> { name: { enabled, scope } } for our mods in the chosen scope.
-// A community mod counts when it comes from its own marketplace, and keeps that name.
+// A community mod counts from any marketplace (so a copy from elsewhere is not installed twice)
+// and keeps the marketplace it really came from; the listed marketplace wins a tie.
 // Project scope means project or local entries for this folder.
 export function readState(list, { scope, cwd, community = [] }) {
   const state = {};
   for (const p of list) {
     const [name, market] = String(p.id).split('@');
-    const theirs = market !== MARKET && community.some((c) => c.name === name && c.marketplace === market);
-    if (market !== MARKET && !theirs) continue;
+    const entry = market !== MARKET && community.find((c) => c.name === name);
+    if (market !== MARKET && !entry) continue;
+    const theirs = !!entry;
+    if (theirs && state[name]?.marketplace === entry.marketplace) continue;
     const ok = scope === 'user'
       ? p.scope === 'user'
       : (p.scope === 'project' || p.scope === 'local') && (!p.projectPath || samePath(p.projectPath, cwd));

@@ -29,12 +29,14 @@ export const CATEGORIES = [
   'For fun',
 ];
 
-// The live file, then each fallback; null when none loads.
+// The live file (when there is a url), then each fallback; null when none loads.
 async function loadJson(url, { fetch, readFile, fallbacks, timeoutMs }) {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (res.ok) return await res.json();
-  } catch {}
+  if (url) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (res.ok) return await res.json();
+    } catch {}
+  }
   for (const path of fallbacks) {
     try {
       return JSON.parse(await readFile(path, 'utf8'));
@@ -55,20 +57,23 @@ export async function loadCatalog({
 }
 
 // Never fails: no community list just means no community mods.
+// A live list with no usable entries counts as missing, so the bundled copy steps in.
 export async function loadCommunity({
   fetch = globalThis.fetch,
   readFile = fsReadFile,
   fallbacks = COMMUNITY_FALLBACKS,
   timeoutMs = 3000,
 } = {}) {
-  return normalizeCommunity(await loadJson(COMMUNITY_URL, { fetch, readFile, fallbacks, timeoutMs }));
+  const live = normalizeCommunity(await loadJson(COMMUNITY_URL, { fetch, readFile, fallbacks: [], timeoutMs }));
+  if (live.length) return live;
+  return normalizeCommunity(await loadJson(null, { fetch, readFile, fallbacks, timeoutMs }));
 }
 
-// Ours, then the community mods whose names are free.
+// Ours, then the community mods whose names are free; the first entry for a name wins.
 export async function loadAll({ loadCatalog: ours = loadCatalog, loadCommunity: theirs = loadCommunity } = {}) {
   const [mods, community] = await Promise.all([ours(), theirs().catch(() => [])]);
   const taken = new Set(mods.map((m) => m.name));
-  return [...mods, ...community.filter((m) => !taken.has(m.name))];
+  return [...mods, ...community.filter((m) => !taken.has(m.name) && taken.add(m.name))];
 }
 
 // Live text goes to the terminal: keep strings only, no control characters (no ANSI injection).
@@ -81,7 +86,7 @@ export const NAME = /^[a-z0-9][a-z0-9._-]*$/;
 // The same for a community mod's marketplace, GitHub user and repo.
 export const MARKET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const USER = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
-export const REPO = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
+export const REPO = /^[A-Za-z0-9][A-Za-z0-9-]*\/(?!\.\.?$)[A-Za-z0-9._-]+$/;
 
 // One mod with every field a clean string or string list.
 export const tidy = (p) => ({
@@ -108,7 +113,7 @@ export function normalizeCommunity(list) {
   const mods = Array.isArray(list?.mods) ? list.mods : [];
   return mods
     .filter((m) => str(m?.name) && NAME.test(m.name)
-      && str(m.marketplace) && MARKET_NAME.test(m.marketplace)
+      && str(m.marketplace) && MARKET_NAME.test(m.marketplace) && m.marketplace !== 'claude-code-mods'
       && str(m.repo) && REPO.test(m.repo)
       && str(m.author) && USER.test(m.author)
       && str(m.url) && m.url.startsWith('https://github.com/'))

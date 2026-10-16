@@ -145,6 +145,9 @@ test('normalizeCommunity drops entries with unsafe or missing fields', () => {
     { ...good, name: 'bad-author', author: 'x;rm' },
     { ...good, name: 'bad-url', url: 'http://evil.example/x' },
     { ...good, name: 'no-url', url: undefined },
+    { ...good, name: 'ours', marketplace: 'claude-code-mods' },
+    { ...good, name: 'dot-repo', repo: 'owner/.' },
+    { ...good, name: 'dotdot-repo', repo: 'owner/..' },
     null,
   ] }).map((m) => m.name);
   assert.deepEqual(names, ['image-view']);
@@ -201,4 +204,24 @@ test('the repo copy of community.json loads in full', async () => {
   const mods = normalizeCommunity(raw);
   assert.equal(mods.length, raw.mods.length);
   assert.ok(mods.some((m) => m.name === 'image-view' && m.marketplace === 'claude-image-view'));
+});
+
+test('normalizeCommunity keeps repos that only start with dots', () => {
+  const [m] = normalizeCommunity({ mods: [{ ...community.mods[0], repo: 'owner/.github' }] });
+  assert.equal(m.repo, 'owner/.github');
+});
+
+test('loadAll keeps the first community entry for a name', async () => {
+  const twice = [...normalizeCommunity(community), { ...normalizeCommunity(community)[0], marketplace: 'second' }];
+  const mods = await loadAll({ loadCatalog: async () => [], loadCommunity: async () => twice });
+  assert.deepEqual(mods.map((m) => `${m.name}@${m.marketplace}`), ['image-view@claude-image-view', 'cache-meter@T-AI-Labs']);
+});
+
+test('loadCommunity falls back when the live list has no valid entries', async () => {
+  const mods = await loadCommunity({
+    fetch: async () => ({ ok: true, json: async () => ({ mods: [{ name: 'Bad!' }] }) }),
+    readFile: async () => JSON.stringify(community),
+    fallbacks: ['/bundled.json'],
+  });
+  assert.equal(mods.length, 2);
 });

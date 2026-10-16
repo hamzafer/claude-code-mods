@@ -435,6 +435,9 @@ test('--pick takes community names; --dry-run adds their marketplace once, then 
   );
   assert.equal(r.code, 0);
   assert.deepEqual(r.out.split('\n'), [
+    'Community mod by @jarrodwatts, not maintained here. Read its code first: https://github.com/jarrodwatts/claude-image-view',
+    'Community mod by @T-AI-Labs, not maintained here. Read its code first: https://github.com/T-AI-Labs/claude-code-mods#cache-meter',
+    'Community mod by @T-AI-Labs, not maintained here. Read its code first: https://github.com/T-AI-Labs/claude-code-mods#usage-limits',
     'claude plugin marketplace update claude-image-view',
     'claude plugin marketplace add T-AI-Labs/claude-code-mods',
     'claude plugin install image-view@claude-image-view --scope user',
@@ -464,7 +467,7 @@ test('applying a community mod reports its marketplace and asks no options', asy
     'plugin marketplace add jarrodwatts/claude-image-view',
     'plugin install image-view@claude-image-view --scope user',
   ]);
-  assert.match(r.out, /✓ added the claude-image-view marketplace\n✓ installed image-view/);
+  assert.match(r.out, /^Community mod by @jarrodwatts, not maintained here\. Read its code first: https:\/\/github\.com\/jarrodwatts\/claude-image-view\n✓ added the claude-image-view marketplace\n✓ installed image-view/);
 });
 
 test('ticking a community mod says who made it and where to read its code', async () => {
@@ -484,4 +487,13 @@ test('ticking a community mod says who made it and where to read its code', asyn
 test('no --pick: the community mods print last in their own group', async () => {
   const r = await goCommunity([]);
   assert.match(r.out, /For fun\n {2}heatmap .*\n\nCommunity \(not maintained here\)\n {2}image-view/);
+});
+
+test('p on a community mod points at its repo, no screenshot lookup', async () => {
+  let looked = false;
+  const results = [];
+  const checklist = async ({ onEffect }) => { results.push(await onEffect({ type: 'preview', name: 'image-view' }, {})); return null; };
+  await goCommunity([], fakeClaude(), { isTTY: true, checklist, showPreview: async () => { looked = true; return { message: 'x' }; } });
+  assert.equal(looked, false);
+  assert.deepEqual(results, [{ message: 'No screenshot here, see https://github.com/jarrodwatts/claude-image-view' }]);
 });

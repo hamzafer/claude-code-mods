@@ -119,13 +119,37 @@ test('readState knows an installed community mod by its own marketplace', () => 
   const l = [
     ...list,
     { id: 'image-view@claude-image-view', scope: 'user', enabled: true },
-    { id: 'cache-meter@someone-else', scope: 'user', enabled: true },
+    { id: 'not-listed@someone-else', scope: 'user', enabled: true },
   ];
   assert.deepEqual(readState(l, { scope: 'user', community }), {
     'context-bar': { enabled: true, scope: 'user' },
     heatmap: { enabled: false, scope: 'user' },
     'image-view': { enabled: true, scope: 'user', marketplace: 'claude-image-view' },
   });
+});
+
+test('a community mod installed from another marketplace counts as present, under its real id', () => {
+  const l = [{ id: 'cache-meter@other', scope: 'user', enabled: false }];
+  const s = readState(l, { scope: 'user', community });
+  assert.deepEqual(s, { 'cache-meter': { enabled: false, scope: 'user', marketplace: 'other' } });
+  // Picked: enabled where it is, not installed again.
+  assert.deepEqual(planActions({ state: s, picked: ['cache-meter'], scope: 'user', community, markets: ['other'] }).map(toShell), [
+    'claude plugin marketplace update other',
+    'claude plugin enable cache-meter@other --scope user',
+  ]);
+  const on = readState([{ ...l[0], enabled: true }], { scope: 'user', community });
+  assert.deepEqual(planActions({ state: on, picked: [], scope: 'user', community, markets: [] }).map(toShell), [
+    'claude plugin disable cache-meter@other --scope user',
+  ]);
+});
+
+test('with both installed, the copy from the listed marketplace wins', () => {
+  const l = [
+    { id: 'cache-meter@T-AI-Labs', scope: 'user', enabled: true },
+    { id: 'cache-meter@other', scope: 'user', enabled: false },
+  ];
+  assert.equal(readState(l, { scope: 'user', community })['cache-meter'].marketplace, 'T-AI-Labs');
+  assert.equal(readState([...l].reverse(), { scope: 'user', community })['cache-meter'].marketplace, 'T-AI-Labs');
 });
 
 test('community installs add each missing marketplace once, refresh the rest', () => {

@@ -16,7 +16,7 @@ const TAGS = ['band', 'pane', 'statusline', 'guard', 'toast', 'command']
 const NAME = /^[a-z0-9][a-z0-9._-]*$/
 const MARKET = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const USER = /^[A-Za-z0-9][A-Za-z0-9-]*$/
-const REPO = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/
+const REPO = /^[A-Za-z0-9][A-Za-z0-9-]*\/(?!\.\.?$)[A-Za-z0-9._-]+$/
 
 test('community.json has a list of mods', () => {
   assert.ok(Array.isArray(mods) && mods.length > 0)
@@ -43,10 +43,20 @@ test('names are unique across community.json and the marketplace', () => {
   assert.deepEqual(dupes, [])
 })
 
+// The section runs to the next heading, or to the end of the file.
+const readme = read('README.md')
+const section = /^## .*Community mods$([\s\S]*?)(?=^#{1,2} |(?![\s\S]))/m.exec(readme)?.[1] ?? ''
+const rows = [...section.matchAll(/^\|[^|\n]*\| \*\*\[([^\]]+)\]\(.*$/gm)].map(r => ({ name: r[1], line: r[0] }))
+
 test('README Community mods table and community.json list the same mods', () => {
-  const readme = read('README.md')
-  const section = /^## .*Community mods$([\s\S]*?)^## /m.exec(readme)?.[1]
   assert.ok(section, 'README has no Community mods section')
-  const rows = [...section.matchAll(/^\|[^|\n]*\| \*\*\[([^\]]+)\]\(/gm)].map(r => r[1])
-  assert.deepEqual([...rows].sort(), mods.map(m => m.name).sort())
+  assert.deepEqual(rows.map(r => r.name).sort(), mods.map(m => m.name).sort())
 })
+
+for (const m of mods) {
+  test(`${m.name}: README row installs from the same marketplace`, () => {
+    const row = rows.find(r => r.name === m.name)?.line ?? ''
+    assert.ok(row.includes(`marketplace add ${m.repo}`), `row should say marketplace add ${m.repo}`)
+    assert.ok(row.includes(`install ${m.name}@${m.marketplace}`), `row should say install ${m.name}@${m.marketplace}`)
+  })
+}

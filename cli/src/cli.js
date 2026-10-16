@@ -140,7 +140,10 @@ export async function main(argv, {
       let dryBands = null;
       // Ticks warn about missing tools; p opens the screenshot; the order screen saves bands.json.
       const onEffect = async (e) => {
-        if (e.type === 'preview') return showPreview(e.name);
+        if (e.type === 'preview') {
+          const mod = mods.find((m) => m.name === e.name);
+          return mod?.marketplace ? { message: `No screenshot here, see ${mod.url}` } : showPreview(e.name);
+        }
         if (e.type === 'order') {
           const text = bandsJson(e.order);
           if (opts.dryRun) {
@@ -186,6 +189,10 @@ export async function main(argv, {
     if (!actions.length) {
       out('Nothing to change.');
       return 0;
+    }
+    // Someone else's code is about to turn on: say so first.
+    for (const a of actions.filter((a) => (a.verb === 'install' || a.verb === 'enable') && !ours(a.name))) {
+      out(communityNote(byName(a.name)));
     }
     if (opts.dryRun) {
       for (const a of actions) out(toShell(a));

@@ -1,6 +1,7 @@
 name: Repo guard
 
-# Reads main's rules and the npm environment and fails if they drifted. Read-only token.
+# Reads main's rules and the npm environment and fails if they drifted, and checks that
+# community.json still matches each community repo's marketplace. Read-only token.
 on:
   schedule:
     - cron: '17 6 * * *' # daily
@@ -10,6 +11,8 @@ on:
     paths:
       - .github/workflows/**
       - test/repo-settings.mjs
+      - community.json
+      - test/community-remote.mjs
   workflow_dispatch:
 
 permissions:
@@ -32,3 +35,6 @@ jobs:
         run: node test/repo-settings.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Check community marketplaces
+        run: node test/community-remote.mjs
