@@ -407,6 +407,15 @@ describe('md-preview', () => {
     await narrow.unmount()
   })
 
+  test('/md compare takes quoted paths with spaces (#119)', async ($, on) => {
+    const { disk } = engine(on, { gh: 'missing' })
+    disk['/repo/opt/option c.md'] = '# Plan\n\nOption C text.\n'
+    await start($)
+    const r = await $.command.run({ command: 'md', args: `compare "opt/option c.md" 'opt/b.md'` } as any)
+    expect(r.text).toMatch(/option c\.md \| b\.md side by side/)
+    expect((await $.command.run({ command: 'md', args: 'compare "opt/option c.md"' } as any)).text).toMatch(/compare <fileA> <fileB>/)
+  })
+
   test('/md compare <a> <b> renders two files side by side under their names', async ($, on) => {
     const { writes, clock } = engine(on, { gh: 'missing' })
     await start($)

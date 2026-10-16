@@ -338,8 +338,10 @@ async function command($: EngineInterface, args: string) {
   const words = args.trim().split(/\s+/).filter(Boolean)
   if (words[0] === 'open') return { text: await openInBrowser($) }
   if (words[0] === 'compare') {
-    if (words.length !== 3) return { text: `usage: /${session.command} compare <fileA> <fileB>` }
-    const [a, b] = [absolute(words[1] as string), absolute(words[2] as string)]
+    // Quotes keep a path with spaces as one: compare "option a.md" "option b.md".
+    const named = [...args.trim().matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(m => m[1] ?? m[2] ?? m[3] ?? '')
+    if (named.length !== 3) return { text: `usage: /${session.command} compare <fileA> <fileB>` }
+    const [a, b] = [absolute(named[1] as string), absolute(named[2] as string)]
     for (const f of [a, b]) {
       if (!MD_FILE.test(f)) return { text: `${base(f)} is not a .md, .mdx or .markdown file.` }
       if (!(await $.fs.exists(f).catch(() => false))) return { text: `no file at ${f}` }
