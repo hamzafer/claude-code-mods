@@ -497,6 +497,13 @@ describe('md-preview', () => {
     expect(bad).not.toMatch(/<script|onerror|javascript:|<iframe/i)
     expect(bad).toContain('<b>x</b>')
     expect(sanitize('<a href="JaVaScRiPt:x" onclick=go()>y</a>')).toBe('<a href="#">y</a>')
+    // A void tag in prose takes only itself, not the rest of the page (#116).
+    const prose = toHtml(parse('Add <meta charset="utf-8"> to the head.\n\nNext paragraph.'))
+    expect(prose).not.toMatch(/<meta/i)
+    expect(prose).toContain('to the head.')
+    expect(prose).toContain('Next paragraph.')
+    expect(sanitize('a <link rel="x"> b <base href="/"> c')).toBe('a  b  c')
+    expect(sanitize('x <script>alert(1) y')).toBe('x ') // an unclosed script still takes the rest
     const p0 = page([{ html: '<p>x</p>', dir: '/r' }], { title: 't', width: 900 })
     const nonce = p0.match(/'nonce-([0-9a-f]+)'/)?.[1] ?? ''
     expect(nonce).toHaveLength(24)

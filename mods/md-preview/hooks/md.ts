@@ -279,7 +279,8 @@ function safeUrl(url: string) {
 /** Drops what can run: script-like elements and on* handlers, javascript: URLs. */
 export function sanitize(html: string) {
   return html
-    .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
+    .replace(/<(base|meta|link)\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi, '') // void: no closing tag, so only the tag goes
+    .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
     .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form)\b[^>]*>/gi, '')
     .replace(/<[a-z][^>]*>/gi, tag =>
       tag
