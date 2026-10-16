@@ -62,6 +62,15 @@
       "url": "https://github.com/T-AI-Labs/claude-code-mods#usage-limits",
       "description": "5-hour and weekly plan limits in percent, with the time left until each resets",
       "tags": []
+    },
+    {
+      "name": "pixel-pulse",
+      "marketplace": "pixel-pulse",
+      "repo": "air01aditya/pixel-pulse",
+      "author": "air01aditya",
+      "url": "https://github.com/air01aditya/pixel-pulse",
+      "description": "A purple pixel strip above the prompt that drifts right to left and glows under the pointer, and a purple pixel spiral in place of the working spinner. Desktop app only; it only draws",
+      "tags": ["band"]
     }
   ]
 }
