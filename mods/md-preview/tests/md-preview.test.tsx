@@ -584,6 +584,20 @@ describe('md-preview', () => {
     expect(inline('snake_case_name')).toBe('snake_case_name')
   })
 
+  test('headings, table rules and _emphasis_ stay linear on long lines, with the same output (#117)', () => {
+    expect(toHtml(parse('## Title ##'))).toContain('<h2 id="title">Title</h2>')
+    expect(toHtml(parse('# C# #'))).toContain('>C#</h1>') // a # inside the text stays
+    expect(toHtml(parse('#   ###'))).toContain('>###</h1>')
+    expect(toHtml(parse('| a | b |\n  |  ---  |  :-:  |  \n| 1 | 2 |'))).toContain('<table>')
+    expect(inline('_one_ and _two_ and _private_name_')).toBe('<em>one</em> and <em>two</em> and <em>private_name</em>')
+    expect(inline('a _b c_d e_ f')).toBe('a <em>b c_d e</em> f')
+    // Each took seconds at this size before (the old patterns were quadratic): now milliseconds.
+    const t0 = Date.now()
+    parse(`# a${' '.repeat(20000)}b\n\n| x |\n${' '.repeat(20000)}x`)
+    inline(' _a_b'.repeat(20000))
+    expect(Date.now() - t0 < 500).toBe(true)
+  })
+
   test('changed blocks, marks and the text lines', () => {
     const before = '# T\n\nPara one.\n\n```\ncode\n\nmore\n```\n\nPara two.\n'
     const after = '# T\n\nPara one, edited.\n\n```\ncode\n\nmore\n```\n\nPara two.\n'
