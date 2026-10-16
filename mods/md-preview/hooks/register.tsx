@@ -84,7 +84,7 @@ const ahead = new Set<string>() // files to draw before /md asks for them; newes
 const repos = new Map<string, string | null>() // each folder's GitHub repo, from its remotes
 const ghFailed = new Set<string>() // repos whose last GitHub render failed
 const turn = { isOn: false } // the main turn is under way: draw ahead once it ends
-const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
+const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0, opener: '' }
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
 // Markdown files before the turn's first shell command, to catch writes that skip Write/Edit (`cat > README.md`).
@@ -137,6 +137,7 @@ export const register: Register = on => {
     const r = await next(e)
     session.cwd = e.cwd
     session.home = (await $.env.get('HOME').catch(() => undefined)) ?? ''
+    session.opener = ''
     session.canImage = await imageTerminal($)
     // /md, or /mdview if a built-in ever takes /md.
     for (const name of ['md', 'mdview']) {
@@ -783,8 +784,17 @@ async function openInBrowser($: EngineInterface): Promise<string> {
   if (loaded.length === 0) return `cannot read ${p.title}`
   const { sides } = await html($, loaded)
   const file = `${await tmpRoot($)}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
-  await $.fs.write(file, page(sides, { title: p.title, width: 0 }))
-  const opener = (await $.fs.exists('/usr/bin/open').catch(() => false)) ? 'open' : 'xdg-open'
-  const r = await $.process.run([opener, file], { timeoutMs: 10_000 }).catch(() => null)
+  const isWritten = await $.fs.write(file, page(sides, { title: p.title, width: 0 })).then(() => true).catch(() => false)
+  if (!isWritten) return `could not write the page to ${file}`
+  const r = await $.process.run([await opener($), file], { timeoutMs: 10_000 }).catch(() => null)
   return r && r.exitCode === 0 ? `opened ${p.title} in the browser` : `could not open the browser. The page is at ${file}`
+}
+
+// macOS's `open`, else `xdg-open`. Asked of uname, not of /usr/bin/open: elsewhere that path can be another program.
+async function opener($: EngineInterface) {
+  if (!session.opener) {
+    const uname = await $.process.run(['uname', '-s'], { timeoutMs: 3_000 }).catch(() => null)
+    session.opener = uname?.stdout.trim() === 'Darwin' ? 'open' : 'xdg-open'
+  }
+  return session.opener
 }

@@ -7,7 +7,7 @@ import { githubRepo, MD_FILE } from '../hooks/register'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const PANE = { component: 'Pane', requestId: 'md-preview', props: { title: 'Markdown', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } }
 
-type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean }
+type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean; os?: string; openWriteFails?: boolean }
 
 // Stands for the engine beneath the mod: a small disk, gh, git and Chrome.
 function engine(on: any, opts: Opts = {}) {
@@ -47,7 +47,10 @@ function engine(on: any, opts: Opts = {}) {
     if (disk[e.path] === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: disk[e.path] }
   })
-  on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
+  on('fs.write', (_$: any, e: any) => {
+    if (opts.openWriteFails && /\/open-\d+\.html$/.test(e.path)) throw new Error(`EACCES ${e.path}`)
+    return (writes[e.path] = e.text), { value: undefined }
+  })
   on('fs.exists', (_$: any, e: any) => ({ value: e.path === CHROME ? opts.chrome !== false : e.path === '/usr/bin/open' ? true : disk[e.path] !== undefined }))
   on('env.get', (_$: any, e: any) => ({ value: ({ TERM_PROGRAM: opts.term ?? 'ghostty', TMPDIR: '/tmp/', HOME: '/home/me' } as Record<string, string>)[e.name] }))
   on('process.run', (_$: any, e: any) => {
@@ -58,6 +61,7 @@ function engine(on: any, opts: Opts = {}) {
       const sep = e.argv.includes('-z') ? '\0' : '\n'
       return { value: { exitCode: 0, stdout: md.join(sep) + sep, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     }
+    if (cmd === 'uname') return { value: { exitCode: 0, stdout: `${opts.os ?? 'Darwin'}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'git') return { value: { exitCode: 0, stdout: opts.remote ?? 'origin\tgit@github.com:someone/docs-repo.git (fetch)\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'gh') {
       if (opts.gh === 'missing') throw new Error('gh: not found')
@@ -442,6 +446,23 @@ describe('md-preview', () => {
     await pane.press({ key: 'open' })
     expect(runs.filter(x => x.argv[0] === 'open')).toHaveLength(2)
     await pane.unmount()
+  })
+
+  test('/md open uses xdg-open off macOS, even when /usr/bin/open exists (#118)', async ($, on) => {
+    const linux = engine(on, { gh: 'missing', os: 'Linux' }) // fs.exists says /usr/bin/open is there
+    await start($)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^opened README\.md/)
+    expect(linux.runs.some(x => x.argv[0] === 'xdg-open')).toBe(true)
+    expect(linux.runs.some(x => x.argv[0] === 'open')).toBe(false)
+  })
+
+  test('/md open says so when the page cannot be written (#118)', async ($, on) => {
+    const { runs } = engine(on, { gh: 'missing', openWriteFails: true })
+    await start($)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^could not write the page to \/tmp\/md-preview\/open-\d+\.html$/)
+    expect(runs.some(x => x.argv[0] === 'open' || x.argv[0] === 'xdg-open')).toBe(false)
   })
 
   test('review fixes: one Chrome at a time, no retry loop, the first text of the turn, big files', async ($, on) => {
