@@ -58,7 +58,7 @@ claude plugin install agent-radar@claude-code-mods"><code><span class="ps" aria-
 </section>
 <section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
 <dl class="keys">
-<div><dt><code>/radar</code></dt><dd>Lists every agent this session</dd></div>
+<div><dt><code>/radar</code></dt><dd>Lists every subagent and background shell this session</dd></div>
 <div><dt><code>1 to 9</code></dt><dd>In the pane, opens that agent&#x27;s messages</dd></div>
 <div><dt><code>b</code></dt><dd>Goes back</dd></div>
 <div><dt><code>c</code></dt><dd>Clears finished agents</dd></div>
@@ -69,6 +69,7 @@ claude plugin install agent-radar@claude-code-mods"><code><span class="ps" aria-
 <ul class="notes">
 <li>A finished agent shows a check for 30 seconds, then its line goes away.</li>
 <li>A toast says when each one finishes.</li>
+<li>A background Bash command (<code>run_in_background</code>, or one moved to the background with Ctrl+B) gets a line too, tagged <code>sh</code>. One that runs <code>codex exec</code>, <code>opencode run</code> and the like is labeled with that agent and model. It ends when Claude Code closes its output file, found by <code>lsof</code> every 5 seconds, so without <code>lsof</code> it stays &quot;running&quot;.</li>
 </ul>
 </section>
 </div>
@@ -76,6 +77,7 @@ claude plugin install agent-radar@claude-code-mods"><code><span class="ps" aria-
 <section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
 <ul class="needs">
 <li>Claude Code 2.1.287 or newer</li>
+<li><code>lsof</code> to tell when a background shell ends (macOS and Linux have it)</li>
 </ul>
 </section>
 <section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
