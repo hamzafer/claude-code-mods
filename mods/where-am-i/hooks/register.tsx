@@ -3,6 +3,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Recap } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const MODEL = 'haiku'
 const MAX_LOG = 20
@@ -12,6 +13,19 @@ const recap = atom({ plugin: 'where-am-i', key: 'recap' } as const, null as Reca
 const live = atom({ plugin: 'where-am-i', key: 'live' } as const, '')
 // True while the next-steps mod shows its list of next prompts: this band leaves out its own next meanwhile.
 const nextStepsActive = { plugin: 'next-steps', key: 'active' } as const
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
+}
 
 export const register: Register = on => {
   let prompt = ''
@@ -63,26 +77,25 @@ export const register: Register = on => {
     const { value: hasNextSteps = false } = await $.state.get(nextStepsActive)
     const nextStep = hasNextSteps ? '' : r.next
 
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="column" paddingX={1}>
-          <Text wrap="truncate-end">
-            <Text color="cyan" bold>{'◆ Goal: '}</Text>
-            <Text>{clip(r.goal)}</Text>
-          </Text>
-          <Text wrap="truncate-end">
-            <Text dimColor>{'  now: '}</Text>
-            <Text>{now}</Text>
-            {nextStep !== '' && <Text dimColor>{'  ·  next: '}</Text>}
-            {nextStep !== '' && <Text>{clip(nextStep)}</Text>}
-          </Text>
-          {r.waiting !== '' && (
-            <Text color="yellow" wrap="truncate-end">{`  waiting on you: ${clip(r.waiting)}`}</Text>
-          )}
-        </Box>
-        {rest}
+    const mine = (
+      <Box flexDirection="column" paddingX={1}>
+        <Text wrap="truncate-end">
+          <Text color="cyan" bold>{'◆ Goal: '}</Text>
+          <Text>{clip(r.goal)}</Text>
+        </Text>
+        <Text wrap="truncate-end">
+          <Text dimColor>{'  now: '}</Text>
+          <Text>{now}</Text>
+          {nextStep !== '' && <Text dimColor>{'  ·  next: '}</Text>}
+          {nextStep !== '' && <Text>{clip(nextStep)}</Text>}
+        </Text>
+        {r.waiting !== '' && (
+          <Text color="yellow" wrap="truncate-end">{`  waiting on you: ${clip(r.waiting)}`}</Text>
+        )}
       </Box>
     )
+    bandOrder ??= readBandOrder($).catch(() => [])
+    return stackBands(rest, 'where-am-i', mine, 'above', await bandOrder) // above what other mods draw, unless the band order says otherwise
   })
 }
 

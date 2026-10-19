@@ -8,146 +8,322 @@
     {
       "name": "agent-radar",
       "description": "One live line above the prompt per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
-      "version": "0.1.2",
-      "source": "./mods/agent-radar"
+      "version": "0.2.0",
+      "source": "./mods/agent-radar",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "pane",
+        "toast",
+        "command"
+      ]
     },
     {
       "name": "blast-radius",
       "description": "Holds risky Bash commands and shows what they would change before they run.",
-      "version": "0.2.2",
-      "source": "./mods/blast-radius"
+      "version": "0.2.3",
+      "source": "./mods/blast-radius",
+      "category": "Guard your repo",
+      "tags": [
+        "band",
+        "pane",
+        "guard",
+        "command"
+      ]
     },
     {
       "name": "context-bar",
       "description": "Your context window as a stacked bar above the prompt, a color per category, with token counts and the compaction point. /context-bar shows or hides it.",
-      "version": "0.1.2",
-      "source": "./mods/context-bar"
+      "version": "0.1.3",
+      "source": "./mods/context-bar",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "command"
+      ]
     },
     {
       "name": "browser-lanes",
       "description": "Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. A subagent that wants the browser waits until the one using it is done.",
-      "version": "0.1.2",
-      "source": "./mods/browser-lanes"
+      "version": "0.1.3",
+      "source": "./mods/browser-lanes",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "toast",
+        "guard",
+        "command"
+      ]
     },
     {
       "name": "md-preview",
       "description": "Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. Before and after side by side. /md opens it.",
-      "version": "0.1.3",
-      "source": "./mods/md-preview"
+      "version": "0.1.7",
+      "source": "./mods/md-preview",
+      "category": "See what's happening",
+      "tags": [
+        "pane",
+        "toast",
+        "command"
+      ],
+      "needs": [
+        "Chrome"
+      ]
     },
     {
       "name": "glance",
       "description": "One line above the prompt with what needs you: next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.",
-      "version": "0.1.0",
-      "source": "./mods/glance"
+      "version": "0.1.1",
+      "source": "./mods/glance",
+      "category": "My setup (fork and adapt)",
+      "tags": [
+        "band",
+        "command"
+      ],
+      "needs": [
+        "gh",
+        "Google Calendar connector",
+        "Linear connector",
+        "Slack connector"
+      ]
+    },
+    {
+      "name": "heatmap",
+      "description": "A GitHub-style grid of your Claude Code time in a /heatmap pane, with streaks, peaks and top projects.",
+      "version": "0.1.1",
+      "source": "./mods/heatmap",
+      "category": "See what's happening",
+      "tags": [
+        "pane",
+        "toast",
+        "command"
+      ]
     },
     {
       "name": "merge-gate",
       "description": "Holds `gh pr merge` until CI passes and one Codex review (OpenAI's luna model) has run. A PR line above the prompt, and /gate shows the PR's status.",
-      "version": "0.1.4",
-      "source": "./mods/merge-gate"
+      "version": "0.1.5",
+      "source": "./mods/merge-gate",
+      "category": "My setup (fork and adapt)",
+      "tags": [
+        "band",
+        "guard",
+        "command"
+      ],
+      "needs": [
+        "gh",
+        "codex"
+      ]
     },
     {
       "name": "mission-control",
       "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
-      "version": "0.1.2",
-      "source": "./mods/mission-control"
+      "version": "0.1.3",
+      "source": "./mods/mission-control",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "pane",
+        "command"
+      ]
     },
     {
       "name": "next-steps",
       "description": "After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.",
       "version": "0.3.0",
-      "source": "./mods/next-steps"
+      "source": "./mods/next-steps",
+      "category": "See what's happening",
+      "tags": [
+        "band"
+      ]
     },
     {
       "name": "now-playing",
       "description": "What Spotify is playing, one line above the prompt: track, progress and the lyric being sung, with ⏮ ⏸ ⏭ buttons. /music controls it too. macOS.",
-      "version": "0.1.0",
-      "source": "./mods/now-playing"
+      "version": "0.1.1",
+      "source": "./mods/now-playing",
+      "category": "For fun",
+      "tags": [
+        "band",
+        "command"
+      ],
+      "needs": [
+        "macOS",
+        "Spotify"
+      ]
     },
     {
       "name": "prayer-times",
       "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
-      "version": "0.1.3",
-      "source": "./mods/prayer-times"
+      "version": "0.1.4",
+      "source": "./mods/prayer-times",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "toast",
+        "command"
+      ]
     },
     {
       "name": "reels",
       "description": "YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.",
       "version": "0.1.3",
-      "source": "./mods/reels"
+      "source": "./mods/reels",
+      "category": "For fun",
+      "tags": [
+        "pane",
+        "command"
+      ],
+      "needs": [
+        "Playwright"
+      ]
     },
     {
       "name": "replay-theater",
       "description": "Step through the last turn's file edits, one diff at a time.",
       "version": "0.1.3",
-      "source": "./mods/replay-theater"
+      "source": "./mods/replay-theater",
+      "category": "See what's happening",
+      "tags": [
+        "pane",
+        "toast",
+        "command"
+      ]
     },
     {
       "name": "review-watch",
       "description": "A live line above the prompt for each running code review: Codex or a review subagent, its model, what it reviews, time, and Codex's latest output. A toast with the findings when it ends.",
-      "version": "0.1.1",
-      "source": "./mods/review-watch"
+      "version": "0.1.2",
+      "source": "./mods/review-watch",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "toast"
+      ]
     },
     {
       "name": "rulebook-guard",
       "description": "Writing and git rules: replaces em dashes in prose, and asks before git commit --amend, an unformatted push, or personal info in notes and commits.",
       "version": "0.1.2",
-      "source": "./mods/rulebook-guard"
+      "source": "./mods/rulebook-guard",
+      "category": "My setup (fork and adapt)",
+      "tags": [
+        "guard",
+        "toast"
+      ]
     },
     {
       "name": "session-saver",
       "description": "Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.",
-      "version": "0.1.2",
-      "source": "./mods/session-saver"
+      "version": "0.1.3",
+      "source": "./mods/session-saver",
+      "category": "My setup (fork and adapt)",
+      "tags": [
+        "band",
+        "toast",
+        "command"
+      ],
+      "needs": [
+        "unpause"
+      ]
     },
     {
       "name": "snake",
       "description": "Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing opens until /snake.",
       "version": "0.2.3",
-      "source": "./mods/snake"
+      "source": "./mods/snake",
+      "category": "For fun",
+      "tags": [
+        "pane",
+        "command"
+      ]
     },
     {
       "name": "token-weather",
       "description": "A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.",
-      "version": "0.2.1",
-      "source": "./mods/token-weather"
+      "version": "0.2.2",
+      "source": "./mods/token-weather",
+      "category": "See what's happening",
+      "tags": [
+        "band"
+      ]
     },
     {
       "name": "cache-clock",
       "description": "A prompt-cache line under your status line, from Claude Code's own cache figures: time left while warm, hit rate and misses, and how many tokens the next message re-caches once cold. /cache-clock setup adds it.",
       "version": "0.1.1",
-      "source": "./mods/cache-clock"
+      "source": "./mods/cache-clock",
+      "category": "See what's happening",
+      "tags": [
+        "statusline",
+        "command"
+      ],
+      "needs": [
+        "node"
+      ]
     },
     {
       "name": "usage-meter",
       "description": "Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.",
-      "version": "0.1.0",
-      "source": "./mods/usage-meter"
+      "version": "0.1.1",
+      "source": "./mods/usage-meter",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "toast"
+      ]
     },
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.4",
-      "source": "./mods/where-am-i"
+      "version": "0.1.5",
+      "source": "./mods/where-am-i",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "command"
+      ]
     },
     {
       "name": "switchboard",
       "description": "Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.",
-      "version": "0.3.1",
-      "source": "./mods/switchboard"
+      "version": "0.3.2",
+      "source": "./mods/switchboard",
+      "category": "Spend less",
+      "tags": [
+        "band",
+        "pane",
+        "guard",
+        "command"
+      ]
     },
     {
       "name": "openai-balance",
       "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. /openai-balance shows the breakdown.",
-      "version": "0.1.1",
-      "source": "./mods/openai-balance"
+      "version": "0.1.2",
+      "source": "./mods/openai-balance",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "command"
+      ],
+      "needs": [
+        "OpenAI Admin key"
+      ]
     },
     {
       "name": "openrouter-balance",
       "description": "Your OpenRouter credit above the prompt: the balance with a gauge, today's spend and where the money mostly went. /openrouter-balance shows the breakdown.",
-      "version": "0.1.1",
-      "source": "./mods/openrouter-balance"
+      "version": "0.1.2",
+      "source": "./mods/openrouter-balance",
+      "category": "See what's happening",
+      "tags": [
+        "band",
+        "command"
+      ],
+      "needs": [
+        "OpenRouter key"
+      ]
     }
   ]
 }

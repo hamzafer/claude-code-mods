@@ -1,6 +1,6 @@
 {
   "name": "openrouter-balance",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Your OpenRouter credit above the prompt: the balance with a gauge, today's spend and where the money mostly went. /openrouter-balance shows the breakdown.",
   "author": {
     "name": "Jakub Krysmalski",

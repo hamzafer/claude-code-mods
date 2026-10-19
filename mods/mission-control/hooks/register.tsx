@@ -9,6 +9,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { MapFile, MissionNode } from '../types'
 import { importsOf, svg } from './map'
 import { label, lines, summary } from './tree'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const PANE = 'mission-control'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -48,6 +49,8 @@ function words(text: string, max: number) {
   const cut = t.lastIndexOf(' ', max)
   return `${t.slice(0, cut > max * 0.5 ? cut : max)}…`
 }
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -219,18 +222,27 @@ export const register: Register = on => {
     if (e.props.hasSurvey || !isRecent || s.tools + s.agents === 0) return rest
     const t = await read($, turn)
     const edited = (await read($, files)).filter(f => f.changedTurn === t).length
-    const { Box, Text } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="column">
-        <Text wrap="truncate-end">
-          <Text color="blue" bold>{' ◈ mission: '}</Text>
-          <Text>{`${s.agents ? `${s.running}/${s.agents} agents · ` : ''}${s.tools} tools${s.failed ? ` · ${s.failed} failed` : ''}${edited ? ` · ${edited} files changed` : ''}`}</Text>
-          <Text dimColor>{'  ·  /mission'}</Text>
-        </Text>
-        {rest}
-      </Box>
+    const { Text } = $.ui.resolve(e)
+    const mine = (
+      <Text wrap="truncate-end">
+        <Text color="blue" bold>{' ◈ mission: '}</Text>
+        <Text>{`${s.agents ? `${s.running}/${s.agents} agents · ` : ''}${s.tools} tools${s.failed ? ` · ${s.failed} failed` : ''}${edited ? ` · ${edited} files changed` : ''}`}</Text>
+        <Text dimColor>{'  ·  /mission'}</Text>
+      </Text>
     )
+    return stackBands(rest, 'mission-control', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 async function setCode($: EngineInterface) {

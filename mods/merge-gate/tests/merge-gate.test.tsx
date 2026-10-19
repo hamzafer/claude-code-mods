@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bare, cdTargets, countChecks, isOllama, prNumber, resolveDir } from '../hooks/register'
+import { bare, cdTargets, countChecks, isOllama, prNumber, resetBandOrder, resolveDir } from '../hooks/register'
 
 const LUNA_REVIEW = `codex review -c 'model="gpt-5.6-luna"' --base main --title "Add mods"`
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 140 } }
@@ -10,8 +10,9 @@ type Dir = { repo: string; branch: string; pr?: number }
 
 // Stands for the engine beneath the mod: a repo with PR #42, its checks, the Codex config, a dialog.
 // With `dirs`, git and gh answer for the folder they run in (session folder `cwd`, /repo by default).
-function engine(on: any, opts: { config?: string; checks?: object[]; answer?: string; cwd?: string; dirs?: Record<string, Dir> } = {}) {
+function engine(on: any, opts: { config?: string; checks?: object[]; answer?: string; cwd?: string; dirs?: Record<string, Dir>; bands?: string; beneath?: unknown } = {}) {
   const ran: string[] = []
+  resetBandOrder()
   const store = new Map<string, unknown>()
   on('tool.call', { tool: 'AskUserQuestion' }, (_$: any, e: any) => {
     const question = e.questions[0].question
@@ -24,11 +25,12 @@ function engine(on: any, opts: { config?: string; checks?: object[]; answer?: st
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('env.get', () => ({ value: '/Users/me' }))
-  on('fs.read', () => ({ value: opts.config ?? 'model = "gpt-6-astra"\n' }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path.endsWith('/bands.json') && opts.bands !== undefined }))
+  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('/bands.json') ? opts.bands : opts.config ?? 'model = "gpt-6-astra"\n' }))
   on('store.get', (_$: any, e: any) => ({ value: store.get(e.key) }))
   on('store.set', (_$: any, e: any) => (store.set(e.key, e.value), { value: undefined }))
   on('session.cwd', () => ({ value: opts.cwd ?? '/repo' }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => opts.beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   on('process.run', (_$: any, e: any) => {
     const argv = (e.argv as string[]).join(' ')
     const ok = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '' } })
@@ -292,6 +294,25 @@ describe('merge-gate', () => {
     expect(await ui.find({ type: 'Text', text: /CI ✗ 1 failing/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Codex 0\/1/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /band below/ })).toBeDefined()
+    // the line sits on top: what other mods draw stays below it
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:merge-gate', undefined])
+    await ui.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, { checks: [{ name: 'test', bucket: 'pass' }], bands: '{"order":["where-am-i","merge-gate"]}', beneath })
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'merge-gate', surface: 'terminal', ...BAND } as any)
+    const root: any = await ui.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:merge-gate'])
     await ui.unmount()
   })
 })

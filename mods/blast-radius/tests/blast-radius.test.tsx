@@ -1,12 +1,13 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { classify, timeoutFrom } from '../hooks/register'
+import { classify, resetBandOrder, timeoutFrom } from '../hooks/register'
 
 const PANE = { component: 'Pane', requestId: 'blast-radius', props: { title: 'Blast Radius', isFocused: true, bodyColumns: 100, placement: 'dock' } }
 
 // Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open, a terminal that draws.
 // Its clock is the test's: pass one from mock.clock to move it, or the engine makes its own.
 function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true, previews = [] as string[][] } = {}) {
+  resetBandOrder()
   if (!clock) mock.clock(on)
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('session.surfaces', () => ({ value: surfaces }))
@@ -262,6 +263,10 @@ describe('blast-radius', () => {
       }
     }
     expect(band).toBeDefined()
+    // the held command takes the whole band, keyed so the band order can place it
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:blast-radius'])
     await clock.advance(8_000)
     const r: any = await call
     expect(r.deny).toMatch(/nobody answered within 60 s/)

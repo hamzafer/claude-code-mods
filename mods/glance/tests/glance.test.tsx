@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { cells, dmsFrom, fit, meetingPart, meetingsFrom, mergeDms, prsFrom, slackIdFrom } from '../hooks/pick'
+import { resetBandOrder } from '../hooks/register'
 
 const MIN = 60_000
 const NOW = Date.parse('2026-10-05T07:42:00Z')
@@ -62,13 +63,18 @@ const PROFILE = { result: 'User ID: U1\nUsername: me\n' }
 const text = (value: object) => ({ value: { content: [{ type: 'text', text: JSON.stringify(value) }], isError: false } })
 
 // Stands for the engine, the connectors and gh beneath the mod.
-function engine(on: any, fail: string[] = []) {
+function engine(on: any, fail: string[] = [], files: Record<string, string> = {}, beneath?: unknown) {
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   const clock = mock.clock(on, { now: NOW })
   const calls: { server: string; tool: string; args: any }[] = []
   let gh = 0
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('ui.render', ($: any, e: any) => {
+    if (beneath) return beneath
     const { Text } = $.ui.resolve(e)
     return Text({ children: 'engine band' })
   })
@@ -109,6 +115,10 @@ describe('glance', () => {
     // A channel mention (newest) merges with the DMs.
     expect(await ui.find({ type: 'Text', text: /💬 Kim: "can @me look at the doc\?" \+2/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined() // stacked, not replaced
+    // the line sits on top: what other mods draw stays below it
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:glance', undefined])
     await ui.unmount()
 
     const searches = h.calls.filter(c => c.tool === 'slack_search_public_and_private')
@@ -254,5 +264,20 @@ describe('glance picking', () => {
   test('emoji and CJK take two cells', () => {
     expect(cells('📅 a')).toBe(4)
     expect(cells('会議 x')).toBe(6)
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, [], { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","glance"]}' }, beneath)
+    await start($)
+    const ui = await mount($)
+    const root: any = await ui.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:glance'])
+    await ui.unmount()
   })
 })

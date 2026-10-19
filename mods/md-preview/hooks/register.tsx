@@ -84,11 +84,11 @@ const ahead = new Set<string>() // files to draw before /md asks for them; newes
 const repos = new Map<string, string | null>() // each folder's GitHub repo, from its remotes
 const ghFailed = new Set<string>() // repos whose last GitHub render failed
 const turn = { isOn: false } // the main turn is under way: draw ahead once it ends
-const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0 }
+const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0, opener: '' }
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
 // Markdown files before the turn's first shell command, to catch writes that skip Write/Edit (`cat > README.md`).
-const shot = { taken: false, isFull: false, listed: new Set<string>(), texts: new Map<string, string>(), tooBig: new Set<string>() }
+const shot = { taken: false, isOff: false, isFull: false, listed: new Set<string>(), texts: new Map<string, string>(), tooBig: new Set<string>() }
 const SNAPSHOT_FILES = 200
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])
 let snapshotting: Promise<void> | null = null // shared, so parallel shell calls take one snapshot
@@ -137,6 +137,7 @@ export const register: Register = on => {
     const r = await next(e)
     session.cwd = e.cwd
     session.home = (await $.env.get('HOME').catch(() => undefined)) ?? ''
+    session.opener = ''
     session.canImage = await imageTerminal($)
     // /md, or /mdview if a built-in ever takes /md.
     for (const name of ['md', 'mdview']) {
@@ -176,7 +177,7 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     // Shell commands can write Markdown without Write/Edit: snapshot before the turn's first one,
     // compare at turn end. Turns without a shell command cost nothing.
-    if (SHELL_TOOLS.has(e.tool) && !shot.taken) {
+    if (SHELL_TOOLS.has(e.tool) && !shot.taken && !shot.isOff) {
       snapshotting ??= takeSnapshot($).catch(() => {}).finally(() => (snapshotting = null))
       await snapshotting
     }
@@ -338,8 +339,10 @@ async function command($: EngineInterface, args: string) {
   const words = args.trim().split(/\s+/).filter(Boolean)
   if (words[0] === 'open') return { text: await openInBrowser($) }
   if (words[0] === 'compare') {
-    if (words.length !== 3) return { text: `usage: /${session.command} compare <fileA> <fileB>` }
-    const [a, b] = [absolute(words[1] as string), absolute(words[2] as string)]
+    // Quotes keep a path with spaces as one: compare "option a.md" "option b.md".
+    const named = [...args.trim().matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(m => m[1] ?? m[2] ?? m[3] ?? '')
+    if (named.length !== 3) return { text: `usage: /${session.command} compare <fileA> <fileB>` }
+    const [a, b] = [absolute(named[1] as string), absolute(named[2] as string)]
     for (const f of [a, b]) {
       if (!MD_FILE.test(f)) return { text: `${base(f)} is not a .md, .mdx or .markdown file.` }
       if (!(await $.fs.exists(f).catch(() => false))) return { text: `no file at ${f}` }
@@ -374,6 +377,7 @@ async function command($: EngineInterface, args: string) {
 
 function resetSnapshot() {
   shot.taken = false
+  shot.isOff = false
   shot.isFull = false
   shot.listed.clear()
   shot.texts.clear()
@@ -384,7 +388,7 @@ function resetSnapshot() {
 async function listMarkdown($: EngineInterface): Promise<string[] | null> {
   if (!session.cwd) return null
   const git = await $.process
-    .run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '*.md', '*.mdx', '*.markdown'], { cwd: session.cwd })
+    .run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '*.md', '*.mdx', '*.markdown'], { cwd: session.cwd, timeoutMs: 5000 }) // a shell command waits on it
     .catch(() => null)
   if (!git || git.exitCode !== 0) return null
   const root = session.cwd.replace(/\/$/, '')
@@ -402,7 +406,10 @@ async function readAll($: EngineInterface, paths: string[]): Promise<(string | n
 
 async function takeSnapshot($: EngineInterface) {
   const all = await listMarkdown($)
-  if (all === null) return // not a git repo, or git failed: stay off for this turn
+  if (all === null) {
+    shot.isOff = true // not a git repo, or git failed or timed out: stay off for this turn
+    return
+  }
   const paths = all.slice(0, SNAPSHOT_FILES)
   shot.isFull = all.length > SNAPSHOT_FILES
   const texts = await readAll($, paths)
@@ -783,8 +790,17 @@ async function openInBrowser($: EngineInterface): Promise<string> {
   if (loaded.length === 0) return `cannot read ${p.title}`
   const { sides } = await html($, loaded)
   const file = `${await tmpRoot($)}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
-  await $.fs.write(file, page(sides, { title: p.title, width: 0 }))
-  const opener = (await $.fs.exists('/usr/bin/open').catch(() => false)) ? 'open' : 'xdg-open'
-  const r = await $.process.run([opener, file], { timeoutMs: 10_000 }).catch(() => null)
+  const isWritten = await $.fs.write(file, page(sides, { title: p.title, width: 0 })).then(() => true).catch(() => false)
+  if (!isWritten) return `could not write the page to ${file}`
+  const r = await $.process.run([await opener($), file], { timeoutMs: 10_000 }).catch(() => null)
   return r && r.exitCode === 0 ? `opened ${p.title} in the browser` : `could not open the browser. The page is at ${file}`
+}
+
+// macOS's `open`, else `xdg-open`. Asked of uname, not of /usr/bin/open: elsewhere that path can be another program.
+async function opener($: EngineInterface) {
+  if (!session.opener) {
+    const uname = await $.process.run(['uname', '-s'], { timeoutMs: 3_000 }).catch(() => null)
+    session.opener = uname?.stdout.trim() === 'Darwin' ? 'open' : 'xdg-open'
+  }
+  return session.opener
 }

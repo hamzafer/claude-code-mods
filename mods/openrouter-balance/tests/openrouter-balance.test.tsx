@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { resetBandOrder } from '../hooks/register'
+
 const NOW = Date.UTC(2026, 9, 7, 0, 5) // 2026-10-07 00:05 UTC, just after the day began
 const KEY = 'sk-or-v1-test'
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 140 } }
@@ -15,11 +17,16 @@ const activity = [
 ]
 
 // Stands for the engine, the key's sources and OpenRouter beneath the mod.
-function engine(on: any, opts: { info?: object; credits?: () => { total_credits: number; total_usage: number }; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number; creditsRefused?: boolean; creditsStatus?: number }) {
+function engine(on: any, opts: { info?: object; credits?: () => { total_credits: number; total_usage: number }; keyFrom?: 'env' | 'keychain' | 'none'; status?: () => number; creditsRefused?: boolean; creditsStatus?: number ; files?: Record<string, string>; beneath?: unknown}) {
   const urls: string[] = []
   const auths: string[] = []
   const from = opts.keyFrom ?? 'keychain'
   let now = NOW
+  const files = opts.files ?? {}
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('turn.complete', () => ({ text: '' }))
@@ -32,7 +39,7 @@ function engine(on: any, opts: { info?: object; credits?: () => { total_credits:
     return { value: undefined }
   })
   on('ui.status', () => ({ value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'engine band' }))
+  on('ui.render', ($: any, e: any) => opts.beneath ?? $.ui.resolve(e).Text({ children: 'engine band' }))
   on('process.run', (_$: any, e: any) => {
     const hit = (e.argv[0] === 'printenv' && e.argv[1] === 'OPENROUTER_API_KEY' && from === 'env') || (e.argv[0] === 'security' && from === 'keychain')
     return { value: { exitCode: hit ? 0 : 1, stdout: hit ? `${KEY}\n` : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
@@ -77,6 +84,31 @@ const turn = async ($: any) => {
 const run = ($: any) => $.command.run({ command: 'openrouter-balance', args: '' } as any)
 
 describe('openrouter-balance', () => {
+  test('keys its band for the band order, above what other mods draw', async ($, on) => {
+    engine(on, {})
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'openrouter-balance', surface: 'terminal', ...BAND })
+    const root: any = await ui.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:openrouter-balance', undefined])
+    await ui.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, { files: { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","openrouter-balance"]}' }, beneath })
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'openrouter-balance', surface: 'terminal', ...BAND })
+    const root: any = await ui.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:openrouter-balance'])
+    await ui.unmount()
+  })
+
   test('a management key shows the account balance, today and where the money mostly went', async ($, on) => {
     let usage = 25
     const h = engine(on, { info: management, credits: () => ({ total_credits: 100, total_usage: usage }) })

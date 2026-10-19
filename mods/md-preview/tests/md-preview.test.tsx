@@ -7,7 +7,7 @@ import { githubRepo, MD_FILE } from '../hooks/register'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const PANE = { component: 'Pane', requestId: 'md-preview', props: { title: 'Markdown', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } }
 
-type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean }
+type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean; lsFails?: boolean; os?: string; openWriteFails?: boolean }
 
 // Stands for the engine beneath the mod: a small disk, gh, git and Chrome.
 function engine(on: any, opts: Opts = {}) {
@@ -18,7 +18,7 @@ function engine(on: any, opts: Opts = {}) {
     '/repo/opt/a.md': '# Plan\n\nOption A text.\n',
     '/repo/opt/b.md': '# Plan\n\nOption B text.\n',
   }
-  const runs: { argv: string[]; stdin?: string }[] = []
+  const runs: { argv: string[]; stdin?: string; timeoutMs?: number }[] = []
   const toasts: string[] = []
   const writes: Record<string, string> = {}
   let isOpen = false
@@ -47,17 +47,22 @@ function engine(on: any, opts: Opts = {}) {
     if (disk[e.path] === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: disk[e.path] }
   })
-  on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
+  on('fs.write', (_$: any, e: any) => {
+    if (opts.openWriteFails && /\/open-\d+\.html$/.test(e.path)) throw new Error(`EACCES ${e.path}`)
+    return (writes[e.path] = e.text), { value: undefined }
+  })
   on('fs.exists', (_$: any, e: any) => ({ value: e.path === CHROME ? opts.chrome !== false : e.path === '/usr/bin/open' ? true : disk[e.path] !== undefined }))
   on('env.get', (_$: any, e: any) => ({ value: ({ TERM_PROGRAM: opts.term ?? 'ghostty', TMPDIR: '/tmp/', HOME: '/home/me' } as Record<string, string>)[e.name] }))
   on('process.run', (_$: any, e: any) => {
-    runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
+    runs.push({ argv: [...e.argv], stdin: e.init?.stdin, timeoutMs: e.init?.timeoutMs })
     const cmd = e.argv[0]
     if (cmd === 'git' && e.argv[1] === 'ls-files') {
+      if (opts.lsFails) throw new Error('timed out')
       const md = Object.keys(disk).filter(f => f.startsWith('/repo/') && /\.(md|mdx|markdown)$/.test(f)).map(f => f.slice('/repo/'.length))
       const sep = e.argv.includes('-z') ? '\0' : '\n'
       return { value: { exitCode: 0, stdout: md.join(sep) + sep, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     }
+    if (cmd === 'uname') return { value: { exitCode: 0, stdout: `${opts.os ?? 'Darwin'}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'git') return { value: { exitCode: 0, stdout: opts.remote ?? 'origin\tgit@github.com:someone/docs-repo.git (fetch)\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'gh') {
       if (opts.gh === 'missing') throw new Error('gh: not found')
@@ -124,6 +129,22 @@ describe('md-preview', () => {
     await settle()
     expect(toasts).toEqual([])
     expect(runs.some(r => r.argv.includes('ls-files'))).toBe(false)
+  })
+
+  test('the snapshot has a time limit, and a failed one is not retried in the same turn (#120)', async ($, on) => {
+    const { runs } = engine(on, { lsFails: true })
+    const lists = () => runs.filter(r => r.argv.includes('ls-files'))
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: 'ls' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'ls docs' } as any)
+    expect(lists()).toHaveLength(1)
+    expect(lists()[0]?.timeoutMs).toBeGreaterThan(0)
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    await settle()
+    expect(lists()).toHaveLength(1) // no listing at turn end either
+    await $.turn.start({ text: 'again', turnId: 't2' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'ls' } as any)
+    expect(lists()).toHaveLength(2) // a new turn tries again
   })
 
   test('a Write/Edit change is not reported twice at turn end', async ($, on) => {
@@ -407,6 +428,15 @@ describe('md-preview', () => {
     await narrow.unmount()
   })
 
+  test('/md compare takes quoted paths with spaces (#119)', async ($, on) => {
+    const { disk } = engine(on, { gh: 'missing' })
+    disk['/repo/opt/option c.md'] = '# Plan\n\nOption C text.\n'
+    await start($)
+    const r = await $.command.run({ command: 'md', args: `compare "opt/option c.md" 'opt/b.md'` } as any)
+    expect(r.text).toMatch(/option c\.md \| b\.md side by side/)
+    expect((await $.command.run({ command: 'md', args: 'compare "opt/option c.md"' } as any)).text).toMatch(/compare <fileA> <fileB>/)
+  })
+
   test('/md compare <a> <b> renders two files side by side under their names', async ($, on) => {
     const { writes, clock } = engine(on, { gh: 'missing' })
     await start($)
@@ -442,6 +472,23 @@ describe('md-preview', () => {
     await pane.press({ key: 'open' })
     expect(runs.filter(x => x.argv[0] === 'open')).toHaveLength(2)
     await pane.unmount()
+  })
+
+  test('/md open uses xdg-open off macOS, even when /usr/bin/open exists (#118)', async ($, on) => {
+    const linux = engine(on, { gh: 'missing', os: 'Linux' }) // fs.exists says /usr/bin/open is there
+    await start($)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^opened README\.md/)
+    expect(linux.runs.some(x => x.argv[0] === 'xdg-open')).toBe(true)
+    expect(linux.runs.some(x => x.argv[0] === 'open')).toBe(false)
+  })
+
+  test('/md open says so when the page cannot be written (#118)', async ($, on) => {
+    const { runs } = engine(on, { gh: 'missing', openWriteFails: true })
+    await start($)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^could not write the page to \/tmp\/md-preview\/open-\d+\.html$/)
+    expect(runs.some(x => x.argv[0] === 'open' || x.argv[0] === 'xdg-open')).toBe(false)
   })
 
   test('review fixes: one Chrome at a time, no retry loop, the first text of the turn, big files', async ($, on) => {
@@ -497,6 +544,17 @@ describe('md-preview', () => {
     expect(bad).not.toMatch(/<script|onerror|javascript:|<iframe/i)
     expect(bad).toContain('<b>x</b>')
     expect(sanitize('<a href="JaVaScRiPt:x" onclick=go()>y</a>')).toBe('<a href="#">y</a>')
+    // A void tag in prose takes only itself, not the rest of the page (#116).
+    const prose = toHtml(parse('Add <meta charset="utf-8"> to the head.\n\nNext paragraph.'))
+    expect(prose).not.toMatch(/<meta/i)
+    expect(prose).toContain('to the head.')
+    expect(prose).toContain('Next paragraph.')
+    expect(sanitize('a <link rel="x"> b <base href="/"> c')).toBe('a  b  c')
+    expect(sanitize('x <script>alert(1) y')).toBe('x ') // an unclosed script still takes the rest
+    // A void tag that never closes takes the rest, so the page's own markup can't close it (#116).
+    expect(sanitize('<div>\n<meta http-equiv=refresh content="0;url=https://example.com"\nx')).toBe('<div>\n')
+    expect(sanitize('a <base href="x')).toBe('a ')
+    expect(sanitize('<link rel=x href=y\nstill same block')).toBe('')
     const p0 = page([{ html: '<p>x</p>', dir: '/r' }], { title: 't', width: 900 })
     const nonce = p0.match(/'nonce-([0-9a-f]+)'/)?.[1] ?? ''
     expect(nonce).toHaveLength(24)
@@ -582,6 +640,20 @@ describe('md-preview', () => {
     expect(inline('a <kbd>Ctrl</kbd> & b')).toBe('a <kbd>Ctrl</kbd> &amp; b')
     expect(inline('2 * 3 * 4')).toBe('2 * 3 * 4')
     expect(inline('snake_case_name')).toBe('snake_case_name')
+  })
+
+  test('headings, table rules and _emphasis_ stay linear on long lines, with the same output (#117)', () => {
+    expect(toHtml(parse('## Title ##'))).toContain('<h2 id="title">Title</h2>')
+    expect(toHtml(parse('# C# #'))).toContain('>C#</h1>') // a # inside the text stays
+    expect(toHtml(parse('#   ###'))).toContain('>###</h1>')
+    expect(toHtml(parse('| a | b |\n  |  ---  |  :-:  |  \n| 1 | 2 |'))).toContain('<table>')
+    expect(inline('_one_ and _two_ and _private_name_')).toBe('<em>one</em> and <em>two</em> and <em>private_name</em>')
+    expect(inline('a _b c_d e_ f')).toBe('a <em>b c_d e</em> f')
+    // Each took seconds at this size before (the old patterns were quadratic): now milliseconds.
+    const t0 = Date.now()
+    parse(`# a${' '.repeat(20000)}b\n\n| x |\n${' '.repeat(20000)}x`)
+    inline(' _a_b'.repeat(20000))
+    expect(Date.now() - t0 < 500).toBe(true)
   })
 
   test('changed blocks, marks and the text lines', () => {

@@ -3,6 +3,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { HeldCommand } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const PANE = 'blast-radius'
 const MAX_LISTED = 200
@@ -15,6 +16,8 @@ const MIGRATION =
   /\b(prisma\s+(migrate|db\s+push)|supabase\s+(db\s+(reset|push)|migration\s+up)|drizzle-kit\s+(push|migrate)|knex\s+migrate|sequelize(-cli)?\s+db:migrate|rails\s+db:(migrate|reset|drop)|alembic\s+(upgrade|downgrade)|typeorm\s+migration:run)\b/
 
 type Risk = { risk: HeldCommand['risk']; cwd?: string; targets?: string[]; hasQuotes?: boolean }
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = (on, options) => {
   // How long a held command waits for a press before it is cancelled; 0 waits forever.
@@ -119,8 +122,20 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const one = await read($, held)
     if (!one || one.where !== 'band' || e.props.hasSurvey) return next(e)
-    return report($, e, one, decide) // a held command takes the whole band until answered
+    // a held command takes the whole band until answered; the key lets the band order place it
+    return stackBands(undefined, 'blast-radius', report($, e, one, decide), 'below', await (bandOrder ??= readBandOrder($).catch(() => [])))
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 function report(

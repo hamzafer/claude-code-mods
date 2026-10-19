@@ -5,6 +5,7 @@
 <p align="center"><b>Make Claude Code show what it's doing.</b><br>Plugins for Claude Code, built on function hooks: live lines above the prompt, guards, panes and games. Install only the ones you want.</p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/claude-code-mods"><img src="https://img.shields.io/npm/v/claude-code-mods.svg" alt="npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
   <a href="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml"><img src="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
 </p>
@@ -33,22 +34,32 @@
 
 ## 🚀 Install
 
-Add the marketplace once, then install any mod by name:
+```sh
+npx claude-code-mods@latest
+```
+
+Tick the mods you want in a checklist, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after. `@latest` makes npx skip an old cached copy.
+
+- `--project` installs for this project only
+- `--dry-run` prints the `claude` commands instead of running them
+- `--pick a,b` turns on exactly these mods, no checklist
+
+It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods@latest`.
+
+### Order your bands
+
+Press `o` in the checklist to order your bands (the lines above the prompt). Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top.
+
+### Other ways
+
+By hand:
 
 ```sh
 claude plugin marketplace add hamzafer/claude-code-mods
 claude plugin install context-bar@claude-code-mods
 ```
 
-Or install the general-purpose set in one go:
-
-```sh
-for m in context-bar token-weather usage-meter where-am-i next-steps agent-radar review-watch replay-theater md-preview blast-radius mission-control; do
-  claude plugin install "$m@claude-code-mods"
-done
-```
-
-Restart Claude Code after installing. To try one without installing:
+To try one without installing:
 
 ```sh
 git clone https://github.com/hamzafer/claude-code-mods && cd claude-code-mods
@@ -70,6 +81,7 @@ claude --plugin-dir mods/context-bar
 | 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
 | ➡️ | **next-steps** | 2 or 3 likely next prompts after each turn, one key to draft one. `language` sets their language, `layout: rows` keeps one per row | `1` `2` `3`, `0` hides |
 | 💰 | **usage-meter** | 5-hour and 7-day plan usage, the reset countdown and the session's cost | |
+| 🔥 | **heatmap** | A GitHub-style grid of your Claude Code time, with your streak, peak hours and top projects | `/heatmap` |
 | 💳 | **openai-balance** | Your OpenAI API credit: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. Needs an OpenAI organization Admin key | `/openai-balance` |
 | 🪙 | **openrouter-balance** | Your OpenRouter credit: the real balance with a gauge, today's spend and the model the money mostly went to. A regular API key shows the balance too when OpenRouter allows it, plus its own spend and limit | `/openrouter-balance` |
 | 📡 | **agent-radar** | One live line per running subagent | `/radar` |
@@ -112,16 +124,19 @@ These are built around my own tools and rules. Fork them and change the rules to
 
 ## 🤝 Community mods
 
-Mods by other people, in their own marketplaces. They're not maintained here, so read the code before you install.
+Mods by other people, in their own marketplaces. They're not maintained here, so read the code before you install. They also show up last in the `npx claude-code-mods@latest` checklist.
 
 | | Mod | What it does | Install |
 | --- | --- | --- | --- |
+| 🖼️ | **[image-view](https://github.com/jarrodwatts/claude-image-view)** by [@jarrodwatts](https://github.com/jarrodwatts) | See the images you paste into Claude Code: thumbnails above the prompt instead of bare [Image #1] tags | `claude plugin marketplace add jarrodwatts/claude-image-view` then `claude plugin install image-view@claude-image-view` |
 | 🏷️ | **[last-prompt-title](https://github.com/zhangbububu/session-titles)** by [@zhangbububu](https://github.com/zhangbububu) | Session titles that follow your latest prompt: cut for the CLI, written by Haiku for the desktop sidebar | `claude plugin marketplace add zhangbububu/session-titles` then `claude plugin install last-prompt-title@session-titles` |
 | 🌏 | **[cc-zh](https://github.com/jiangnanquan/claude-code-zh)** by [@jiangnanquan](https://github.com/jiangnanquan) | Simplified Chinese UI localization via static dictionary: slash-command descriptions, `/config` labels, spinner, hints, notices, command output, tool summaries and turn duration. Zero tokens / network; verified on CC 2.1.296 | `claude plugin marketplace add jiangnanquan/claude-code-zh` then `claude plugin install cc-zh@claude-code-zh` |
 | 🎛️ | **[subagent-tuner](https://github.com/Kruhlikau/subagent-tuner)** by [@Kruhlikau](https://github.com/Kruhlikau) | Picks the model and effort of every subagent: a Manual/Auto band, a pick pane, review → Opus and search → Haiku, and a saved default that overrides what the agent asked for | `claude plugin marketplace add Kruhlikau/subagent-tuner` then `claude plugin install subagent-tuner@subagent-tuner` |
 | 🛒 | **[mod-store](https://github.com/hellosverre/mod-store)** by [@hellosverre](https://github.com/hellosverre) | An app store in a pane: `/mods` browses, searches and installs about 2,700 community mods, with what each one can access shown before you install. Or ask Claude to find one | `claude plugin marketplace add hellosverre/mod-store` then `claude plugin install mod-store@mod-store` |
 | 📈 | **[cache-meter](https://github.com/T-AI-Labs/claude-code-mods#cache-meter)** by [@T-AI-Labs](https://github.com/T-AI-Labs) | The share of each turn the prompt cache served, next to the context fill, with an auto-compact threshold and Compact and Clear buttons | `claude plugin marketplace add T-AI-Labs/claude-code-mods` then `claude plugin install cache-meter@T-AI-Labs` |
 | ⏳ | **[usage-limits](https://github.com/T-AI-Labs/claude-code-mods#usage-limits)** by [@T-AI-Labs](https://github.com/T-AI-Labs) | 5-hour and weekly plan limits in percent, with the time left until each resets | `claude plugin marketplace add T-AI-Labs/claude-code-mods` then `claude plugin install usage-limits@T-AI-Labs` |
+| 🟣 | **[pixel-pulse](https://github.com/air01aditya/pixel-pulse)** by [@air01aditya](https://github.com/air01aditya) | A purple pixel strip above the prompt that drifts right to left and glows under the pointer, and a purple pixel spiral in place of the working spinner. Desktop app only; it only draws | `claude plugin marketplace add air01aditya/pixel-pulse` then `claude plugin install pixel-pulse@pixel-pulse` |
+| 🔗 | **[open-paths](https://github.com/kiankhooban/open-paths)** by [@kiankhooban](https://github.com/kiankhooban) | Click a file path in Claude's reply and the file opens in its app: Word, Preview or Excel for documents, your editor at the line for `app.py:42`, Finder for folders. Launchers, scripts and unknown types are never opened | `claude plugin marketplace add kiankhooban/open-paths` then `claude plugin install open-paths@open-paths` |
 
 Built one? Open a PR that adds a row.
 

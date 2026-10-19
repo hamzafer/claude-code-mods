@@ -7,6 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reading, Slice } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const MIN_WIDTH = 20 // narrower than this, the bar is not drawn
 const SPLIT = '   '
@@ -20,6 +21,8 @@ const GLYPH = { used: '█', free: '─', buffer: '░' } as const
 // Held by the host, so the bar survives a hot reload of this file.
 const reading = atom({ plugin: 'context-bar', key: 'reading' } as const, null as Reading | null)
 const isHidden = atom({ plugin: 'context-bar', key: 'isHidden' } as const, false)
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -61,42 +64,51 @@ export const register: Register = on => {
     const head = `${tokens(r.total)} of ${tokens(r.window)}${r.compactsAt ? ` · compacts at ${tokens(r.compactsAt)}` : ''}`
     const pct = ` ${r.percent}% `
     const level = r.compactsAt ? r.total / r.compactsAt : r.total / r.window
-    return (
-      <Box flexDirection="column">
-        {rest}
-        <Box flexDirection="column" borderStyle="round" borderColor="inactive" paddingX={1}>
-          <Box flexDirection="row" justifyContent="space-between">
-            <Text wrap="truncate-end">
-              <Text color="#d97757">{'◆ '}</Text>
-              <Text bold>context</Text>
-            </Text>
-            <Text wrap="truncate-start">
-              <Text dimColor>{`${head} `}</Text>
-              <Text bold color="black" backgroundColor={level >= 0.9 ? 'red' : level >= 0.7 ? 'yellow' : 'green'}>{pct}</Text>
-            </Text>
-          </Box>
-          <Text>
-            {cells(r, inner).map(c => (
-              <Text color={c.color}>{c.text}</Text>
+    const mine = (
+      <Box flexDirection="column" borderStyle="round" borderColor="inactive" paddingX={1}>
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text wrap="truncate-end">
+            <Text color="#d97757">{'◆ '}</Text>
+            <Text bold>context</Text>
+          </Text>
+          <Text wrap="truncate-start">
+            <Text dimColor>{`${head} `}</Text>
+            <Text bold color="black" backgroundColor={level >= 0.9 ? 'red' : level >= 0.7 ? 'yellow' : 'green'}>{pct}</Text>
+          </Text>
+        </Box>
+        <Text>
+          {cells(r, inner).map(c => (
+            <Text color={c.color}>{c.text}</Text>
+          ))}
+        </Text>
+        {legend(r, inner).map(line => (
+          <Text wrap="truncate-end">
+            {line.map((s, i) => (
+              <Text>
+                {i > 0 && <Text>{SPLIT}</Text>}
+                <Text color={s.color}>{s.kind === 'used' ? '■ ' : `${GLYPH[s.kind]} `}</Text>
+                <Text dimColor={s.kind !== 'used'}>{`${s.name} `}</Text>
+                <Text bold={s.kind === 'used'}>{tokens(s.tokens)}</Text>
+                {s.kind === 'used' && <Text dimColor>{` ${share(s.tokens, r.window)}`}</Text>}
+              </Text>
             ))}
           </Text>
-          {legend(r, inner).map(line => (
-            <Text wrap="truncate-end">
-              {line.map((s, i) => (
-                <Text>
-                  {i > 0 && <Text>{SPLIT}</Text>}
-                  <Text color={s.color}>{s.kind === 'used' ? '■ ' : `${GLYPH[s.kind]} `}</Text>
-                  <Text dimColor={s.kind !== 'used'}>{`${s.name} `}</Text>
-                  <Text bold={s.kind === 'used'}>{tokens(s.tokens)}</Text>
-                  {s.kind === 'used' && <Text dimColor>{` ${share(s.tokens, r.window)}`}</Text>}
-                </Text>
-              ))}
-            </Text>
-          ))}
-        </Box>
+        ))}
       </Box>
     )
+    return stackBands(rest, 'context-bar', mine, 'below', await (bandOrder ??= readBandOrder($).catch(() => []))) // below what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Asks the engine for /context's breakdown, estimated locally (no token-count calls).
