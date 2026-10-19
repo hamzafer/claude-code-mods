@@ -169,7 +169,7 @@ Shows your OpenRouter credit above the Claude Code prompt.
 
 ### 📡 agent-radar
 
-Shows one live line per running Claude Code subagent.
+Shows one live line per running Claude Code subagent or background shell.
 
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes

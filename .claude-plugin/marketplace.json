@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "agent-radar",
-      "description": "One live line above the prompt per running subagent: time, tool count and what it's doing. /radar shows every agent and its messages.",
+      "description": "One live line above the prompt per running subagent or background shell: time, tool count and what it's doing. /radar shows every agent and its messages.",
       "version": "0.2.0",
       "source": "./mods/agent-radar",
       "category": "See what's happening",
