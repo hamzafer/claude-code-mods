@@ -24,7 +24,7 @@ let bandOrder: Promise<string[]> | undefined // read once per session: restart t
 
 export const register: Register = (on, options) => {
   language = String((options as Record<string, unknown>)?.language ?? '').trim()
-  layout = String((options as Record<string, unknown>)?.layout ?? 'auto')
+  layout = String((options as Record<string, unknown>)?.layout ?? 'auto').trim().toLowerCase()
   // The turn a suggestion may still be shown for. A submit or a new turn moves it on.
   let latest = ''
   let submits = 0
