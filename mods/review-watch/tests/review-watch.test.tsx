@@ -1,16 +1,19 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { elapsed, findingsOf, findingsText, isCodexReview, isReviewAgent, isShown, keyOf, labelOf, modelOf, outputOf } from '../hooks/register'
+import { elapsed, findingsOf, findingsText, isCodexReview, isReviewAgent, isShown, keyOf, labelOf, modelOf, outputOf, resetBandOrder } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 const CMD = `codex review -c 'model="gpt-5.6-luna"' --base origin/main --title "Fix the toast" > /work/out.txt 2>&1`
 const OUTPUT = 'thinking\nreading hooks/register.tsx\nFull review comments:\n\n- [P2] Sync the version — a.json:3\n  details\n- [P1] Clear the status — b.tsx:20\n'
 
 // Stands for the engine beneath the mod: `ps` lists a codex process while `alive` holds.
-function engine(on: any) {
+function engine(on: any, files: Record<string, string> = {}, beneath?: unknown) {
   const clock = mock.clock(on, { now: 0 })
   const toasts: string[] = []
   const state = { alive: true }
+  resetBandOrder()
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('tool.call', () => ({ result: {}, text: 'Command running in background with ID: b1. Output is being written to: /tmp/b1.output' }))
   on('agent.spawn', () => ({ model: 'sonnet', agentId: 'a1' }))
@@ -18,7 +21,7 @@ function engine(on: any) {
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('turn.complete', () => ({ text: '' }))
   on('ui.toast', (_$: any, e: any) => (toasts.push(e.text), { value: undefined }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   on('process.run', (_$: any, e: any) => {
     const [cmd] = e.argv
     if (cmd === 'ps') return { value: { exitCode: 0, stdout: state.alive ? `zsh\ncodex review -c model="gpt-5.6-luna" --base origin/main --title Fix the toast\n` : 'zsh\n', stderr: '' } }
@@ -97,12 +100,34 @@ describe('review-watch', () => {
     expect(await band.find({ type: 'Text', text: /gpt-5\.6-luna · Fix the toast/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /└ - \[P1\] Clear the status/ })).toBeDefined()
     expect(toasts).toEqual([])
+    // its band is keyed for the band order, above what other mods draw
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:review-watch', undefined])
 
     state.alive = false
     await clock.advance(3_000)
     await settle()
     expect(toasts.length).toBe(1)
     expect(toasts[0]).toMatch(/^✓ codex review \(gpt-5\.6-luna\) done · .* · 2 findings \(P2, P1\)$/)
+    await band.unmount()
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    const { clock } = engine(on, { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","review-watch"]}' }, beneath)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.tool.call({ tool: 'Bash', command: CMD, run_in_background: true } as any)
+    await clock.advance(3_000)
+    await settle()
+    const band = await $.ui.mount({ plugin: 'review-watch', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:review-watch'])
     await band.unmount()
   })
 

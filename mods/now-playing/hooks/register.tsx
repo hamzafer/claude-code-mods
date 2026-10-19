@@ -8,6 +8,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Lyrics, Track } from '../types'
+import { bandsFile, parseOrder, stackBands } from './bands'
 
 const PLAYING_POLL_MS = 3_000 // between polls the position moves on with the clock
 const IDLE_POLL_MS = 5_000 // paused or closed
@@ -40,6 +41,8 @@ const now = atom({ plugin: 'now-playing', key: 'now' } as const, 0)
 let polling: Promise<void> | null = null // a slow osascript must not let two polls overlap
 // Module-level, so a hot reload (which runs register again) can cancel the old loop.
 let timers: Timer[] = []
+
+let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = (on, options) => {
   const wantsLyrics = options.lyrics !== false
@@ -104,7 +107,7 @@ export const register: Register = (on, options) => {
     const sung = isRtl(line) ? '' : line // a terminal draws right-to-left scripts garbled, cached lyrics included
     const isPaused = t.state !== 'playing'
     const b = bar(pos, t.duration, BAR)
-    return (
+    const mine = (
       <Box flexDirection="column">
         <Box paddingX={1} flexDirection="row">
           {/* Narrow, the end of this Text goes first (the time, then the bar); the buttons stay. */}
@@ -131,10 +134,21 @@ export const register: Register = (on, options) => {
             <Text dimColor italic wrap="truncate-end">{`   ♪ ${sung}`}</Text>
           </Box>
         )}
-        {rest}
       </Box>
     )
+    return stackBands(rest, 'now-playing', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
   })
+}
+
+// The band order file, as the claude-code-mods checklist saves it; [] on any error.
+async function readBandOrder($: EngineInterface): Promise<string[]> {
+  const file = bandsFile(await $.env.get('CLAUDE_CONFIG_DIR'), await $.env.get('HOME'))
+  return file && (await $.fs.exists(file)) ? parseOrder(await $.fs.read(file)) : []
+}
+
+// Forgets the cached band order, for tests.
+export function resetBandOrder() {
+  bandOrder = undefined
 }
 
 // Reads Spotify's state; on a new track, fetches its lyrics once. `fresh` waits out a poll

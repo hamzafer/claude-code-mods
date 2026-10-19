@@ -2,15 +2,16 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { edges, fit, importsOf, layout, svg, titleOf, wrap } from '../hooks/map'
 import { label, lines, summary } from '../hooks/tree'
-import { cap } from '../hooks/register'
+import { cap, resetBandOrder } from '../hooks/register'
 
 let mockClock: any
 const PANE = { component: 'Pane', requestId: 'mission-control', props: { title: 'Mission Control', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 30 } } }
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, opts: { noChrome?: boolean } = {}) {
+function engine(on: any, opts: { noChrome?: boolean; bands?: string; beneath?: unknown } = {}) {
   const runs: string[][] = []
+  resetBandOrder()
   const writes: Record<string, string> = {}
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
@@ -20,15 +21,15 @@ function engine(on: any, opts: { noChrome?: boolean } = {}) {
   on('turn.complete', () => ({ text: '' }))
   on('agent.spawn', () => ({ model: 'sonnet', agentId: 'ag1' }))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
-  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : '' }))
+  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : e.path.endsWith('/bands.json') ? opts.bands : '' }))
   on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
-  on('fs.exists', () => ({ value: !opts.noChrome }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path.endsWith('/bands.json') ? opts.bands !== undefined : !opts.noChrome }))
   on('env.get', () => ({ value: '/tmp/' }))
   on('process.run', (_$: any, e: any) => (runs.push(e.argv), { value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [{ id: 'mission-control', title: 'Mission Control', isShown: true, isFocused: true, isPlaced: true }] }))
   on('model.complete', () => ({ value: { isAnswered: true, text: '["tokens now expire after an hour"]', usage: { input_tokens: 1, output_tokens: 1 } } }))
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => opts.beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   return { runs, writes, clock }
 }
 
@@ -141,6 +142,10 @@ describe('mission-control', () => {
     const band = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /1\/1 agents · 2 tools · 1 files changed/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /band below/ })).toBeDefined()
+    // the line sits on top: what other mods draw stays below it
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:mission-control', undefined])
     await band.unmount()
 
     const r = await $.command.run({ command: 'mission', args: '' } as any)
@@ -181,5 +186,22 @@ describe('mission-control', () => {
     expect(await rowsAt(50)).toBe(30)
     expect(await rowsAt(60)).toBe(30)
     expect(summary([]).tools).toBe(0)
+  })
+
+  test('follows the band order file', async ($, on) => {
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    engine(on, { bands: '{"order":["where-am-i","mission-control"]}', beneath })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any)
+    const band = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:mission-control'])
+    await band.unmount()
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { actionOf, bar, clock, isRtl, lyricAt, parseLrc, parseTrack, pickSynced, positionAt } from '../hooks/register'
+import { actionOf, bar, clock, isRtl, lyricAt, parseLrc, parseTrack, pickSynced, positionAt, resetBandOrder } from '../hooks/register'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160 } }
 // A made-up track, as osascript prints it.
@@ -10,10 +10,14 @@ const LRC = '[00:58.00] Hold the light up high\n[01:02.50] Paper lanterns in the
 const settle = () => new Promise(done => (globalThis as any).setTimeout(done, 20)) // the first poll runs in the background
 
 // Stands for the engine beneath the mod: a Spotify that answers osascript, and LRCLIB.
-function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: string }) {
+function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: string }, files: Record<string, string> = {}, beneath?: unknown) {
   const runs: string[][] = []
   const urls: string[] = []
   const commands: string[] = []
+  resetBandOrder()
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+  on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', (_$: any, e: any) => (commands.push(e.name), { value: undefined }))
   on('process.run', (_$: any, e: any) => {
@@ -32,7 +36,7 @@ function engine(on: any, spotify: { out: string; isRunning?: boolean; os?: strin
     if (e.url.includes('/get?')) return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ syncedLyrics: LRC }) } }
     return { value: { status: 200, ok: true, headers: {}, text: '[]' } }
   })
-  on('ui.render', ($: any, e: any) => $.ui.resolve(e).Text({ children: 'band below' }))
+  on('ui.render', ($: any, e: any) => beneath ?? $.ui.resolve(e).Text({ children: 'band below' }))
   return { runs, urls, commands }
 }
 
@@ -87,12 +91,36 @@ describe('now-playing', () => {
     expect(await band.find({ type: 'Text', text: ' 1:01/3:20' })).toBeDefined()
     expect(await band.find({ type: 'Text', text: '   ♪ Hold the light up high' })).toBeDefined()
     expect(await band.find({ type: 'Text', text: 'band below' })).toBeDefined()
+    // its band is keyed for the band order, above what other mods draw
+    const root: any = await band.drawn()
+    expect(root.props.key).toBe('bands')
+    expect(root.children.map((c: any) => c.props?.key)).toEqual(['band:now-playing', undefined])
     await clk.advance(4_000) // the clock moves the line on, and polls again
     expect(await band.find({ type: 'Text', text: '   ♪ Paper lanterns in the sky' })).toBeDefined()
     await band.unmount()
     await settle()
     expect(e.urls.length).toBe(1) // same track: no second fetch
     expect(e.urls[0]).toMatch(/^https:\/\/lrclib\.net\/api\/get\?track_name=Paper\+Lanterns&artist_name=The\+Night\+Owls/)
+  })
+
+  test('follows the band order file, and its buttons still work', async ($, on) => {
+    mock.clock(on, { now: 1_000_000 })
+    // another band mod drew its column beneath
+    const beneath = {
+      type: 'Box',
+      props: { key: 'bands', flexDirection: 'column' },
+      children: [{ type: 'Box', props: { key: 'band:where-am-i' }, children: [{ type: 'Text', children: ['here'] }] }],
+    }
+    const e = engine(on, { out: PLAYING }, { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","now-playing"]}' }, beneath)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    const band = await $.ui.mount({ plugin: 'now-playing', surface: 'terminal', ...BAND } as any)
+    const root: any = await band.drawn()
+    expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:now-playing'])
+    await band.press({ key: 'next' })
+    await settle()
+    expect(e.runs.some(a => /to next track/.test(a[2] ?? ''))).toBe(true)
+    await band.unmount()
   })
 
   test('paused dims, and no lyrics are drawn', async ($, on) => {

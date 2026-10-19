@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>heatmap: a GitHub-style grid of your Claude Code time</title>
+<meta name="description" content="A GitHub-style grid of your Claude Code time in a pane: one square per day of active minutes, with your streak, peak hours and top projects. Run /heatmap.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/heatmap/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="heatmap: a GitHub-style grid of your Claude Code time">
+<meta property="og:description" content="A GitHub-style grid of your Claude Code time in a pane: one square per day of active minutes, with your streak, peak hours and top projects. Run /heatmap.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/heatmap/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/gallery/heatmap.png">
+<meta property="og:image:alt" content="heatmap: a year of Claude Code activity as orange squares, with a 25-day streak, peak hours and top projects">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="heatmap: a GitHub-style grid of your Claude Code time">
+<meta name="twitter:description" content="A GitHub-style grid of your Claude Code time in a pane: one square per day of active minutes, with your streak, peak hours and top projects. Run /heatmap.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/gallery/heatmap.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "heatmap", "description": "A GitHub-style grid of your Claude Code time in a pane: one square per day of active minutes, with your streak, peak hours and top projects. Run /heatmap.", "url": "https://hamzafer.github.io/claude-code-mods/mods/heatmap/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/heatmap", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.1", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/gallery/heatmap.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "heatmap", "item": "https://hamzafer.github.io/claude-code-mods/mods/heatmap/"}]}</script>
+</head>
+<body class="mod c-see">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-see">See what&#x27;s happening</a> <span aria-hidden="true">/</span> <span aria-current="page">heatmap</span></nav>
+<header class="mod-head">
+  <h1>heatmap</h1>
+  <p class="lede">A GitHub-style grid of your Claude Code time, one square per day.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.1</span></p>
+</header>
+<figure class="shot"><div class="shot-frame"><img style="--w:836px" src="../../images/gallery/heatmap.png" width="836" height="412" alt="heatmap: a year of Claude Code activity as orange squares, with a 25-day streak, peak hours and top projects" decoding="async" fetchpriority="high"></div><figcaption>A year of sample activity, with the streak and top projects.</figcaption></figure>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install heatmap" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install heatmap@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install heatmap@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/heatmap</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<dl class="keys">
+<div><dt><code>/heatmap</code></dt><dd>Opens the grid</dd></div>
+<div><dt><code>p</code></dt><dd>Switches between all projects and this repo</dd></div>
+<div><dt><code>← ↑ ↓ →</code></dt><dd>Click the grid first, then move a day cursor that shows that day&#x27;s time, sessions and top project</dd></div>
+<div><dt><code>q</code></dt><dd>Closes it</dd></div>
+</dl>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>Each square is one day of active minutes: the time between messages, where a pause over 5 minutes adds nothing.</li>
+<li>Shows as many weeks as fit the pane, up to a year. Under the grid: your current and best streak, active hours, your busiest weekday and hour, and your top 3 projects.</li>
+<li>A toast when a streak reaches 7, 30 or 100 days.</li>
+<li>Claude Code deletes session logs after 30 days by default. heatmap keeps one small line per day per project, so the grid keeps growing after the logs are gone. Everything stays on your computer.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-heatmap">Full notes for heatmap</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/heatmap">Source folder: mods/heatmap</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-see"><a href="../../mods/usage-meter/"><span class="row-text"><span class="row-name">usage-meter</span><span class="row-desc">5-hour and 7-day plan usage, the reset countdown and the session&#x27;s cost</span></span></a></li>
+<li class="row c-see"><a href="../../mods/context-bar/"><span class="row-text"><span class="row-name">context-bar</span><span class="row-desc">Your context window as one stacked bar, a color per category</span></span></a></li>
+<li class="row c-see"><a href="../../mods/replay-theater/"><span class="row-text"><span class="row-name">replay-theater</span><span class="row-desc">Steps through the last turn&#x27;s edits, one diff at a time</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 25 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

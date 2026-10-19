@@ -1,0 +1,40 @@
+name: Repo guard
+
+# Reads main's rules and the npm environment and fails if they drifted, and checks that
+# community.json still matches each community repo's marketplace. Read-only token.
+on:
+  schedule:
+    - cron: '17 6 * * *' # daily
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - test/repo-settings.mjs
+      - community.json
+      - test/community-remote.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # to read the npm environment
+
+jobs:
+  settings:
+    if: github.repository == 'hamzafer/claude-code-mods' # a fork has none of these settings
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Check repo settings
+        run: node test/repo-settings.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Check community marketplaces
+        run: node test/community-remote.mjs

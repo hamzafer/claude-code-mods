@@ -15,6 +15,8 @@ Most mods add a live line above the Claude Code prompt, like extra status lines.
 - They stack
 - Each hides when it has nothing to show
 
+To order them, run `npx claude-code-mods@latest` and press `o` in the checklist. Move the cursor with up/down or `j`/`k`, move a band with Shift+up/down or `K`/`J`, and press Enter to save. Esc goes back without saving. The order goes to `<config dir>/claude-code-mods/bands.json`, where the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`. Restart Claude Code to apply it. Bands not in the file sit on top.
+
 ### 🙋 Guards ask before they block
 
 - blast-radius, rulebook-guard and merge-gate stop a tool call and ask you
@@ -116,6 +118,23 @@ Shows your Claude Code plan usage and session cost.
 - Without a subscription it shows only the cost
 - Narrow terminals drop the 7d part first, then the cost
 
+### 🔥 heatmap
+
+A GitHub-style grid of your Claude Code time, one square per day.
+
+![heatmap: a year of Claude Code activity as orange squares, with a 25-day streak, peak hours and top projects](../images/heatmap.png)
+
+- `/heatmap` opens the pane. Each square is one day of **active minutes**: the time between messages, where a pause over 5 minutes adds nothing. A pause over midnight is split between the two days
+- Four levels, in two sizes and a ramp of Claude orange: under 15 minutes, under an hour, under 3 hours, 3 hours and more
+- The ramp follows your theme: brighter is busier on a dark theme, darker on a light one. With the Auto theme the background is unknown, so every level has the same lightness and only the color strengthens, from near gray to full orange
+- Shows as many weeks as fit the pane, up to a year, ending today
+- Under the grid: your current and best streak, active hours and sessions, your busiest weekday and hour, and your top 3 projects
+- `p` switches between all projects and this repo. Click the grid, then the arrow keys move a day cursor that shows that day's time, sessions and top project. `q` closes
+- Any activity keeps a streak going, counted on your local calendar. A toast when a streak reaches 7, 30 or 100 days
+- **Its own history:** Claude Code deletes session logs after 30 days by default (`cleanupPeriodDays`). heatmap reads them once to fill in the past, then keeps one small line per day per project in `~/.claude/heatmap/days.jsonl`, so the grid keeps growing after the logs are gone
+- A resumed session copies its earlier messages into a new log; those count once. Two sessions running at the same time both count, so a busy day can add up to more than the hours on the clock
+- Everything stays on your computer. It reads only the message times and the project folder from the logs, with `grep`
+
 ### 💳 openai-balance
 
 Shows your OpenAI API credit above the Claude Code prompt.
@@ -154,6 +173,7 @@ Shows one live line per running Claude Code subagent.
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes
 - `/radar` lists every agent this session
+- A background Bash command (`run_in_background`, or one moved to the background with Ctrl+B) gets a line too, tagged `sh`; one that runs `codex exec`, `opencode run` and the like is labelled with that agent and model. It ends when Claude Code closes its output file, found by `lsof` every 5 seconds, so without `lsof` it stays "running"
 - In the pane, `1` to `9` open that agent's messages, `b` goes back, `c` clears finished agents and `q` closes
 
 ### 🔀 switchboard

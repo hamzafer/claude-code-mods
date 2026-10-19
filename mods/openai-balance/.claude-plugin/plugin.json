@@ -1,6 +1,6 @@
 {
   "name": "openai-balance",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. /openai-balance shows the breakdown.",
   "author": {
     "name": "Hamza Zafar",

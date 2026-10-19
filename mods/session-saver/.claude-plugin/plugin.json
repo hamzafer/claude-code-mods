@@ -1,6 +1,6 @@
 {
   "name": "session-saver",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.",
   "author": {
     "name": "Hamza Zafar",

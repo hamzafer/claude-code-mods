@@ -17,13 +17,13 @@ export type Block =
   | { t: 'mark' }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)/
-const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/ // the closing #s come off in headingText
 const HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/
 const QUOTE = /^ {0,3}> ?/
 const ITEM = /^( {0,3})([-*+]|\d{1,9}[.)])([ \t]+|$)(.*)$/
 const BLOCK_TAGS = 'address|article|aside|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|nav|ol|optgroup|option|p|picture|pre|script|section|source|style|summary|table|tbody|td|textarea|tfoot|th|thead|title|tr|ul|video|audio|img|a'
 const HTML_START = new RegExp(`^ {0,3}(?:<!--|<\\/?(?:${BLOCK_TAGS})(?:[\\s/>]|$))`, 'i')
-const DELIM = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
+const DELIM = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$/ // on the trimmed line: blanks at both ends made it quadratic
 
 const isBlank = (l: string) => l.trim() === ''
 const indentOf = (l: string) => (l.match(/^ */)?.[0].length ?? 0)
@@ -99,7 +99,7 @@ function blocks(lines: string[]): Block[] {
     }
     const heading = l.match(HEADING)
     if (heading) {
-      out.push({ t: 'h', level: (heading[1] as string).length, text: heading[2] ?? '' })
+      out.push({ t: 'h', level: (heading[1] as string).length, text: headingText(heading[2] ?? '') })
       i++
       continue
     }
@@ -124,7 +124,7 @@ function blocks(lines: string[]): Block[] {
       i = r.next
       continue
     }
-    if (l.includes('|') && i + 1 < lines.length && DELIM.test(lines[i + 1] as string) && (lines[i + 1] as string).includes('-') && cells(lines[i + 1] as string).length === cells(l).length) {
+    if (l.includes('|') && i + 1 < lines.length && DELIM.test((lines[i + 1] as string).trim()) && (lines[i + 1] as string).includes('-') && cells(lines[i + 1] as string).length === cells(l).length) {
       const head = cells(l)
       const align = cells(lines[i + 1] as string).map(c => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : ''))
       const rows: string[][] = []
@@ -289,11 +289,46 @@ export function sanitize(html: string) {
 }
 
 function emphasis(s: string) {
-  return s
-    .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '<strong>$2</strong>')
-    .replace(/\*(?=\S)([\s\S]*?\S)\*/g, '<em>$1</em>')
-    .replace(/(^|[^\w])_(?=\S)([\s\S]*?\S)_(?!\w)/g, '$1<em>$2</em>')
-    .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
+  const strong = s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '<strong>$2</strong>').replace(/\*(?=\S)([\s\S]*?\S)\*/g, '<em>$1</em>')
+  return underscores(strong).replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
+}
+
+const isSpaceOrTab = (c: string | undefined) => c === ' ' || c === '\t'
+
+// A heading's text without its closing #s and the blanks around them, in one pass.
+function headingText(t: string) {
+  let end = t.length
+  while (end > 0 && isSpaceOrTab(t[end - 1])) end--
+  let start = end
+  while (start > 0 && t[start - 1] === '#') start--
+  if (start < end && start > 0 && isSpaceOrTab(t[start - 1])) {
+    end = start
+    while (end > 0 && isSpaceOrTab(t[end - 1])) end--
+  }
+  return t.slice(0, end)
+}
+
+// _em_ in one pass. Same matches as /(^|[^\w])_(?=\S)([\s\S]*?\S)_(?!\w)/g, which rescanned
+// to the end of the text from every opener that had no closer.
+function underscores(s: string) {
+  const isWord = (c: string | undefined) => c !== undefined && /\w/.test(c)
+  const isSpace = (c: string | undefined) => c !== undefined && /\s/.test(c)
+  const closers: number[] = []
+  for (let q = 1; q < s.length; q++) if (s[q] === '_' && !isSpace(s[q - 1]) && !isWord(s[q + 1])) closers.push(q)
+  let out = ''
+  let from = 0
+  let c = 0
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== '_' || s[i + 1] === undefined || isSpace(s[i + 1])) continue
+    if (i === 0 ? from !== 0 : i - 1 < from || isWord(s[i - 1])) continue
+    while (c < closers.length && (closers[c] as number) < i + 2) c++
+    const q = closers[c]
+    if (q === undefined) break // no closer left for this or any later opener
+    out += `${s.slice(from, i)}<em>${s.slice(i + 1, q)}</em>`
+    from = q + 1
+    i = q
+  }
+  return out + s.slice(from)
 }
 
 // The built-in renderer's HTML: the Markdown's own HTML passes through, made safe.
