@@ -89,6 +89,15 @@
       "url": "https://github.com/bruw/workflow-conductor",
       "description": "Terminal UI for planning, running and understanding complex agent workflows inside Claude Code: define the workflow as a graph, have Claude script and run it, and watch the run on the same graph. Needs Claude Code 2.1.296+ and a terminal 110+ columns wide",
       "tags": ["band", "pane", "command"]
+    },
+    {
+      "name": "bedrock-meter",
+      "marketplace": "weidu-claude-mods",
+      "repo": "weidu-tpvision/claude-mods",
+      "author": "weidu-tpvision",
+      "url": "https://github.com/weidu-tpvision/claude-mods/tree/main/bedrock-meter",
+      "description": "Token and USD meter for Claude Code on Amazon Bedrock: session cost, context fill, cache hit rate and today's total above the prompt, priced at AWS's own on-demand rates (refreshed weekly from the AWS price list), with a per-model breakdown in /bedrock-cost",
+      "tags": ["band", "pane", "toast", "command"]
     }
   ]
 }
