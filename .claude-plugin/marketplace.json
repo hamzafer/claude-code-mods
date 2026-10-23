@@ -204,7 +204,7 @@
     {
       "name": "rulebook-guard",
       "description": "Writing and git rules: replaces em dashes in prose, and asks before git commit --amend, an unformatted push, or personal info in notes and commits.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./mods/rulebook-guard",
       "category": "My setup (fork and adapt)",
       "tags": [

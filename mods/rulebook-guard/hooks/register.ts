@@ -1,7 +1,8 @@
 // rulebook-guard: enforces writing and git rules kept in CLAUDE.md and memory.
 //   1. No em dashes in prose: notes, docs, commit messages, PR text, Slack posts.
 //   2. New commits, not `git commit --amend`.
-//   3. Changed files formatted (ruff format, Prettier) before `git push`.
+//   3. Changed files formatted (ruff format, Prettier) before `git push`. A Prettier the
+//      repo commits to git is never run; this is a guardrail, not a security boundary.
 //   4. No personal info (emails, phone numbers) in notes, memory or commits without asking.
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -64,7 +65,7 @@ export const register: Register = on => {
     }
 
     if (GIT_PUSH.test(shell)) {
-      const problems = await unformatted($, cdOf(command))
+      const problems = await unformatted($, await runDir($, command))
       if (problems.length > 0 && !(await allow($, `Not formatted yet: ${problems.join('; ')}. Your rule: format before push.`))) {
         return { deny: `rulebook-guard: the user blocked the push because these are not formatted: ${problems.join('; ')}. Run the formatter(s), commit, then push.` }
       }
@@ -141,16 +142,41 @@ export function cdOf(command: string): string | undefined {
   return /^\s*cd\s+("[^"]+"|'[^']+'|\S+)\s*&&/.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
 }
 
+// Git with the repo's own fsmonitor hook off: a cloned repo's config must not run code.
+export const GIT_SAFE = ['git', '-c', 'core.fsmonitor=false'] as const
+
+// Where the push runs: the session's folder, or a `cd x` inside it. A `cd` that leaves
+// the session's folder is ignored, so a command can't point the check at another repo.
+async function runDir($: EngineInterface, command: string): Promise<string> {
+  const base = await $.session.cwd()
+  const target = cdOf(command)
+  if (target === undefined) return base
+  const home = (await $.env.get('HOME')) ?? ''
+  const spelled = target === '~' || target.startsWith('~/') ? (home ? home + target.slice(1) : '') : target
+  if (spelled === '' || spelled.includes('$')) return base
+  const real = await realPath($, spelled.startsWith('/') ? spelled : `${base.replace(/\/$/, '')}/${spelled}`)
+  const root = await realPath($, base)
+  return real && root && inside(real, root) ? real : base
+}
+
+async function realPath($: EngineInterface, path: string) {
+  return (await $.fs.stat(path, { resolve: true }).catch(() => undefined))?.realPath
+}
+
+function inside(path: string, root: string) {
+  const r = root.replace(/\/$/, '')
+  return path === r || path.startsWith(`${r}/`)
+}
+
 // Changed files the repo's own formatters would change, as short reasons.
-async function unformatted($: EngineInterface, cwd: string | undefined): Promise<string[]> {
-  const init = cwd ? { cwd } : undefined
-  const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], init).catch(() => null)
+async function unformatted($: EngineInterface, cwd: string): Promise<string[]> {
+  const top = await $.process.run([...GIT_SAFE, 'rev-parse', '--show-toplevel'], { cwd }).catch(() => null)
   if (!top || top.exitCode !== 0) return []
   const root = top.stdout.trim()
   const at = { cwd: root, timeoutMs: 60_000 }
 
-  let diff = await $.process.run(['git', 'diff', '--name-only', '--diff-filter=ACMR', '@{u}...HEAD'], at)
-  if (diff.exitCode !== 0) diff = await $.process.run(['git', 'diff', '--name-only', '--diff-filter=ACMR', 'origin/main...HEAD'], at)
+  let diff = await $.process.run([...GIT_SAFE, 'diff', '--name-only', '--diff-filter=ACMR', '@{u}...HEAD'], at)
+  if (diff.exitCode !== 0) diff = await $.process.run([...GIT_SAFE, 'diff', '--name-only', '--diff-filter=ACMR', 'origin/main...HEAD'], at)
   if (diff.exitCode !== 0) return []
   const files = diff.stdout.split('\n').filter(Boolean)
   const problems: string[] = []
@@ -165,15 +191,31 @@ async function unformatted($: EngineInterface, cwd: string | undefined): Promise
   }
 
   const web = files.filter(f => PRETTIER_FILE.test(f))
-  const hasPrettier = await $.fs.exists(`${root}/node_modules/.bin/prettier`).catch(() => false)
+  const bin = `${root}/node_modules/.bin/prettier`
+  const hasPrettier = await $.fs.exists(bin).catch(() => false)
   if (web.length > 0 && hasPrettier) {
-    const prettier = await $.process.run([`${root}/node_modules/.bin/prettier`, '--check', ...web], at).catch(() => null)
+    if (!(await trustedPrettier($, root, bin))) {
+      $.ui.toast('rulebook-guard: Prettier not checked: this repo ships its own node_modules/.bin/prettier')
+      return problems
+    }
+    const prettier = await $.process.run([bin, '--check', ...web], at).catch(() => null)
     if (prettier && prettier.exitCode === 1) {
       const bad = `${prettier.stdout}\n${prettier.stderr}`.split('\n').filter(l => l.startsWith('[warn] ') && !l.includes('Code style issues')).map(l => l.slice(7).trim())
       problems.push(`prettier: ${bad.join(', ') || 'some files'}`)
     }
   }
   return problems
+}
+
+// A Prettier npm installed: it lands inside the repo's node_modules, and git tracks
+// neither the .bin link nor what it points at. A copy the repo commits is never run.
+async function trustedPrettier($: EngineInterface, root: string, bin: string) {
+  const realRoot = await realPath($, root)
+  const real = await realPath($, bin)
+  if (!realRoot || !real || !inside(real, `${realRoot.replace(/\/$/, '')}/node_modules`)) return false
+  const rel = real.slice(realRoot.replace(/\/$/, '').length + 1)
+  const tracked = await $.process.run([...GIT_SAFE, 'ls-files', '--', 'node_modules/.bin/prettier', rel], { cwd: root }).catch(() => null)
+  return tracked !== null && tracked.exitCode === 0 && tracked.stdout.trim() === ''
 }
 
 function short(path: string) {
