@@ -258,7 +258,7 @@ Claude Code hooks that enforce writing and git rules.
 - Rewrites em dashes in `.md`, `.mdx`, `.markdown` and `.txt` writes, commit messages, PR text and Slack posts (code files are left alone)
 - Asks before `git commit --amend`
 - Asks before a `git push` with files that `ruff format` or Prettier would change
-- Runs Prettier only when the repo ships none of its own in git and every config it would read is plain JSON with no plugins (a JS, YAML or TOML config, a shared config or plugins skips the check), and ignores a `cd` out of the session's folder. It's a guardrail, not a security boundary
+- Never runs a Prettier the repo ships in git (or anything else it tracks under `node_modules`), passes files after `--`, and ignores a `cd` out of the session's folder. It's a guardrail, not a security boundary: the repo's own Prettier config still runs, as it would for `npm test`
 - Asks before an email address or phone number goes into `~/notes`, memory files, `CLAUDE.md` files or a commit
 - The rules are plain code in `hooks/register.ts`, so change them to match yours
 
