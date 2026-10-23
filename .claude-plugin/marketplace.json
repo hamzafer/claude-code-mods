@@ -21,7 +21,7 @@
     {
       "name": "blast-radius",
       "description": "Holds risky Bash commands and shows what they would change before they run.",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "source": "./mods/blast-radius",
       "category": "Guard your repo",
       "tags": [
@@ -58,7 +58,7 @@
     {
       "name": "md-preview",
       "description": "Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. Before and after side by side. /md opens it.",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "source": "./mods/md-preview",
       "category": "See what's happening",
       "tags": [
@@ -73,7 +73,7 @@
     {
       "name": "glance",
       "description": "One line above the prompt with what needs you: next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/glance",
       "category": "My setup (fork and adapt)",
       "tags": [
@@ -90,7 +90,7 @@
     {
       "name": "heatmap",
       "description": "A GitHub-style grid of your Claude Code time in a /heatmap pane, with streaks, peaks and top projects.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/heatmap",
       "category": "See what's happening",
       "tags": [
@@ -155,7 +155,7 @@
     {
       "name": "prayer-times",
       "description": "The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "source": "./mods/prayer-times",
       "category": "See what's happening",
       "tags": [
@@ -287,7 +287,7 @@
     {
       "name": "switchboard",
       "description": "Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "source": "./mods/switchboard",
       "category": "Spend less",
       "tags": [

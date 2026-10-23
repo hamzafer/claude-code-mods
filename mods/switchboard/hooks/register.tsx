@@ -6,7 +6,7 @@
 //   in time, nothing changes. In auto mode the pick replaces the model the spawn would have run
 //   on; in suggest mode it is only shown. /route lists every subagent, its pick and its cost.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Route, Tier } from '../types'
 import { bandsFile, parseOrder, stackBands } from './bands'
@@ -50,12 +50,14 @@ export const register: Register = (on, options) => {
     openai: text(options.openaiApiKey),
     zeroRetention: options.gatewayZeroRetention === true,
   }
+  let timer: Timer | undefined // one redraw timer, even if session.start fires again
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     await $.command.register({ name: 'route', description: 'Show which model Switchboard picked for each subagent, and what it cost' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     // Redraws the band so a finished line leaves after 30 s; quiet when nothing is shown.
-    $.clock.every(5_000, () => {
+    timer?.cancel()
+    timer = $.clock.every(5_000, () => {
       void (async () => {
         if ((await read($, routes)).some(r => isShown(r, Date.now() - 5_000))) await update($, now, () => Date.now())
       })().catch(() => {})

@@ -6,7 +6,7 @@
 //   /prayers lists today's times. A toast says when a prayer begins, and again when its time
 //   is nearly over.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import { bandsFile, parseOrder, stackBands } from './bands'
 
@@ -50,6 +50,7 @@ export const register: Register = (on, options) => {
   const warnMinutes = Math.min(120, num(options.warnMinutes, 15))
   let toasted = ''
   let warned = ''
+  let timer: Timer | undefined // one timer, even if session.start fires again
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -57,7 +58,8 @@ export const register: Register = (on, options) => {
     const first = await $.clock.now()
     await update($, now, () => first)
     // The line moves each minute; a toast marks the start of each prayer, and another its last minutes.
-    $.clock.every(30_000, () => {
+    timer?.cancel()
+    timer = $.clock.every(30_000, () => {
       void (async () => {
         const t = await $.clock.now()
         await update($, now, () => t)

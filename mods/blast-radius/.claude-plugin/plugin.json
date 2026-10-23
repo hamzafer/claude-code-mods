@@ -1,6 +1,6 @@
 {
   "name": "blast-radius",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Holds risky Bash commands and shows what they would change before they run.",
   "author": {
     "name": "Hamza Zafar",
@@ -11,7 +11,7 @@
     "timeoutSeconds": {
       "type": "number",
       "title": "Auto-cancel after (seconds)",
-      "description": "How long a held command waits for Cancel or Proceed before it is cancelled. 0 waits forever.",
+      "description": "How long a held command waits for Cancel or Proceed before it is canceled. 0 waits forever.",
       "default": 60,
       "min": 0
     }

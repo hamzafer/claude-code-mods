@@ -1,6 +1,6 @@
 // glance: one line above the prompt with what needs you: next meeting, PRs, Linear, Slack.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, McpToolResult, Register } from 'claude-code'
+import type { EngineInterface, McpToolResult, Register, Timer } from 'claude-code'
 
 import type { Dm, Issue, Meeting, Pr, Source } from '../types'
 import { bandsFile, parseOrder, stackBands } from './bands'
@@ -24,11 +24,14 @@ const minute = atom({ plugin: 'glance', key: 'minute' } as const, 0)
 let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 
 export const register: Register = on => {
+  let timer: Timer | undefined // one minute timer, even if session.start fires again
+
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await $.command.register({ name: 'glance', description: 'Refresh glance and list everything that needs you' }).catch(() => {}) // a name Claude Code already has is refused: start anyway
     void refresh($, false).catch(() => {}) // in the background: a slow source never holds up the session
-    $.clock.every(TICK_MS, () => void tick($).catch(() => {}))
+    timer?.cancel()
+    timer = $.clock.every(TICK_MS, () => void tick($).catch(() => {}))
     return result
   })
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { baseline, move, resetBandOrder, totals, trim } from '../hooks/register'
 import { LADDERS, costOf, parsePick, pickRequest, tierOf } from '../hooks/route'
@@ -222,6 +222,22 @@ describe('switchboard', () => {
     await $.session.start(START)
     await $.agent.spawn(SPAWN as any)
     expect(spawned).toEqual([undefined])
+  })
+
+  test('a second session.start keeps one redraw timer, not two', async ($, on) => {
+    const clock = mock.clock(on, { now: Date.now() })
+    let ticks = 0 // each tick writes the time once while a line shows
+    on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
+    on('command.register', () => ({ value: undefined }))
+    on('env.get', () => ({ value: undefined }))
+    on('agent.spawn', (_$: any, e: any) => ({ model: e.parentModel, agentId: 'a1' }))
+    on('state.set', (_$: any, e: any, next: any) => (e.key === 'now' && ticks++, next(e)))
+    await $.session.start(START)
+    await $.session.start(START)
+    await $.agent.spawn(SPAWN as any) // a running subagent: its line shows
+    await clock.advance(5_000)
+    await new Promise(done => (globalThis as any).setTimeout(done, 20)) // the tick runs in the background
+    expect(ticks).toBe(1)
   })
 
   test('keys its band and follows the band order file', { options: { picker: 'openai' } }, async ($, on) => {

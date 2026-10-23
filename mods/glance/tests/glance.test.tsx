@@ -161,6 +161,17 @@ describe('glance', () => {
     expect(h.ghCalls()).toBe(2)
   })
 
+  test('a second session.start keeps one minute timer, not two', async ($, on) => {
+    const h = engine(on)
+    let ticks = 0 // each tick writes the minute once
+    on('state.set', (_$: any, e: any, next: any) => (e.key === 'minute' && ticks++, next(e)))
+    await start($)
+    await start($)
+    await h.clock.advance(MIN)
+    await settle()
+    expect(ticks).toBe(1)
+  })
+
   test('a failing source is left out, and the others still show', async ($, on) => {
     engine(on, ['claude.ai Slack', 'gh'])
     await start($)

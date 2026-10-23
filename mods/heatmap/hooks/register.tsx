@@ -54,7 +54,7 @@ export const register: Register = on => {
     void (async () => {
       await refresh($)
       await milestoneToast($, rows ?? [])
-    })()
+    })().catch(() => {})
     return r
   })
 
@@ -67,7 +67,7 @@ export const register: Register = on => {
   on('command.run', { command: 'heatmap' }, async $ => {
     await update($, isLoading, () => rows === null)
     await $.ui.open({ id: PANE, title: 'Heatmap', focus: true })
-    void refresh($).then(() => update($, isLoading, () => false)) // today stays current mid-session
+    void refresh($).then(() => update($, isLoading, () => false)).catch(() => {}) // today stays current mid-session
     return { text: 'Opened the heatmap' }
   })
 
@@ -86,7 +86,7 @@ export const register: Register = on => {
           </Box>
         )
       }
-      if (!(await read($, isLoading))) void refresh($) // a hot reload dropped the rows
+      if (!(await read($, isLoading))) void refresh($).catch(() => {}) // a hot reload dropped the rows
       return (
         <Box flexDirection="column">
           <Text dimColor>Reading your session history… the first time takes a few seconds.</Text>
