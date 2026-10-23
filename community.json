@@ -98,6 +98,15 @@
       "url": "https://github.com/weidu-tpvision/claude-mods/tree/main/bedrock-meter",
       "description": "Token and USD meter for Claude Code on Amazon Bedrock: session cost, context fill, cache hit rate and today's total above the prompt, priced at AWS's own on-demand rates (refreshed weekly from the AWS price list), with a per-model breakdown in /bedrock-cost",
       "tags": ["band", "pane", "toast", "command"]
+    },
+    {
+      "name": "brainrot-break",
+      "marketplace": "brainrot-break",
+      "repo": "BordyV/brainrot-break",
+      "author": "BordyV",
+      "url": "https://github.com/BordyV/brainrot-break",
+      "description": "A TikTok-style feed of 350+ pixel art mini-videos in a pane while Claude answers: scroll, like, pick your themes, and an end card when Claude is done. Every video is a small simulation drawn locally: no tokens, no model calls. Terminal and desktop app, in 6 languages",
+      "tags": ["pane", "band", "command"]
     }
   ]
 }
