@@ -190,6 +190,20 @@ describe('prayer-times', () => {
     expect(toasts.filter(x => / ends in /.test(x))).toEqual([expect.stringMatching(/^⏳ Dhuhr ends in 1[45] min \(\d\d:\d\d\)$/)])
   })
 
+  test('a second session.start keeps one timer, not two', { options: { latitude: 51.5074, longitude: -0.1278 } }, async ($, on) => {
+    const clock = mock.clock(on, { now: Date.now() })
+    let ticks = 0 // each tick writes the time once
+    on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
+    on('command.register', () => ({ value: undefined }))
+    on('ui.toast', () => ({ value: undefined }))
+    on('state.set', (_$: any, e: any, next: any) => (e.key === 'now' && ticks++, next(e)))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    ticks = 0
+    await clock.advance(30_000)
+    expect(ticks).toBe(1)
+  })
+
   test('without a location it asks for one and computes nothing', async ($, on) => {
     mock.clock(on, { now: Date.now() })
     resetBandOrder()
