@@ -350,5 +350,10 @@ async function renderMap($: EngineInterface) {
     '--user-data-dir="$3" --window-size="$4" --screenshot="$2" "$5" >/dev/null 2>&1 & pid=$!; ' +
     'i=0; while [ ! -s "$2" ] && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; sleep 0.2; pkill -P $pid 2>/dev/null; kill $pid 2>/dev/null; [ -s "$2" ]'
   const r = await $.process.run(['sh', '-c', script, 'mission-control', chrome, png, `${dir}/chrome`, `${width},${height}`, `file://${encodeURI(svgPath)}`], { timeoutMs: 20_000 })
-  if (r.exitCode === 0) await update($, frame, () => ({ file: png, n }))
+  if (r.exitCode === 0) {
+    await update($, frame, () => ({ file: png, n }))
+    return
+  }
+  draw.error = `${chrome} could not draw the code map.`
+  await update($, now, () => Date.now()) // redraw the pane with the message
 }
