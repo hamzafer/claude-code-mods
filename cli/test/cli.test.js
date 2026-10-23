@@ -540,14 +540,36 @@ test('no (or just Enter) skips only the community mods', async () => {
   }
 });
 
-test('outside a terminal, new community mods are skipped without --yes-community', async () => {
+test('outside a terminal, new community mods are skipped without --yes-community, and the run exits 1', async () => {
   const p = fakePrompt([]);
   const r = await goCommunity(['--pick', 'context-bar,where-am-i,image-view'], fakeClaude({ plugins: installed, markets: [] }), { makePrompt: p.makePrompt });
-  assert.equal(r.code, 0);
+  assert.equal(r.code, 1); // a script that named the mod learns it is missing
   assert.equal(p.asked.length, 0);
   assert.deepEqual(theirCalls(r.calls), []);
   assert.ok(r.calls.includes('plugin install where-am-i@claude-code-mods --scope user'));
-  assert.match(r.out, /^Skipped community mods: image-view\. They are third-party code; pass --yes-community to install them\.$/m);
+  assert.equal(r.err, 'Skipped community mods: image-view. They are third-party code; pass --yes-community to install them.');
+  // A dry run says the same.
+  const dry = await goCommunity(['--pick', 'context-bar,image-view', '--dry-run'], fakeClaude({ plugins: installed }), { makePrompt: p.makePrompt });
+  assert.equal(dry.code, 1);
+  assert.match(dry.err, /^Skipped community mods: image-view\./);
+  assert.doesNotMatch(dry.out, /image-view/);
+});
+
+test('Ctrl-C at the community question stops the run before anything changes', async () => {
+  const makePrompt = () => ({ ask: async () => { throw Object.assign(new Error('Stopped'), { code: 'ABORT' }); }, close: () => {} });
+  const r = await goCommunity(['--pick', 'where-am-i,image-view'], fakeClaude({ plugins: installed, markets: [] }), { isTTY: true, makePrompt });
+  assert.equal(r.code, 130);
+  assert.match(r.out, /Stopped, nothing changed\.$/);
+  assert.deepEqual(r.calls, ['plugin list --json', 'plugin marketplace list --json']); // no install, no disable
+});
+
+test('one community mod is asked about in the singular', async () => {
+  const asked = [];
+  const p = fakePrompt(['n']);
+  const makePrompt = () => { const q = p.makePrompt(); return { ...q, ask: (s, o) => { asked.push(s); return q.ask(s, o); } }; };
+  const r = await goCommunity(['--pick', 'context-bar,image-view'], fakeClaude({ plugins: installed, markets: [] }), { isTTY: true, makePrompt });
+  assert.deepEqual(asked, ['Install it? (y/N) ']);
+  assert.match(r.out, /^This community mod is third-party code/m);
 });
 
 test('--yes-community installs them without asking, terminal or not', async () => {
@@ -585,6 +607,6 @@ test('--dry-run in a terminal shows the warning and asks nothing', async () => {
   const p = fakePrompt([]);
   const r = await goCommunity(['--pick', 'context-bar,image-view', '--dry-run'], fakeClaude({ plugins: installed }), { isTTY: true, makePrompt: p.makePrompt });
   assert.equal(p.asked.length, 0);
-  assert.match(r.out, /would ask: Install them\? \(y\/N\)/);
+  assert.match(r.out, /would ask: Install it\? \(y\/N\)/);
   assert.match(r.out, /claude plugin install image-view@claude-image-view --scope user/);
 });

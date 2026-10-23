@@ -44,7 +44,7 @@ const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${a.market || MAR
 export const communityNote = (m) => `Community mod by @${m.author}, not maintained here. Read its code first: ${m.url}`;
 // Asked once before any new community mod installs. Default is no.
 export const communityWarning = (list) => [
-  'These community mods are third-party code, not reviewed or maintained here:',
+  `${list.length === 1 ? 'This community mod is' : 'These community mods are'} third-party code, not reviewed or maintained here:`,
   ...list.map((m) => `  ${m.name} by @${m.author} (${m.repo})`),
   "Each installs from its author's own marketplace at the latest version, which can change at any time.",
 ].join('\n');
@@ -199,22 +199,27 @@ export async function main(argv, {
     // Already installed ones only get enabled or disabled, so they are not asked.
     const fresh = actions.filter((a) => a.verb === 'install' && !ours(a.name)).map((a) => byName(a.name));
     let confirmed = false;
+    let dropped = false; // mods asked for by name that were left out: the run did not do it all
     if (fresh.length && !opts.yesCommunity) {
       const list = fresh.map((m) => m.name).join(', ');
+      const question = `Install ${fresh.length === 1 ? 'it' : 'them'}? (y/N) `;
       if (!isTTY) {
-        out(`Skipped community mods: ${list}. They are third-party code; pass --yes-community to install them.`);
+        err(`Skipped community mods: ${list}. They are third-party code; pass --yes-community to install them.`);
+        dropped = true;
       } else if (opts.dryRun) {
-        out(`${communityWarning(fresh)}\nwould ask: Install them? (y/N)`);
+        out(`${communityWarning(fresh)}\nwould ask: ${question.trim()}`);
         confirmed = true;
       } else {
         out(communityWarning(fresh));
         const prompt = makePrompt();
         let answer = '';
         try {
-          answer = await prompt.ask('Install them? (y/N) ');
+          answer = await prompt.ask(question);
         } catch (e) {
           if (e.code !== 'ABORT') throw e;
-          out('');
+          // Ctrl-C or Ctrl-D: stop here, as the checklist does. Nothing has changed yet.
+          out('\nStopped, nothing changed.');
+          return 130;
         } finally { prompt.close(); }
         confirmed = /^(y|yes)$/i.test(String(answer).trim());
         if (!confirmed) out(`Skipped community mods: ${list}.`);
@@ -228,7 +233,7 @@ export async function main(argv, {
 
     if (!actions.length) {
       out('Nothing to change.');
-      return 0;
+      return dropped ? 1 : 0;
     }
     // Someone else's code is about to turn on: say so first (unless just asked).
     for (const a of actions.filter((a) => (a.verb === 'install' || a.verb === 'enable') && !ours(a.name))) {
@@ -240,7 +245,7 @@ export async function main(argv, {
         const keys = Object.keys(await loadOptions(byName(a.name)));
         if (keys.length) out(`would ask ${a.name}: ${keys.join(', ')}`);
       }
-      return 0;
+      return dropped ? 1 : 0;
     }
 
     let failed = 0;
@@ -280,7 +285,7 @@ export async function main(argv, {
       if (r) report(r, `configured ${name}`, `configure ${name}`);
     }
     out('\nRestart Claude Code to load your mods.');
-    return stopped ? 130 : failed ? 1 : 0;
+    return stopped ? 130 : failed || dropped ? 1 : 0;
   } catch (e) {
     err(e.code === 'ENOENT' ? 'Install Claude Code first: the claude command was not found.' : e.message);
     return 1;

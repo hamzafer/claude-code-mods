@@ -8,7 +8,7 @@ npx claude-code-mods@latest
 
 Tick the mods you want, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after.
 
-Community mods (made by other people, not maintained here) are listed last; each installs from its author's own marketplace at the latest version, so read its code first. Before installing a new one, it lists them and asks; the default is no.
+Community mods (made by other people, not maintained here) are listed last; each installs from its author's own marketplace at the latest version, so read its code first. Before installing new ones, it lists them and asks; the default is no, and no still installs the rest. Without a terminal it skips them (and exits 1) unless you pass `--yes-community`.
 
 ## Flags
 
