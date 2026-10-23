@@ -85,8 +85,8 @@ const esc = (s: string) =>
 export type Look = { width: number; height: number; at: number; turn: number }
 
 // The whole picture: boxes per file, arrows per import, a glow on what is being touched now.
-const SANS = `-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif`
-const MONO = `'SF Mono', Menlo, monospace`
+const SANS = `-apple-system, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif`
+const MONO = `'SF Mono', Menlo, Consolas, monospace`
 const C = {
   bg: '#0d1015', grid: '#1a1f28', card: '#151922', cardLive: '#1b2130', line: '#2a3140', text: '#e8ebf2',
   dim: '#7d8698', faint: '#4b5263', edge: '#3a4252', edgeHot: '#6b7a96',
@@ -244,6 +244,32 @@ export function svg(files: MapFile[], look: Look): string {
   }
   o.push('</svg>')
   return o.join('\n')
+}
+
+export type MapLine = { mark: string; tone: 'read' | 'edit' | 'changed' | 'dim'; title: string; imports: string[]; why?: string }
+
+// The map as lines, for a terminal that draws no pictures: newest first, each file's
+// state, the files it imports and the one-line why.
+export function textMap(files: MapFile[], look: { at: number; turn: number }): MapLine[] {
+  const all = files.map(f => f.path)
+  const es = edges(files)
+  return files.map(f => {
+    const isLive = look.at - f.at < 5000
+    const isChanged = f.changedTurn === look.turn && look.turn > 0
+    const isReading = f.act === 'read' || f.act === 'search'
+    return {
+      mark: isLive ? (isReading ? '●' : '✎') : isChanged ? '✓' : '·',
+      tone: isLive ? (isReading ? 'read' : 'edit') : isChanged ? 'changed' : 'dim',
+      title: titleOf(f.path, all),
+      imports: es.filter(e => e.from === f.path).map(e => titleOf(e.to, all)),
+      why: f.why,
+    }
+  })
+}
+
+// The picture as a page that reloads itself, so a browser keeps showing the latest.
+export function page(picture: string) {
+  return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="2"><title>Code map</title><style>html,body{margin:0;height:100%;background:${C.bg}}svg{display:block;width:100%;height:100%}</style>\n${picture}\n`
 }
 
 // A file's name, or with several of that name the nearest folder that tells them apart:
