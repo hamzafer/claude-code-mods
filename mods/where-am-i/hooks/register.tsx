@@ -30,6 +30,7 @@ export function resetBandOrder() {
 export const register: Register = on => {
   let prompt = ''
   let log: string[] = []
+  let turn = 0 // bumped by every message, so a summary of an older turn knows it is stale
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -40,7 +41,10 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     prompt = e.text.slice(0, 1500)
     log = []
+    turn += 1
     await update($, live, () => 'reading your message')
+    // The person just answered: whatever the last turn waited on is no longer theirs to do.
+    await update($, recap, r => (r && r.waiting !== '' ? { ...r, waiting: '' } : r))
     return next(e)
   })
 
@@ -60,7 +64,8 @@ export const register: Register = on => {
     const r = await next(e)
     if (!e.agentId) {
       await update($, live, () => '')
-      void summarize($, prompt, log, e.answer).catch(() => {}) // in the background, so the turn ends at once
+      const mine = turn
+      void summarize($, prompt, log, e.answer, () => turn === mine).catch(() => {}) // in the background, so the turn ends at once
     }
     return r
   })
@@ -114,7 +119,7 @@ export function describe(e: Record<string, unknown>): string {
   return `using ${tool}`
 }
 
-async function summarize($: EngineInterface, prompt: string, log: string[], answer: string) {
+async function summarize($: EngineInterface, prompt: string, log: string[], answer: string, isCurrent: () => boolean) {
   const before = await read($, recap)
   const r = await $.model.complete({
     model: MODEL,
@@ -132,7 +137,7 @@ async function summarize($: EngineInterface, prompt: string, log: string[], answ
       `The assistant's reply: ${answer.slice(0, 2500)}`,
     ].join('\n\n'),
   })
-  if (!r.isAnswered) return
+  if (!r.isAnswered || !isCurrent()) return // a newer message arrived while Haiku was writing: this recap is stale
   const parsed = parseRecap(r.text)
   if (parsed) await update($, recap, () => parsed)
 }

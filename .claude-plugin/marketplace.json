@@ -276,7 +276,7 @@
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "source": "./mods/where-am-i",
       "category": "See what's happening",
       "tags": [
