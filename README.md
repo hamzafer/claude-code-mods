@@ -30,6 +30,11 @@
     <td align="center" width="33%"><a href="docs/mods.md#-lines-above-the-prompt"><img src="images/gallery/lines.png" alt="token-weather, usage-meter and other Claude Code status lines stacked above the prompt" width="260"></a><br>🌦️ <b>token-weather and friends</b><br>lines above the prompt</td>
     <td align="center" width="33%"><a href="#mission-control"><img src="images/gallery/mission-control.png" alt="mission-control: Claude Code subagents, tool calls and the files they touch, live" width="260"></a><br>🛰️ <b>mission-control</b><br>agents and the code they touch</td>
   </tr>
+  <tr>
+    <td align="center" width="33%"><a href="docs/mods.md#-switchboard"><img src="images/switchboard.png" alt="switchboard: subagents routed from opus to sonnet and haiku, with confidence and cost" width="260"></a><br>🔀 <b>switchboard</b><br>cheaper models for subagents</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-agent-radar"><img src="images/agent-radar.png" alt="agent-radar: a running subagent and two background shells with their latest output" width="260"></a><br>📡 <b>agent-radar</b><br>subagents and shells, live</td>
+    <td align="center" width="33%"><a href="docs/mods.md#-reels-and-snake"><img src="images/snake.png" alt="snake: a game of Snake in a Claude Code pane" width="260"></a><br>🐍 <b>snake</b><br>a game while Claude works</td>
+  </tr>
 </table>
 
 ## 🚀 Install

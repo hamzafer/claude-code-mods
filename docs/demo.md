@@ -73,3 +73,69 @@ Steps through the last turn's edits.
 Shown with token-weather above it.
 
 ![where-am-i](../images/where-am-i.png)
+
+## ⏱️ cache-clock
+
+A warm one-hour cache, under your own status line.
+
+![cache-clock](../images/cache-clock.png)
+
+## ➡️ next-steps
+
+Three next prompts: type a number to send one.
+
+![next-steps](../images/next-steps.png)
+
+## 💰 usage-meter
+
+Five-hour and weekly usage, with when each resets.
+
+![usage-meter](../images/usage-meter.png)
+
+## 💳 openai-balance
+
+The estimated balance, today's spend and the last call's model.
+
+![openai-balance](../images/openai-balance.png)
+
+## 🪙 openrouter-balance
+
+A regular API key: what its limit leaves and today's spend.
+
+![openrouter-balance](../images/openrouter-balance.png)
+
+## 📡 agent-radar
+
+A subagent and two background shells, each with its latest line.
+
+![agent-radar](../images/agent-radar.png)
+
+## 🔀 switchboard
+
+One subagent kept on opus, two switched to cheaper models.
+
+![switchboard](../images/switchboard.png)
+
+## 👀 glance
+
+The next meeting, a PR waiting on you, an issue and a DM, on one line.
+
+![glance](../images/glance.png)
+
+## 🚦 merge-gate
+
+A PR with CI green and the Codex review still to come.
+
+![merge-gate](../images/merge-gate.png)
+
+## 💾 session-saver
+
+Where you left off last time, the next step and your note.
+
+![session-saver](../images/session-saver.png)
+
+## 🐍 snake
+
+Snake in a pane, mid-game.
+
+![snake](../images/snake.png)
