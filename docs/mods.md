@@ -70,6 +70,8 @@ Shows how full the Claude Code context window is, and how long the prompt cache 
 
 Adds a prompt-cache line under your Claude Code status line, from the cache figures Claude Code itself sends to the status line.
 
+![cache-clock: prompt-cache time left, hit rate and misses under the Claude Code status line](../images/cache-clock.png)
+
 ```text
 cache ● 1h ███████░░░ 38m left · hit 91% · misses 0
 cache ● 5m ██░░░░░░░░ 53s left · hit 36% · misses 1
@@ -98,6 +100,8 @@ Shows the session goal, what Claude Code is doing now and what waits on you.
 
 Suggests the prompts you'd likely send Claude Code next.
 
+![next-steps: three numbered next prompts above the Claude Code prompt](../images/next-steps.png)
+
 - After each turn, shows 2 or 3 short prompts you'd likely send next, like `next:  1 run the tests you just wrote  ·  2 open a draft PR  ·  0 dismiss`
 - **Keys** (only while the prompt is empty): `1`, `2` or `3` puts that prompt in the box as a draft. Edit it or press Enter, nothing sends on its own. `0` hides the list
 - Digits typed after other text, and pasted ones, go in as usual. To start a prompt with a digit while the list shows, press `0` first
@@ -111,6 +115,8 @@ Suggests the prompts you'd likely send Claude Code next.
 ### 💰 usage-meter
 
 Shows your Claude Code plan usage and session cost.
+
+![usage-meter: five-hour and weekly Claude usage with reset times above the Claude Code prompt](../images/usage-meter.png)
 
 - One line: your plan's 5-hour and 7-day usage as small bars, when the 5-hour window resets, and what the session has cost
 - Reads the same figures as the status line and updates as your usage changes
@@ -171,6 +177,8 @@ Shows your OpenRouter credit above the Claude Code prompt.
 
 Shows one live line per running Claude Code subagent or background shell.
 
+![agent-radar: a running subagent and two background shells with their latest output above the Claude Code prompt](../images/agent-radar.png)
+
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes
 - `/radar` lists every agent this session
@@ -180,6 +188,8 @@ Shows one live line per running Claude Code subagent or background shell.
 ### 🔀 switchboard
 
 Picks the model for each Claude Code subagent that doesn't name one, and shows what every subagent cost.
+
+![switchboard: subagents routed from opus to sonnet and haiku, with confidence and cost, above the Claude Code prompt](../images/switchboard.png)
 
 - **A named model is kept.** When you or your CLAUDE.md name a model for a subagent ("Sonnet review", "opus agent"), switchboard leaves it alone. Only a subagent with no model named gets a pick; `inherit` counts as no model named. Turn this off with **Keep a named model** in `/config`
 - **Picker** in `/config`:
@@ -235,6 +245,8 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --isolated
 
 A Claude Code hook that holds `gh pr merge` until CI and a Codex review pass.
 
+![merge-gate: a PR with its CI checks and Codex review count above the Claude Code prompt](../images/merge-gate.png)
+
 - **Needs** `gh` and the Codex CLI
 - Holds `gh pr merge` until CI is green and Codex reviewed the PR once
 - If either is missing, it asks you: **Hold** or **Merge anyway**
@@ -282,6 +294,8 @@ A Claude Code hook that holds risky commands and shows what they would delete.
 
 Saves where you left off in a Claude Code session and shows it on resume.
 
+![session-saver: where you left off last time and the next step above the Claude Code prompt](../images/session-saver.png)
+
 - **Needs** [unpause](https://github.com/hamzafer/unpause)
 - Run `/park` before you close, then `unpause open <name>`
 - `/park <note>` adds your own note, shown under the summary on resume
@@ -291,6 +305,8 @@ Saves where you left off in a Claude Code session and shows it on resume.
 ### 👀 glance
 
 Shows what needs you in one line above the Claude Code prompt: meetings, PRs, issues and DMs.
+
+![glance: the next meeting, a PR review, an issue and a Slack DM on one line above the Claude Code prompt](../images/glance.png)
 
 - **Needs** `gh`, plus the claude.ai Google Calendar, Linear and Slack connectors. A source that's missing just stays off the line
 - One item per source, the most urgent one, with "+2" for the rest:
@@ -381,6 +397,8 @@ Shows Spotify's current track and lyrics in Claude Code.
 ### 📱🐍 reels and snake
 
 YouTube Shorts or a game of Snake in a Claude Code pane while it works.
+
+![snake: a game of Snake in a Claude Code pane, score 13](../images/snake.png)
 
 - Installing them changes nothing until you type `/reels` or `/snake`
 - `/reels stop` turns reels off again. For snake, `/snake off` or typing `/snake` again does it

@@ -22,17 +22,7 @@ const ldWith = (html, key) =>
 
 // Mod pages that ship without a screenshot or video for now. Add one, then take the mod
 // off this list: the test fails while a listed mod has a picture, so the list only shrinks.
-const NO_SCREENSHOT_YET = [
-  'agent-radar',
-  'cache-clock',
-  'glance',
-  'merge-gate',
-  'next-steps',
-  'session-saver',
-  'snake',
-  'switchboard',
-  'usage-meter',
-]
+const NO_SCREENSHOT_YET = []
 
 // Every HTML page of the site, as paths relative to the repo root.
 const htmlFiles = dir => readdirSync(join(root, dir), { withFileTypes: true }).flatMap(e =>
