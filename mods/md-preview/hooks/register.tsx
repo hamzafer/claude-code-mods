@@ -519,7 +519,7 @@ async function renderSoon($: EngineInterface) {
     void afterDraw($).catch(() => {})
     return
   }
-  $.clock.after(300, () => void run($, true))
+  $.clock.after(300, () => void run($, true).catch(() => {}))
 }
 
 // Draws a file Claude changed, in the background once the turn ends, so /md opens on it drawn.
@@ -536,7 +536,7 @@ async function startAhead($: EngineInterface) {
   if (ahead.size === 0 || draw.pending) return // the drawing under way picks it up when done
   draw.pending = true
   draw.dirty = false
-  $.clock.after(300, () => void run($, false)) // edits close together wait for each other
+  $.clock.after(300, () => void run($, false).catch(() => {})) // edits close together wait for each other
 }
 
 // The one drawing at a time, for the pane or ahead: two Chromes must never share the profile.
@@ -570,7 +570,7 @@ async function afterDraw($: EngineInterface) {
   if (draw.pending || ahead.size === 0 || turn.isOn) return
   draw.pending = true
   draw.dirty = false
-  void run($, false)
+  void run($, false).catch(() => {})
 }
 
 // Whether the open pane shows something other than what it should.
