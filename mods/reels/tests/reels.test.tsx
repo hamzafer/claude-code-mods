@@ -30,11 +30,11 @@ function engine(on: any, opts: { installed: boolean }) {
   })
   on('process.spawn', async function* (_$: any, e: any) {
     spawned.push(e.argv)
-    if (e.argv.at(-1) !== 'pane') return { code: 0 }
+    if (e.argv.at(-1) !== 'pane') return { value: { code: 0, signal: null } }
     running = true
     yield { stream: 'stdout', text: 'R ready\nF 1 /Users/me/.claude-mods/reels/frames/f-1.png\n' }
     while (running) await new Promise(done => (globalThis as any).setTimeout(done, 5))
-    return { code: 0 }
+    return { value: { code: 0, signal: null } }
   })
   return { sent, spawned }
 }
