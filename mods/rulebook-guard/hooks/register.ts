@@ -183,7 +183,7 @@ async function unformatted($: EngineInterface, cwd: string): Promise<string[]> {
 
   const py = files.filter(f => f.endsWith('.py'))
   if (py.length > 0) {
-    const ruff = await $.process.run(['ruff', 'format', '--check', ...py], at).catch(() => null)
+    const ruff = await $.process.run(['ruff', 'format', '--check', '--', ...py], at).catch(() => null)
     if (ruff && ruff.exitCode === 1) {
       const bad = ruff.stdout.split('\n').filter(l => l.startsWith('Would reformat:')).map(l => l.slice(16).trim())
       problems.push(`ruff format: ${bad.join(', ') || 'some Python files'}`)
@@ -200,10 +200,10 @@ async function unformatted($: EngineInterface, cwd: string): Promise<string[]> {
     }
     const config = await codeConfig($, root, web)
     if (config) {
-      $.ui.toast(`rulebook-guard: Prettier not checked: ${config} would run this repo's own code`)
+      $.ui.toast(`rulebook-guard: Prettier not checked: ${config} can load code (plugins or a shared config)`)
       return problems
     }
-    const prettier = await $.process.run([bin, '--check', ...web], at).catch(() => null)
+    const prettier = await $.process.run([bin, '--check', '--', ...web], at) // after --, a file named --plugin=x is a file.catch(() => null)
     if (prettier && prettier.exitCode === 1) {
       const bad = `${prettier.stdout}\n${prettier.stderr}`.split('\n').filter(l => l.startsWith('[warn] ') && !l.includes('Code style issues')).map(l => l.slice(7).trim())
       problems.push(`prettier: ${bad.join(', ') || 'some files'}`)
@@ -222,12 +222,31 @@ async function trustedPrettier($: EngineInterface, root: string, bin: string) {
   return tracked !== null && tracked.exitCode === 0 && tracked.stdout.trim() === ''
 }
 
-// Prettier runs a JS config, a shared config named in package.json, and any plugin a config
-// lists: all code from the repo. It looks for a config from each file's folder up to the root.
+// Prettier runs a JS config, a shared config (any config that is just a name or path), and any
+// plugin a config lists, even inside overrides: all can be the repo's own code. So it only runs when
+// every config it could read, from each file's folder up to the root, is plain JSON without those.
 const CODE_CONFIGS = ['prettier.config', '.prettierrc'].flatMap(b => ['js', 'cjs', 'mjs', 'ts', 'cts', 'mts'].map(x => `${b}.${x}`))
-const DATA_CONFIGS = ['.prettierrc', ...['json', 'json5', 'yaml', 'yml', 'toml'].map(x => `.prettierrc.${x}`)]
+// Read as YAML, TOML or JSON5 by Prettier: only plain JSON is checked, anything else counts as code.
+const DATA_CONFIGS = ['.prettierrc', '.prettierrc.json', '.prettierrc.json5', '.prettierrc.yaml', '.prettierrc.yml', '.prettierrc.toml', 'package.yaml']
 
-// The first config that would run repo code for these files, as a path from the root.
+// A parsed config that loads no code: an object with no plugins, in itself or any override.
+export function plainConfig(conf: unknown): boolean {
+  if (!conf || typeof conf !== 'object' || Array.isArray(conf)) return false
+  const c = conf as { plugins?: unknown; overrides?: unknown }
+  if (c.plugins !== undefined) return false
+  if (c.overrides === undefined) return true
+  return Array.isArray(c.overrides) && c.overrides.every(o => o && typeof o === 'object' && plainConfig((o as { options?: unknown }).options ?? {}))
+}
+
+function parse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+// The first config that could load code for these files, as a path from the root.
 export async function codeConfig($: EngineInterface, root: string, files: string[]) {
   const dirs = new Set([''])
   for (const f of files) {
@@ -237,14 +256,15 @@ export async function codeConfig($: EngineInterface, root: string, files: string
   for (const dir of dirs) {
     const at = (name: string) => (dir ? `${dir}/${name}` : name)
     const has = (name: string) => $.fs.exists(`${root}/${at(name)}`).catch(() => false)
+    const read = (name: string) => $.fs.read(`${root}/${at(name)}`).catch(() => '')
     for (const name of CODE_CONFIGS) if (await has(name)) return at(name)
     for (const name of DATA_CONFIGS) {
-      if ((await has(name)) && /plugins/.test(await $.fs.read(`${root}/${at(name)}`).catch(() => ''))) return at(name)
+      if ((await has(name)) && (name === 'package.yaml' || !plainConfig(parse(await read(name))))) return at(name)
     }
     if (await has('package.json')) {
-      const pkg = await $.fs.read(`${root}/${at('package.json')}`).catch(() => '')
-      const conf = (() => { try { return JSON.parse(pkg).prettier } catch { return undefined } })()
-      if (typeof conf === 'string' || (conf && conf.plugins)) return at('package.json')
+      const pkg = parse(await read('package.json'))
+      const conf = pkg && typeof pkg === 'object' ? (pkg as { prettier?: unknown }).prettier : undefined
+      if (conf !== undefined && !plainConfig(conf)) return at('package.json')
     }
   }
   return undefined

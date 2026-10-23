@@ -161,21 +161,36 @@ describe('rulebook-guard', () => {
     expect(toasts.join()).toMatch(/ships its own/)
   })
 
-  // Configs Prettier would run as code; the second sits next to the file, not at the root.
+  // Configs that could load code; the second sits next to the file, not at the root.
   const codeConfigs: Record<string, string> = {
     '/repo/prettier.config.js': 'module.exports = {}',
     '/repo/web/.prettierrc.cjs': 'module.exports = {}',
     '/repo/.prettierrc': '{ "plugins": ["./plug.cjs"] }',
     '/repo/package.json': '{ "prettier": "./shared-config.js" }',
+    '/repo/.prettierrc.json': '"./evil.cjs"', // a config that is just a path loads it
+    '/repo/.prettierrc.yaml': './evil.cjs', // not JSON: counted as code
+    '/repo/package.yaml': 'prettier: ./evil.cjs',
+    '/repo/.prettierrc.toml': '"plugins" = ["./evil.cjs"]',
+    '/repo/web/.prettierrc': '{ "plu\\u0067ins": ["./evil.cjs"] }', // an escaped key is still plugins
+    '/repo/package.json#overrides': '{ "prettier": { "overrides": [{ "files": "*.js", "options": { "plugins": ["./evil.cjs"] } }] } }',
   }
-  for (const [path, text] of Object.entries(codeConfigs)) {
-    test(`${path.slice(6)} stops prettier, since it would run repo code`, async ($, on) => {
+  for (const [key, text] of Object.entries(codeConfigs)) {
+    const path = key.split('#')[0]
+    test(`${key.slice(6)} stops prettier, since it can load code`, async ($, on) => {
       const { runs, toasts } = engine(on, { diff: 'web/app.ts\n', prettier: {}, files: { [path]: text } })
       await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
       expect(runs.filter(r => r.argv[0].endsWith('prettier'))).toEqual([])
-      expect(toasts.join()).toMatch(/would run this repo's own code/)
+      expect(toasts.join()).toMatch(/can load code/)
     })
   }
+
+  test('a file named like a flag reaches prettier and ruff as a file', async ($, on) => {
+    const { runs } = engine(on, { answer: 'Block it', diff: '--plugin=./x.js\napi/app.py\n', prettier: {} })
+    await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
+    const prettier = runs.find(r => r.argv[0].endsWith('prettier'))!.argv
+    expect(prettier.slice(1)).toEqual(['--check', '--', '--plugin=./x.js'])
+    expect(runs.find(r => r.argv[0] === 'ruff')!.argv).toEqual(['ruff', 'format', '--check', '--', 'api/app.py'])
+  })
 
   test('a plain data config still lets prettier check the push', async ($, on) => {
     const { runs } = engine(on, { answer: 'Block it', diff: 'web/app.ts\n', prettier: {}, files: { '/repo/.prettierrc.json': '{ "semi": false }', '/repo/package.json': '{ "name": "x" }' } })
