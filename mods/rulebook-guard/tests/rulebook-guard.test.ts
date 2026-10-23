@@ -7,7 +7,8 @@ type Opts = {
   answer?: string
   ruffFails?: boolean
   diff?: string
-  prettier?: { tracked?: boolean; realPath?: string }
+  prettier?: { tracked?: string; realPath?: string }
+  files?: Record<string, string> // other repo files, by path
 }
 
 function engine(on: any, opts: Opts = {}) {
@@ -30,7 +31,8 @@ function engine(on: any, opts: Opts = {}) {
   })
   on('env.get', () => ({ value: '/Users/me' }))
   on('session.cwd', () => ({ value: '/repo' }))
-  on('fs.exists', (_$: any, e: any) => ({ value: opts.prettier !== undefined && e.path === '/repo/node_modules/.bin/prettier' }))
+  on('fs.exists', (_$: any, e: any) => ({ value: (opts.prettier !== undefined && e.path === '/repo/node_modules/.bin/prettier') || e.path in (opts.files ?? {}) }))
+  on('fs.read', (_$: any, e: any) => ({ value: opts.files?.[e.path] ?? '' }))
   on('fs.stat', (_$: any, e: any) => {
     const real = e.path === '/repo/node_modules/.bin/prettier' ? (opts.prettier?.realPath ?? '/repo/node_modules/prettier/bin/prettier.cjs') : e.path.replace(/\/[^/]+\/\.\.(?=\/|$)/g, '')
     return { value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: real } }
@@ -41,7 +43,11 @@ function engine(on: any, opts: Opts = {}) {
     const args = cmd === 'git' ? withoutOptions(rest) : rest
     if (cmd === 'git' && args[0] === 'rev-parse') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } }
     if (cmd === 'git' && args[0] === 'diff') return { value: { exitCode: 0, stdout: opts.diff ?? 'api/app.py\nREADME.md\n', stderr: '' } }
-    if (cmd === 'git' && args[0] === 'ls-files') return { value: { exitCode: 0, stdout: opts.prettier?.tracked ? 'node_modules/.bin/prettier\n' : '', stderr: '' } }
+    if (cmd === 'git' && args[0] === 'ls-files') {
+      const t = opts.prettier?.tracked // listed only when a pathspec covers it, as git does
+      const listed = t !== undefined && args.slice(args.indexOf('--') + 1).some(p => t === p || t.startsWith(`${p}/`))
+      return { value: { exitCode: 0, stdout: listed ? `${t}\n` : '', stderr: '' } }
+    }
     if (cmd.endsWith('/prettier')) return { value: { exitCode: 1, stdout: '', stderr: '[warn] web/app.ts\n' } }
     if (cmd === 'ruff') {
       return opts.ruffFails
@@ -133,7 +139,7 @@ describe('rulebook-guard', () => {
   })
 
   test('a prettier the repo tracks in git is never run, and the push says so', async ($, on) => {
-    const { ran, asked, runs, toasts } = engine(on, { diff: 'web/app.ts\n', prettier: { tracked: true } })
+    const { ran, asked, runs, toasts } = engine(on, { diff: 'web/app.ts\n', prettier: { tracked: 'node_modules/.bin/prettier' } })
     await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
     expect(runs.filter(r => r.argv[0].endsWith('prettier'))).toEqual([])
     expect(toasts.join()).toMatch(/Prettier not checked/)
@@ -146,6 +152,35 @@ describe('rulebook-guard', () => {
     await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
     expect(runs.filter(r => r.argv[0].endsWith('prettier'))).toEqual([])
     expect(toasts.join()).toMatch(/Prettier not checked/)
+  })
+
+  test('a file the repo tracks deeper in node_modules also stops prettier', async ($, on) => {
+    const { runs, toasts } = engine(on, { diff: 'web/app.ts\n', prettier: { tracked: 'node_modules/prettier/index.cjs' } })
+    await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
+    expect(runs.filter(r => r.argv[0].endsWith('prettier'))).toEqual([])
+    expect(toasts.join()).toMatch(/ships its own/)
+  })
+
+  // Configs Prettier would run as code; the second sits next to the file, not at the root.
+  const codeConfigs: Record<string, string> = {
+    '/repo/prettier.config.js': 'module.exports = {}',
+    '/repo/web/.prettierrc.cjs': 'module.exports = {}',
+    '/repo/.prettierrc': '{ "plugins": ["./plug.cjs"] }',
+    '/repo/package.json': '{ "prettier": "./shared-config.js" }',
+  }
+  for (const [path, text] of Object.entries(codeConfigs)) {
+    test(`${path.slice(6)} stops prettier, since it would run repo code`, async ($, on) => {
+      const { runs, toasts } = engine(on, { diff: 'web/app.ts\n', prettier: {}, files: { [path]: text } })
+      await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
+      expect(runs.filter(r => r.argv[0].endsWith('prettier'))).toEqual([])
+      expect(toasts.join()).toMatch(/would run this repo's own code/)
+    })
+  }
+
+  test('a plain data config still lets prettier check the push', async ($, on) => {
+    const { runs } = engine(on, { answer: 'Block it', diff: 'web/app.ts\n', prettier: {}, files: { '/repo/.prettierrc.json': '{ "semi": false }', '/repo/package.json': '{ "name": "x" }' } })
+    await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
+    expect(runs.filter(r => r.argv[0].endsWith('prettier')).length).toBe(1)
   })
 
   test('an npm-installed prettier still checks the push', async ($, on) => {

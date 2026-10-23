@@ -198,6 +198,11 @@ async function unformatted($: EngineInterface, cwd: string): Promise<string[]> {
       $.ui.toast('rulebook-guard: Prettier not checked: this repo ships its own node_modules/.bin/prettier')
       return problems
     }
+    const config = await codeConfig($, root, web)
+    if (config) {
+      $.ui.toast(`rulebook-guard: Prettier not checked: ${config} would run this repo's own code`)
+      return problems
+    }
     const prettier = await $.process.run([bin, '--check', ...web], at).catch(() => null)
     if (prettier && prettier.exitCode === 1) {
       const bad = `${prettier.stdout}\n${prettier.stderr}`.split('\n').filter(l => l.startsWith('[warn] ') && !l.includes('Code style issues')).map(l => l.slice(7).trim())
@@ -208,14 +213,41 @@ async function unformatted($: EngineInterface, cwd: string): Promise<string[]> {
 }
 
 // A Prettier npm installed: it lands inside the repo's node_modules, and git tracks
-// neither the .bin link nor what it points at. A copy the repo commits is never run.
+// nothing in there. A copy the repo commits, or any file it commits under node_modules, is never run.
 async function trustedPrettier($: EngineInterface, root: string, bin: string) {
   const realRoot = await realPath($, root)
   const real = await realPath($, bin)
   if (!realRoot || !real || !inside(real, `${realRoot.replace(/\/$/, '')}/node_modules`)) return false
-  const rel = real.slice(realRoot.replace(/\/$/, '').length + 1)
-  const tracked = await $.process.run([...GIT_SAFE, 'ls-files', '--', 'node_modules/.bin/prettier', rel], { cwd: root }).catch(() => null)
+  const tracked = await $.process.run([...GIT_SAFE, 'ls-files', '--', 'node_modules'], { cwd: root }).catch(() => null)
   return tracked !== null && tracked.exitCode === 0 && tracked.stdout.trim() === ''
+}
+
+// Prettier runs a JS config, a shared config named in package.json, and any plugin a config
+// lists: all code from the repo. It looks for a config from each file's folder up to the root.
+const CODE_CONFIGS = ['prettier.config', '.prettierrc'].flatMap(b => ['js', 'cjs', 'mjs', 'ts', 'cts', 'mts'].map(x => `${b}.${x}`))
+const DATA_CONFIGS = ['.prettierrc', ...['json', 'json5', 'yaml', 'yml', 'toml'].map(x => `.prettierrc.${x}`)]
+
+// The first config that would run repo code for these files, as a path from the root.
+export async function codeConfig($: EngineInterface, root: string, files: string[]) {
+  const dirs = new Set([''])
+  for (const f of files) {
+    const parts = f.split('/').slice(0, -1)
+    for (let i = 1; i <= parts.length; i++) dirs.add(parts.slice(0, i).join('/'))
+  }
+  for (const dir of dirs) {
+    const at = (name: string) => (dir ? `${dir}/${name}` : name)
+    const has = (name: string) => $.fs.exists(`${root}/${at(name)}`).catch(() => false)
+    for (const name of CODE_CONFIGS) if (await has(name)) return at(name)
+    for (const name of DATA_CONFIGS) {
+      if ((await has(name)) && /plugins/.test(await $.fs.read(`${root}/${at(name)}`).catch(() => ''))) return at(name)
+    }
+    if (await has('package.json')) {
+      const pkg = await $.fs.read(`${root}/${at('package.json')}`).catch(() => '')
+      const conf = (() => { try { return JSON.parse(pkg).prettier } catch { return undefined } })()
+      if (typeof conf === 'string' || (conf && conf.plugins)) return at('package.json')
+    }
+  }
+  return undefined
 }
 
 function short(path: string) {
