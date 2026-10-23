@@ -12,7 +12,14 @@ import { label, lines, summary } from './tree'
 import { bandsFile, parseOrder, stackBands } from './bands'
 
 const PANE = 'mission-control'
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+// The first of these that exists draws the code map: Chrome on macOS, then Linux builds.
+const CHROMES = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+]
 const MAX_NODES = 300
 const MAX_FILES = 14
 const BAND_AFTER_MS = 30_000 // the band stays this long after a turn ends
@@ -315,8 +322,15 @@ async function renderSoon($: EngineInterface) {
 }
 
 async function renderMap($: EngineInterface) {
-  if (!(await $.fs.exists(CHROME))) {
-    draw.error = `The code map needs Google Chrome at ${CHROME}.`
+  let chrome = ''
+  for (const path of CHROMES) {
+    if (await $.fs.exists(path)) {
+      chrome = path
+      break
+    }
+  }
+  if (!chrome) {
+    draw.error = `The code map needs Google Chrome or Chromium at one of: ${CHROMES.join(', ')}.`
     await update($, now, () => Date.now()) // redraw the pane with the message
     return
   }
@@ -335,6 +349,6 @@ async function renderMap($: EngineInterface) {
     'mkdir -p "$(dirname "$2")"; rm -f "$2"; "$1" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --no-first-run --no-default-browser-check ' +
     '--user-data-dir="$3" --window-size="$4" --screenshot="$2" "$5" >/dev/null 2>&1 & pid=$!; ' +
     'i=0; while [ ! -s "$2" ] && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done; sleep 0.2; pkill -P $pid 2>/dev/null; kill $pid 2>/dev/null; [ -s "$2" ]'
-  const r = await $.process.run(['sh', '-c', script, 'mission-control', CHROME, png, `${dir}/chrome`, `${width},${height}`, `file://${encodeURI(svgPath)}`], { timeoutMs: 20_000 })
+  const r = await $.process.run(['sh', '-c', script, 'mission-control', chrome, png, `${dir}/chrome`, `${width},${height}`, `file://${encodeURI(svgPath)}`], { timeoutMs: 20_000 })
   if (r.exitCode === 0) await update($, frame, () => ({ file: png, n }))
 }

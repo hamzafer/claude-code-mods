@@ -9,7 +9,7 @@ const PANE = { component: 'Pane', requestId: 'mission-control', props: { title: 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, opts: { noChrome?: boolean; bands?: string; beneath?: unknown } = {}) {
+function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; bands?: string; beneath?: unknown } = {}) {
   const runs: string[][] = []
   resetBandOrder()
   const writes: Record<string, string> = {}
@@ -23,7 +23,7 @@ function engine(on: any, opts: { noChrome?: boolean; bands?: string; beneath?: u
   on('tool.call', () => ({ result: {}, text: 'ok' }))
   on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : e.path.endsWith('/bands.json') ? opts.bands : '' }))
   on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
-  on('fs.exists', (_$: any, e: any) => ({ value: e.path.endsWith('/bands.json') ? opts.bands !== undefined : !opts.noChrome }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path.endsWith('/bands.json') ? opts.bands !== undefined : opts.chromeAt !== undefined ? e.path === opts.chromeAt : !opts.noChrome }))
   on('env.get', () => ({ value: '/tmp/' }))
   on('process.run', (_$: any, e: any) => (runs.push(e.argv), { value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -70,6 +70,19 @@ describe('mission-control', () => {
     await mockClock.advance(800)
     expect(await pane.find({ type: 'Text', text: /needs Google Chrome/ })).toBeDefined()
     expect(runs.some(a => a[0] === 'sh')).toBe(false)
+    await pane.unmount()
+  })
+
+  test('on Linux the code map uses Chromium when that is the browser installed', async ($, on) => {
+    const { runs } = engine(on, { chromeAt: '/usr/bin/chromium-browser' })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'go', turnId: 't1' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/a.ts' } as any)
+    await mockClock.advance(800)
+    expect(await pane.find({ type: 'Text', text: /needs Google Chrome/ })).toBeUndefined()
+    expect(runs.some(a => a[0] === 'sh' && a.includes('/usr/bin/chromium-browser'))).toBe(true)
     await pane.unmount()
   })
 
