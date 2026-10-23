@@ -11,7 +11,7 @@ Most mods add a live line above the Claude Code prompt, like extra status lines.
 
 ![Several Claude Code mods stacked as live lines above the prompt](../images/bands.png)
 
-- context-bar, token-weather, usage-meter, openai-balance, openrouter-balance, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver and now-playing each add one
+- context-bar, token-weather, usage-meter, openai-balance, openrouter-balance, where-am-i, next-steps, agent-radar, review-watch, prayer-times, browser-lanes, merge-gate, glance, session-saver, now-playing, mission-control, switchboard and blast-radius each add one
 - They stack
 - Each hides when it has nothing to show
 
@@ -45,7 +45,7 @@ Shows what fills the Claude Code context window, as one stacked bar.
 
 ![context-bar: Claude Code context window usage as a stacked bar with a legend](../images/context-bar.png)
 
-- One bar the width of the band, split by what fills the window: system prompt, tools, MCP tools, memory files, skills, messages, then free space and the compaction buffer. Each used category gets its own color, messages in orange. Free space is a thin grey line (`─`), and the compaction buffer is hatched (`░`)
+- One bar the width of the band, split by what fills the window: system prompt, tools, MCP tools, memory files, skills, messages, then free space and the compaction buffer. Each used category gets its own color, messages in orange. Free space is a thin gray line (`─`), and the compaction buffer is hatched (`░`)
 - The header shows the tokens in use, the window, where auto-compaction runs, and the percent. The percent turns yellow at 70% of the compaction point and red at 90%
 - The legend lists each category's tokens and share of the window. Tool schemas loaded on demand are left out, as `/context` leaves them out of its grid
 - It refreshes after each of the main agent's turns and after a compaction, from the same breakdown `/context` draws, estimated locally (no extra API calls)
@@ -83,7 +83,7 @@ cache ○ cold · next message re-caches 82k tokens · ttl expired 5m
 - `/cache-clock setup` keeps the status line you have and puts the cache line under it. With no status line, the cache line becomes it. `/cache-clock remove` puts your settings back as they were (if you changed the status line by hand since, it leaves yours alone). `/cache-clock` alone says whether it's on
 - Plugins can't add a status line on their own, so setup points `statusLine` at a small Node script in your Claude config folder (`cache-clock/`), which runs your status line first. It also sets `refreshInterval` to 30 seconds so the countdown keeps moving
 - Setup writes to the settings file your status line comes from, and keeps each file's original separately, so the user settings and several projects can each have it. A project's shared `.claude/settings.json` gets an override in `.claude/settings.local.json` instead. A status line from managed settings is left alone
-- Needs Node on your PATH and Claude Code 2.1.251+ (setup warns if either is missing)
+- Needs Node on your PATH (setup warns if it is missing) and Claude Code 2.1.287+
 
 ### 📍 where-am-i
 
@@ -132,7 +132,7 @@ A GitHub-style grid of your Claude Code time, one square per day.
 - Under the grid: your current and best streak, active hours and sessions, your busiest weekday and hour, and your top 3 projects
 - `p` switches between all projects and this repo. Click the grid, then the arrow keys move a day cursor that shows that day's time, sessions and top project. `q` closes
 - Any activity keeps a streak going, counted on your local calendar. A toast when a streak reaches 7, 30 or 100 days
-- **Its own history:** Claude Code deletes session logs after 30 days by default (`cleanupPeriodDays`). heatmap reads them once to fill in the past, then keeps one small line per day per project in `~/.claude/heatmap/days.jsonl`, so the grid keeps growing after the logs are gone
+- **Its own history:** Claude Code deletes session logs after 30 days by default (`cleanupPeriodDays`). heatmap reads them once to fill in the past, then keeps one small line per day per project in `<config dir>/heatmap/days.jsonl` (the config dir is `CLAUDE_CONFIG_DIR` or `~/.claude`), so the grid keeps growing after the logs are gone
 - A resumed session copies its earlier messages into a new log; those count once. Two sessions running at the same time both count, so a busy day can add up to more than the hours on the clock
 - Everything stays on your computer. It reads only the message times and the project folder from the logs, with `grep`
 
@@ -267,7 +267,7 @@ A Claude Code hook that holds risky commands and shows what they would delete.
 
 ![blast-radius: Claude Code holds rm -rf and lists the files and size it would delete](../images/blast-radius.png)
 
-- Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, rails, alembic)
+- Holds `rm -r`, `git push --force` and migrations (prisma, supabase, drizzle-kit, knex, sequelize, rails, alembic, typeorm)
 - Lists the files and size an `rm` would delete. It expands `~` and `$HOME`. A path with any other shell variable shows "can't preview" instead of a guess
 - Lists the remote commits a force push would drop
 - No answer in 60 s cancels the command
@@ -382,7 +382,7 @@ Shows Spotify's current track and lyrics in Claude Code.
 YouTube Shorts or a game of Snake in a Claude Code pane while it works.
 
 - Installing them changes nothing until you type `/reels` or `/snake`
-- `stop` turns them off again. For snake, typing `/snake` again does it too
+- `/reels stop` turns reels off again. For snake, `/snake off` or typing `/snake` again does it
 - Reels needs Playwright once, and `/reels` prints the install command
 - `/reels login` opens a YouTube window to accept cookies or sign in. Close it, then run `/reels`
 - In the reels pane, `j` is next, `k` previous, `m` mute and `x` stop
