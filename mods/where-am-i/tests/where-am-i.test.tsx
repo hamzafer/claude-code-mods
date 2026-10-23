@@ -14,6 +14,7 @@ function engine(on: any, reply: string | (() => unknown), beneath?: unknown) {
   on('prompt.submit', () => ({ text: '' }))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
   on('turn.complete', () => ({ text: '' }))
+  on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
   on('agent.list', () => ({ value: [{ id: 'a1', description: 'sweep runner', type: 'general-purpose', status: 'running' }] }))
   on('model.complete', typeof reply === 'function' ? reply : () => ({ value: { isAnswered: true, text: reply, usage: { input_tokens: 1, output_tokens: 1 } } }))
   on('session.messages', () => ({ value: [{ role: 'user', text: 'build the mods', toolUses: [] }] }))
@@ -54,20 +55,43 @@ describe('where-am-i', () => {
     await ui.unmount()
   })
 
-  test('a summary that lands after the next message is dropped', async ($, on) => {
-    let answer = (_text: string) => {}
-    engine(on, () => new Promise(done => (answer = text => done({ value: { isAnswered: true, text, usage: { input_tokens: 1, output_tokens: 1 } } }))))
+  // Haiku holds its recap until `answer` is called.
+  function slowHaiku(on: any) {
+    const held = { answer: (_text: string) => {} }
+    engine(on, () => new Promise(done => (held.answer = text => done({ value: { isAnswered: true, text, usage: { input_tokens: 1, output_tokens: 1 } } }))))
+    return held
+  }
+  const OLD = '{"goal":"Ship 3 mods","now":"old turn","waiting":"you to test it","next":""}'
+
+  test('a summary that lands after the next turn starts is dropped', async ($, on) => {
+    const haiku = slowHaiku(on)
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await $.prompt.submit({ text: 'ship all 3' } as any)
-    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'done', durationMs: 1 } as any)
     await wait()
 
-    // Haiku is still writing the recap when the next message arrives.
+    // Haiku is still writing the recap when the next turn starts.
     await $.prompt.submit({ text: 'now the next one' } as any)
-    answer('{"goal":"Ship 3 mods","now":"old turn","waiting":"you to test it","next":""}')
+    await $.turn.start({ turnId: 't2' } as any)
+    haiku.answer(OLD)
     await wait()
     const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /old turn|waiting on you/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('a slash command while Haiku writes keeps its summary', async ($, on) => {
+    const haiku = slowHaiku(on)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.prompt.submit({ text: 'ship all 3' } as any)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+
+    await $.prompt.submit({ text: '/where' } as any) // starts no turn of Claude's
+    haiku.answer(OLD)
+    await wait()
+    const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /waiting on you: you to test it/ })).toBeDefined() // now shows the live line meanwhile
     await ui.unmount()
   })
 
