@@ -10,19 +10,21 @@ import { optionsLoader, collect, save, createPrompt } from './options.js';
 import { missing, warning } from './needs.js';
 import { preview } from './preview.js';
 
-export const USAGE = `Usage: claude-code-mods [--pick a,b] [--project] [--dry-run]
+export const USAGE = `Usage: claude-code-mods [--pick a,b] [--project] [--dry-run] [--yes-community]
 
-  --pick a,b   Turn on exactly these mods (--pick "" turns all off)
-  --project    Install and toggle for this project only
-  --dry-run    Print the claude commands instead of running them
-  --help       Show this help`;
+  --pick a,b       Turn on exactly these mods (--pick "" turns all off)
+  --project        Install and toggle for this project only
+  --dry-run        Print the claude commands instead of running them
+  --yes-community  Install picked community mods without asking (needed outside a terminal)
+  --help           Show this help`;
 
 export function parseArgs(argv) {
-  const opts = { pick: null, dryRun: false, project: false, help: false };
+  const opts = { pick: null, dryRun: false, project: false, help: false, yesCommunity: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--project') opts.project = true;
+    else if (a === '--yes-community') opts.yesCommunity = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--pick' || a.startsWith('--pick=')) {
       const value = a === '--pick' ? argv[++i] : a.slice('--pick='.length);
@@ -40,6 +42,12 @@ const doneLabel = (a) => a.verb === 'marketplace' ? `added the ${a.market || MAR
   : a.verb === 'refresh' ? `updated the ${a.market || MARKET} marketplace` : `${DONE[a.verb]} ${a.name}`;
 // Shown when a community mod is ticked: it is someone else's code.
 export const communityNote = (m) => `Community mod by @${m.author}, not maintained here. Read its code first: ${m.url}`;
+// Asked once before any new community mod installs. Default is no.
+export const communityWarning = (list) => [
+  'These community mods are third-party code, not reviewed or maintained here:',
+  ...list.map((m) => `  ${m.name} by @${m.author} (${m.repo})`),
+  "Each installs from its author's own marketplace at the latest version, which can change at any time.",
+].join('\n');
 const firstLine = (s) => clean(String(s).trim().split('\n')[0]).trim();
 
 async function listJson(run, args) {
@@ -179,20 +187,52 @@ export async function main(argv, {
     state ??= readState(await listJson(run, ['plugin', 'list', '--json']), { scope, cwd, community });
     const catalog = [...names];
     let actions = planActions({ state, picked: opts.pick, scope, catalog, community });
+    let markets;
     if (actions.some((a) => a.verb === 'install' || a.verb === 'enable')) {
-      const markets = (await listJson(run, ['plugin', 'marketplace', 'list', '--json'])).map((m) => m.name);
+      markets = (await listJson(run, ['plugin', 'marketplace', 'list', '--json'])).map((m) => m.name);
       actions = planActions({ state, picked: opts.pick, scope, catalog, community, markets });
     }
     // Options come from our repo's plugin.json, so only our own mods are asked.
     const ours = (name) => !byName(name)?.marketplace;
 
+    // New community mods need a yes first: --yes-community, or an answer in a terminal.
+    // Already installed ones only get enabled or disabled, so they are not asked.
+    const fresh = actions.filter((a) => a.verb === 'install' && !ours(a.name)).map((a) => byName(a.name));
+    let confirmed = false;
+    if (fresh.length && !opts.yesCommunity) {
+      const list = fresh.map((m) => m.name).join(', ');
+      if (!isTTY) {
+        out(`Skipped community mods: ${list}. They are third-party code; pass --yes-community to install them.`);
+      } else if (opts.dryRun) {
+        out(`${communityWarning(fresh)}\nwould ask: Install them? (y/N)`);
+        confirmed = true;
+      } else {
+        out(communityWarning(fresh));
+        const prompt = makePrompt();
+        let answer = '';
+        try {
+          answer = await prompt.ask('Install them? (y/N) ');
+        } catch (e) {
+          if (e.code !== 'ABORT') throw e;
+          out('');
+        } finally { prompt.close(); }
+        confirmed = /^(y|yes)$/i.test(String(answer).trim());
+        if (!confirmed) out(`Skipped community mods: ${list}.`);
+      }
+      if (!confirmed) {
+        const skip = new Set(fresh.map((m) => m.name));
+        opts.pick = opts.pick.filter((n) => !skip.has(n));
+        actions = planActions({ state, picked: opts.pick, scope, catalog, community, markets });
+      }
+    }
+
     if (!actions.length) {
       out('Nothing to change.');
       return 0;
     }
-    // Someone else's code is about to turn on: say so first.
+    // Someone else's code is about to turn on: say so first (unless just asked).
     for (const a of actions.filter((a) => (a.verb === 'install' || a.verb === 'enable') && !ours(a.name))) {
-      out(communityNote(byName(a.name)));
+      if (!(confirmed && a.verb === 'install')) out(communityNote(byName(a.name)));
     }
     if (opts.dryRun) {
       for (const a of actions) out(toShell(a));

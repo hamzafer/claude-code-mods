@@ -8,13 +8,14 @@ npx claude-code-mods@latest
 
 Tick the mods you want, see what each one adds, and press Enter to install. Untick a mod to disable it (its settings stay). Restart Claude Code after.
 
-Community mods (made by other people, not maintained here) are listed last; each installs from its own marketplace, so read its code first.
+Community mods (made by other people, not maintained here) are listed last; each installs from its author's own marketplace at the latest version, so read its code first. Before installing a new one, it lists them and asks; the default is no.
 
 ## Flags
 
 - `--pick a,b` turns on exactly these mods (`--pick ""` turns all off)
 - `--project` installs and toggles for this project only
 - `--dry-run` prints the `claude` commands instead of running them
+- `--yes-community` installs picked community mods without asking; outside a terminal they are skipped without it
 - `--help` shows usage
 
 It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods@latest`.

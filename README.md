@@ -43,6 +43,7 @@ Tick the mods you want in a checklist, see what each one adds, and press Enter t
 - `--project` installs for this project only
 - `--dry-run` prints the `claude` commands instead of running them
 - `--pick a,b` turns on exactly these mods, no checklist
+- `--yes-community` installs picked community mods without asking (outside a terminal they are skipped without it)
 
 It edits the Claude profile that `claude` uses here, shown at the top. For another profile, set it first: `CLAUDE_CONFIG_DIR=~/.claude-other npx claude-code-mods@latest`.
 

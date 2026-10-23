@@ -44,8 +44,9 @@ const installed = [
 
 test('parseArgs reads every flag', () => {
   assert.deepEqual(parseArgs(['--pick', 'a,b', '--dry-run', '--project']), {
-    pick: ['a', 'b'], dryRun: true, project: true, help: false,
+    pick: ['a', 'b'], dryRun: true, project: true, help: false, yesCommunity: false,
   });
+  assert.equal(parseArgs(['--yes-community']).yesCommunity, true);
   assert.deepEqual(parseArgs(['--pick=a, b']).pick, ['a', 'b']);
   assert.equal(parseArgs([]).pick, null);
   assert.equal(parseArgs(['--help']).help, true);
@@ -430,7 +431,7 @@ const goCommunity = (argv, claude, extra = {}) => go(argv, claude, { loadCatalog
 
 test('--pick takes community names; --dry-run adds their marketplace once, then installs', async () => {
   const r = await goCommunity(
-    ['--pick', 'context-bar,image-view,cache-meter,usage-limits', '--dry-run'],
+    ['--pick', 'context-bar,image-view,cache-meter,usage-limits', '--dry-run', '--yes-community'],
     fakeClaude({ plugins: installed, markets: [{ name: 'claude-code-mods' }, { name: 'claude-image-view' }] }),
   );
   assert.equal(r.code, 0);
@@ -458,7 +459,7 @@ test('an installed community mod counts as ticked, and unticking it only disable
 
 test('applying a community mod reports its marketplace and asks no options', async () => {
   let asked = 0;
-  const r = await goCommunity(['--pick', 'context-bar,image-view'], fakeClaude({ plugins: installed, markets: [] }), {
+  const r = await goCommunity(['--pick', 'context-bar,image-view', '--yes-community'], fakeClaude({ plugins: installed, markets: [] }), {
     loadOptions: async () => { asked++; return {}; },
   });
   assert.equal(r.code, 0);
@@ -496,4 +497,94 @@ test('p on a community mod points at its repo, no screenshot lookup', async () =
   await goCommunity([], fakeClaude(), { isTTY: true, checklist, showPreview: async () => { looked = true; return { message: 'x' }; } });
   assert.equal(looked, false);
   assert.deepEqual(results, [{ message: 'No screenshot here, see https://github.com/jarrodwatts/claude-image-view' }]);
+});
+
+// A new community mod needs a yes before it installs.
+const WARNING = [
+  'These community mods are third-party code, not reviewed or maintained here:',
+  '  image-view by @jarrodwatts (jarrodwatts/claude-image-view)',
+  '  cache-meter by @T-AI-Labs (T-AI-Labs/claude-code-mods)',
+  "Each installs from its author's own marketplace at the latest version, which can change at any time.",
+].join('\n');
+const theirCalls = (calls) => calls.filter((c) => /image-view|cache-meter|T-AI-Labs/.test(c));
+
+test('in a terminal, new community mods are listed once and yes installs them', async () => {
+  const p = fakePrompt(['y']);
+  const asked = [];
+  const makePrompt = () => { const q = p.makePrompt(); return { ...q, ask: (s, o) => { asked.push(s); return q.ask(s, o); } }; };
+  const r = await goCommunity(['--pick', 'context-bar,image-view,cache-meter'], fakeClaude({ plugins: installed, markets: [] }), { isTTY: true, makePrompt });
+  assert.equal(r.code, 0);
+  assert.deepEqual(asked, ['Install them? (y/N) ']);
+  assert.ok(p.closed());
+  assert.ok(r.out.startsWith(WARNING + '\n'));
+  // Asked before any claude command for them runs.
+  assert.deepEqual(r.calls.slice(0, 2), ['plugin list --json', 'plugin marketplace list --json']);
+  assert.deepEqual(theirCalls(r.calls), [
+    'plugin marketplace add jarrodwatts/claude-image-view',
+    'plugin marketplace add T-AI-Labs/claude-code-mods',
+    'plugin install image-view@claude-image-view --scope user',
+    'plugin install cache-meter@T-AI-Labs --scope user',
+  ]);
+  assert.match(r.out, /✓ installed image-view\n✓ installed cache-meter/);
+});
+
+test('no (or just Enter) skips only the community mods', async () => {
+  for (const answer of ['n', '']) {
+    const p = fakePrompt([answer]);
+    const r = await goCommunity(['--pick', 'context-bar,where-am-i,image-view,cache-meter'], fakeClaude({ plugins: installed, markets: [] }), { isTTY: true, makePrompt: p.makePrompt });
+    assert.equal(r.code, 0);
+    assert.deepEqual(theirCalls(r.calls), []);
+    assert.ok(r.calls.includes('plugin install where-am-i@claude-code-mods --scope user'));
+    assert.match(r.out, /^Skipped community mods: image-view, cache-meter\.$/m);
+    assert.match(r.out, /✓ installed where-am-i/);
+  }
+});
+
+test('outside a terminal, new community mods are skipped without --yes-community', async () => {
+  const p = fakePrompt([]);
+  const r = await goCommunity(['--pick', 'context-bar,where-am-i,image-view'], fakeClaude({ plugins: installed, markets: [] }), { makePrompt: p.makePrompt });
+  assert.equal(r.code, 0);
+  assert.equal(p.asked.length, 0);
+  assert.deepEqual(theirCalls(r.calls), []);
+  assert.ok(r.calls.includes('plugin install where-am-i@claude-code-mods --scope user'));
+  assert.match(r.out, /^Skipped community mods: image-view\. They are third-party code; pass --yes-community to install them\.$/m);
+});
+
+test('--yes-community installs them without asking, terminal or not', async () => {
+  for (const isTTY of [false, true]) {
+    const p = fakePrompt([]);
+    const r = await goCommunity(['--pick', 'context-bar,image-view', '--yes-community'], fakeClaude({ plugins: installed, markets: [] }), { isTTY, makePrompt: p.makePrompt });
+    assert.equal(r.code, 0);
+    assert.equal(p.asked.length, 0);
+    assert.ok(r.calls.includes('plugin install image-view@claude-image-view --scope user'));
+    assert.doesNotMatch(r.out, /Skipped/);
+  }
+});
+
+test('an installed community mod being enabled or disabled is not asked about', async () => {
+  const plugins = [...installed, { id: 'image-view@claude-image-view', scope: 'user', enabled: false }];
+  const p = fakePrompt([]);
+  let r = await goCommunity(['--pick', 'context-bar,image-view'], fakeClaude({ plugins }), { isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(p.asked.length, 0);
+  assert.ok(r.calls.includes('plugin enable image-view@claude-image-view --scope user'));
+  assert.doesNotMatch(r.out, /Skipped|third-party/);
+  r = await goCommunity(['--pick', 'context-bar,image-view'], fakeClaude({ plugins }));
+  assert.ok(r.calls.includes('plugin enable image-view@claude-image-view --scope user'));
+  const on = [...installed, { id: 'image-view@claude-image-view', scope: 'user', enabled: true }];
+  r = await goCommunity(['--pick', 'context-bar'], fakeClaude({ plugins: on }), { isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(p.asked.length, 0);
+  assert.ok(r.calls.includes('plugin disable image-view@claude-image-view --scope user'));
+  // Next to a new one, only the new one is listed.
+  const q = fakePrompt(['y']);
+  r = await goCommunity(['--pick', 'context-bar,image-view,cache-meter'], fakeClaude({ plugins }), { isTTY: true, makePrompt: q.makePrompt });
+  assert.equal(q.asked.length, 1);
+  assert.match(r.out, /not reviewed or maintained here:\n {2}cache-meter by @T-AI-Labs \(T-AI-Labs\/claude-code-mods\)\nEach installs/);
+});
+
+test('--dry-run in a terminal shows the warning and asks nothing', async () => {
+  const p = fakePrompt([]);
+  const r = await goCommunity(['--pick', 'context-bar,image-view', '--dry-run'], fakeClaude({ plugins: installed }), { isTTY: true, makePrompt: p.makePrompt });
+  assert.equal(p.asked.length, 0);
+  assert.match(r.out, /would ask: Install them\? \(y\/N\)/);
+  assert.match(r.out, /claude plugin install image-view@claude-image-view --scope user/);
 });
