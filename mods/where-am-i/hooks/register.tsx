@@ -40,16 +40,21 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    // A slash command like /where answers nothing the last turn waited on, and may start no turn:
+    // leave the band as it is. One that does start a turn is picked up by turn.start.
+    if (e.text.startsWith('/')) return next(e)
     prompt = e.text.slice(0, 1500)
     log = []
     await update($, live, () => 'reading your message')
-    if (!e.text.startsWith('/')) await clearWaiting($) // a slash command like /where answers nothing the last turn waited on
+    await clearWaiting($)
     return next(e)
   })
 
   // A new turn of Claude's own: a summary of an older one is stale, and the person has answered.
   on('turn.start', async ($, e, next) => {
     if (!e.agentId) {
+      if (e.text) prompt = e.text.slice(0, 1500) // also a turn a slash command started
+      log = []
       await update($, latest, () => e.turnId ?? '')
       await clearWaiting($)
     }

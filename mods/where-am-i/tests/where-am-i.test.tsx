@@ -91,7 +91,19 @@ describe('where-am-i', () => {
     haiku.answer(OLD)
     await wait()
     const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
-    expect(await ui.find({ type: 'Text', text: /waiting on you: you to test it/ })).toBeDefined() // now shows the live line meanwhile
+    expect(await ui.find({ type: 'Text', text: /waiting on you: you to test it/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a slash command that starts no turn leaves now as it was', async ($, on) => {
+    engine(on, '{"goal":"Ship 3 mods","now":"built Where Am I","waiting":"","next":""}')
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+    await $.prompt.submit({ text: '/where' } as any)
+    const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /^built Where Am I$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /reading your message/ })).toBeUndefined()
     await ui.unmount()
   })
 

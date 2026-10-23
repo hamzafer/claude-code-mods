@@ -67,7 +67,7 @@ export const register: Register = on => {
   on('command.run', { command: 'heatmap' }, async $ => {
     await update($, isLoading, () => rows === null)
     await $.ui.open({ id: PANE, title: 'Heatmap', focus: true })
-    void refresh($).then(() => update($, isLoading, () => false)).catch(() => {}) // today stays current mid-session
+    void refresh($).finally(() => update($, isLoading, () => false)).catch(() => {}) // today stays current mid-session; never stuck on loading
     return { text: 'Opened the heatmap' }
   })
 
