@@ -39,7 +39,7 @@ const now = atom({ plugin: 'mission-control', key: 'now' } as const, 0)
 // Drawing bookkeeping; a reload starts it over.
 const draw = { size: { columns: 100, rows: 30 }, pending: false, dirty: false, n: 0, error: '' }
 const changes = new Map<string, string[]>() // path → this turn's edits, for the one-line "why"
-const MAX_CHANGES = 5 // the last few edits per file are enough for the "why"
+const MAX_CHANGES = 5 // the first edit and the latest few per file are enough for the "why"
 
 // Under the cap, the oldest tool calls go first; main and the agents always stay.
 export function cap(list: MissionNode[]) {
@@ -125,7 +125,8 @@ export const register: Register = on => {
     }
     if (path && !failed && (e.tool === 'Edit' || e.tool === 'Write')) {
       const what = e.tool === 'Edit' ? `- ${String(args.old_string ?? '').slice(0, 300)}\n+ ${String(args.new_string ?? '').slice(0, 300)}` : `wrote ${String(args.content ?? '').slice(0, 400)}`
-      changes.set(path, [...(changes.get(path) ?? []), what].slice(-MAX_CHANGES))
+      const list = [...(changes.get(path) ?? []), what]
+      changes.set(path, list.length > MAX_CHANGES ? [list[0], ...list.slice(1 - MAX_CHANGES)] : list) // the first edit and the latest few
       await touch($, path, e.tool === 'Edit' ? 'edit' : 'write', true)
     }
     return r

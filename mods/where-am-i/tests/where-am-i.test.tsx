@@ -8,7 +8,7 @@ const wait = () => new Promise(done => (globalThis as any).setTimeout(done, 10))
 
 // Stands for the engine beneath the mod.
 // `reply` is Haiku's text, or a handler that answers `model.complete` itself.
-function engine(on: any, reply: string | (() => unknown), beneath?: unknown) {
+function engine(on: any, reply: string | ((...args: any[]) => unknown), beneath?: unknown) {
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   on('prompt.submit', () => ({ text: '' }))
@@ -105,6 +105,20 @@ describe('where-am-i', () => {
     expect(await ui.find({ type: 'Text', text: /^built Where Am I$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /reading your message/ })).toBeUndefined()
     await ui.unmount()
+  })
+
+  test('a turn Claude Code starts itself keeps the person\'s message as the prompt', async ($, on) => {
+    const asked: string[] = []
+    engine(on, (_$: any, e: any) => (asked.push(e.prompt), { value: { isAnswered: true, text: '{"goal":"g","now":"n","waiting":"","next":""}', usage: { input_tokens: 1, output_tokens: 1 } } }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.prompt.submit({ text: 'ship all 3' } as any)
+    await $.turn.start({ turnId: 't1', text: 'ship all 3' } as any)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'started an agent', durationMs: 1 } as any)
+    await $.turn.start({ turnId: 't2', text: '<task-notification>agent done</task-notification>' } as any) // a background agent finished
+    await $.turn.complete({ turnId: 't2', reason: 'answer', answer: 'the agent is done', durationMs: 1 } as any)
+    await wait()
+    expect(asked[1]).toContain("The person's latest message: ship all 3")
+    expect(asked[1]).not.toContain('task-notification')
   })
 
   test('leaves out next while the next-steps mod shows it', async ($, on) => {
