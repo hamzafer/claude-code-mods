@@ -16,6 +16,10 @@ const mods = plugins.filter(p => typeof p.source === 'string' && /^\.\/mods\/[^/
 const count = mods.length
 const pageOf = name => `site/mods/${name}/index.html`
 
+// The JSON-LD block of a page that has `key`: a page may carry more than one.
+const ldWith = (html, key) =>
+  [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m => JSON.parse(m[1])).find(d => key in d)
+
 // Mod pages that ship without a screenshot or video for now. Add one, then take the mod
 // off this list: the test fails while a listed mod has a picture, so the list only shrinks.
 const NO_SCREENSHOT_YET = [
@@ -40,6 +44,12 @@ const sitemap = read('site/sitemap.xml')
 
 test('the marketplace lists mods from mods/', () => {
   assert.ok(count > 0, 'no marketplace entry has a ./mods/<name> source')
+})
+
+test('every folder in mods/ is in the marketplace', () => {
+  const dirs = readdirSync(join(root, 'mods'), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name)
+  const unlisted = dirs.filter(d => !mods.some(m => m.source === `./mods/${d}`))
+  assert.deepEqual(unlisted, [], `mods/ has mods missing from .claude-plugin/marketplace.json: ${unlisted.join(', ')}`)
 })
 
 test('every folder in site/mods/ is a marketplace mod', () => {
@@ -69,15 +79,14 @@ for (const mod of mods) {
     const html = read(page)
     const chips = [...html.matchAll(/>Version ([^<\s]+)</g)].map(m => m[1])
     assert.deepEqual(chips, [version], `${page}: the "Version" chip should read "Version ${version}" (found: ${chips.join(', ') || 'none'})`)
-    const ld = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)
-    assert.ok(ld, `${page} has no JSON-LD <script type="application/ld+json">`)
-    assert.equal(JSON.parse(ld[1]).version, version, `${page}: the JSON-LD "version" should be "${version}"`)
+    const ld = ldWith(html, 'version')
+    assert.ok(ld, `${page} has no JSON-LD <script type="application/ld+json"> with a "version"`)
+    assert.equal(ld.version, version, `${page}: the JSON-LD "version" should be "${version}"`)
   })
 
   test(`${name}: site/index.html links to its page`, () => {
     assert.ok(index.includes(`href="mods/${name}/"`), `site/index.html has no row linking to href="mods/${name}/"`)
-    const ld = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(index)
-    const items = ld ? JSON.parse(ld[1]).mainEntity?.itemListElement ?? [] : []
+    const items = ldWith(index, 'mainEntity')?.mainEntity?.itemListElement ?? []
     assert.ok(items.some(i => i.url === url), `site/index.html JSON-LD itemListElement has no entry with "url": "${url}"`)
   })
 
@@ -86,7 +95,7 @@ for (const mod of mods) {
   })
 
   test(`${name}: screenshot status matches NO_SCREENSHOT_YET`, { skip: !existsSync(join(root, page)) }, () => {
-    const hasPicture = /<(img|video)\b/.test(read(page))
+    const hasPicture = /<(?:img|video)\b[^>]*\b(?:src|poster)="[^"]*images\//.test(read(page)) // a screenshot, not a logo or icon
     if (NO_SCREENSHOT_YET.includes(name)) {
       assert.ok(!hasPicture, `${page} now has an <img> or <video>: take '${name}' off NO_SCREENSHOT_YET in test/site.test.mjs`)
     } else {
@@ -96,8 +105,7 @@ for (const mod of mods) {
 }
 
 test('index JSON-LD lists exactly the marketplace mods', () => {
-  const ld = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(index)
-  const items = ld ? JSON.parse(ld[1]).mainEntity?.itemListElement ?? [] : []
+  const items = ldWith(index, 'mainEntity')?.mainEntity?.itemListElement ?? []
   assert.equal(items.length, count, `site/index.html JSON-LD itemListElement has ${items.length} entries, expected ${count}`)
 })
 
@@ -106,12 +114,12 @@ test('mod counts on site pages match the marketplace', () => {
   const wrong = []
   let seen = 0
   for (const page of pages) {
-    for (const m of read(page).matchAll(/\b(\d+) mods\b/g)) {
+    for (const m of read(page).matchAll(/\b[Aa]ll (\d+) mods\b/g)) {
       seen++
       if (Number(m[1]) !== count) wrong.push(`${page}: "${m[0]}" should be "${count} mods"`)
     }
   }
-  assert.ok(seen > 0, 'no "N mods" count found on any site page; update this test if the wording changed')
+  assert.ok(seen > 0, 'no "All N mods" count found on any site page; update this test if the wording changed')
   assert.deepEqual(wrong, [], wrong.join('\n'))
 })
 
@@ -123,14 +131,15 @@ test('every image and video a site page references exists under site/', () => {
     const html = read(page)
     const refs = [
       ...[...html.matchAll(/\b(?:src|poster)="([^"]+)"/g)].map(m => m[1]),
-      ...[...html.matchAll(/https:\/\/hamzafer\.github\.io\/claude-code-mods\/[^"'\s<>)]+/g)].map(m => m[0]).filter(u => MEDIA.test(u)),
+      ...[...html.matchAll(/https:\/\/hamzafer\.github\.io\/claude-code-mods\/[^"'\s<>)]+/g)].map(m => m[0].split(/[?#]/)[0]).filter(u => MEDIA.test(u)),
     ]
     for (const ref of refs) {
       if (/^(data:|https?:\/\/(?!hamzafer\.github\.io\/claude-code-mods\/))/.test(ref)) continue
       let file
-      if (ref.startsWith(BASE)) file = join('site', ref.slice(BASE.length))
-      else if (ref.startsWith('/claude-code-mods/')) file = join('site', ref.slice('/claude-code-mods/'.length))
-      else file = normalize(join(dirname(page), ref.split(/[?#]/)[0]))
+      const path = ref.split(/[?#]/)[0] // a cache-busting ?v=1 still names the same file
+      if (path.startsWith(BASE)) file = join('site', path.slice(BASE.length))
+      else if (path.startsWith('/claude-code-mods/')) file = join('site', path.slice('/claude-code-mods/'.length))
+      else file = normalize(join(dirname(page), path))
       if (!relative('site', file).startsWith('..') && existsSync(join(root, file))) continue
       missing.push(`${page}: "${ref}" -> ${file} does not exist`)
     }
