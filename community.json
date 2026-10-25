@@ -107,6 +107,15 @@
       "url": "https://github.com/BordyV/brainrot-break",
       "description": "A TikTok-style feed of 350+ pixel art mini-videos in a pane while Claude answers: scroll, like, pick your themes, and an end card when Claude is done. Every video is a small simulation drawn locally: no tokens, no model calls. Terminal and desktop app, in 6 languages",
       "tags": ["pane", "band", "command"]
+    },
+    {
+      "name": "cc-esol",
+      "marketplace": "esol",
+      "repo": "rapha-rodrigues/cc-esol",
+      "author": "rapha-rodrigues",
+      "url": "https://github.com/rapha-rodrigues/cc-esol",
+      "description": "An English coach for non-native speakers in a sidebar: Claude logs a native rewrite of each English prompt, with the reasons, to a local learning log. Also a Focus progress band, terminal themes and model controls",
+      "tags": ["pane", "band", "command"]
     }
   ]
 }
