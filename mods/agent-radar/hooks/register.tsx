@@ -29,6 +29,7 @@ let bandOrder: Promise<string[]> | undefined // read once per session: restart t
 let isPolling = false // a slow lsof must not let two polls overlap
 let lsofBin: string | null | undefined // undefined: not tried yet; null: none works
 let lsofRetryAt = 0 // with lsofBin null: when to look for one again
+let hasProc: boolean | undefined // undefined: not tried yet; false: no Linux /proc to fall back on
 
 export const register: Register = on => {
   let timers: Timer[] = []
@@ -224,6 +225,7 @@ export function resetBandOrder() {
   bandOrder = undefined
   lsofBin = undefined
   lsofRetryAt = 0
+  hasProc = undefined
   isPolling = false
 }
 
@@ -309,7 +311,9 @@ async function openFiles($: EngineInterface, files: string[]): Promise<Set<strin
 
 // The files open in any process we can see, from /proc/*/fd; undefined with no /proc (macOS).
 async function procOpen($: EngineInterface): Promise<Set<string> | undefined> {
+  if (hasProc === false) return undefined
   const r = await $.process.run(['sh', '-c', OPEN_SH], { timeoutMs: 8_000 }).catch(() => null)
+  if (r?.exitCode === 2) hasProc = false // not Linux: no process every poll for nothing
   return r && r.exitCode === 0 ? parseOpen(r.stdout) : undefined
 }
 
