@@ -8,7 +8,7 @@
     {
       "name": "agent-radar",
       "description": "One live line above the prompt per running subagent or background shell: its model, time, tool count and what it's doing. /radar shows every agent and its messages.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "source": "./mods/agent-radar",
       "category": "See what's happening",
       "tags": [
@@ -118,7 +118,7 @@
     {
       "name": "mission-control",
       "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "source": "./mods/mission-control",
       "category": "See what's happening",
       "tags": [

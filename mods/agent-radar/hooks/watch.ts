@@ -71,6 +71,14 @@ for f in "$@"; do printf '\\001%s\\n' "$f"; tail -c 16384 -- "$f" 2>/dev/null | 
 exit 0
 `
 
+// Every file some process we can see holds open, as `lsof -Fn` lines (`n<path>`), from Linux's /proc:
+// for a machine without lsof. Exits 2 with no /proc, so the caller knows it cannot say.
+export const OPEN_SH = `# radar:open
+[ -d /proc/self/fd ] || exit 2
+ls -l /proc/[0-9]*/fd/ 2>/dev/null | sed -n 's/.* -> /n/p'
+exit 0
+`
+
 // Splits "\001path\n<body>" blocks.
 export function blocks(stdout: string): { path: string; body: string }[] {
   return stdout

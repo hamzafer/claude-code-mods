@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="../../style.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "agent-radar", "description": "One live line above the Claude Code prompt per running subagent or background shell: its model, time, tool count and what it's doing. /radar shows every agent and its messages.", "url": "https://hamzafer.github.io/claude-code-mods/mods/agent-radar/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/agent-radar", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.3.0", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "agent-radar", "description": "One live line above the Claude Code prompt per running subagent or background shell: its model, time, tool count and what it's doing. /radar shows every agent and its messages.", "url": "https://hamzafer.github.io/claude-code-mods/mods/agent-radar/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/agent-radar", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.3.1", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/og.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "agent-radar", "item": "https://hamzafer.github.io/claude-code-mods/mods/agent-radar/"}]}</script>
 </head>
 <body class="mod c-see">
@@ -43,7 +43,7 @@
 <header class="mod-head">
   <h1>agent-radar</h1>
   <p class="lede">One live line above the prompt per running subagent or background shell: its model, time, tool count and what it&#x27;s doing.</p>
-  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.3.0</span></p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.3.1</span></p>
 </header>
 <figure class="shot shot-wide"><div class="shot-frame"><img style="--w:660px" src="../../images/agent-radar.png" width="1320" height="132" alt="agent-radar: a review subagent on Sonnet 5.5 at 24s with 14 tools, and two background shells, web tests and Watch CI, with their latest output" decoding="async" fetchpriority="high"></div><figcaption>A subagent and two background shells, each with its latest line.</figcaption></figure>
 <div class="mod-body">
@@ -71,7 +71,7 @@ claude plugin install agent-radar@claude-code-mods"><code><span class="ps" aria-
 <li>A subagent&#x27;s line names the model it runs on, like <code>sweep runner (Sonnet 5.5)</code>.</li>
 <li>A finished agent shows a check for 30 seconds, then its line goes away.</li>
 <li>A toast says when each one finishes.</li>
-<li>A background Bash command (<code>run_in_background</code>, or one moved to the background with Ctrl+B) gets a line too, tagged <code>sh</code>. One that runs <code>codex exec</code>, <code>opencode run</code> and the like is labeled with that agent and model. It ends when Claude Code closes its output file, found by <code>lsof</code> every 5 seconds, so without <code>lsof</code> it stays &quot;running&quot;.</li>
+<li>A background Bash command (<code>run_in_background</code>, or one moved to the background with Ctrl+B) gets a line too, tagged <code>sh</code>. One that runs <code>codex exec</code>, <code>opencode run</code> and the like is labeled with that agent and model. It ends when Claude Code closes its output file, found by <code>lsof</code> every 5 seconds (on Linux without <code>lsof</code>, by <code>/proc</code>; an <code>lsof</code> installed mid-session is found within a minute). With neither, it stays &quot;running&quot;.</li>
 </ul>
 </section>
 </div>
@@ -79,7 +79,7 @@ claude plugin install agent-radar@claude-code-mods"><code><span class="ps" aria-
 <section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
 <ul class="needs">
 <li>Claude Code 2.1.287 or newer</li>
-<li><code>lsof</code> to tell when a background shell ends (macOS and Linux have it)</li>
+<li><code>lsof</code> to tell when a background shell ends (macOS has it; Linux can do without, through <code>/proc</code>)</li>
 </ul>
 </section>
 <section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>

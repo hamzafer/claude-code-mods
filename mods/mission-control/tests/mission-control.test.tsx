@@ -259,6 +259,22 @@ describe('mission-control', () => {
     await again.unmount()
   })
 
+  test('on Windows a page that stops being writable says so in the pane', async ($, on) => {
+    const opts = { env: { OS: 'Windows_NT', TEMP: 'C:\\Temp' }, pageFails: false }
+    const { clock } = engine(on, opts)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: 'C:\\repo' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    await pane.press({ key: 'open' })
+    opts.pageFails = true
+    await $.tool.call({ tool: 'Read', file_path: 'C:\\repo\\README.md' } as any)
+    await clock.advance(800)
+    await pane.unmount()
+    const again = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await again.find({ type: 'Text', text: /Could not update C:\\Temp\\mission-control-map\.html/ })).toBeDefined()
+    await again.unmount()
+  })
+
   test('a second session.start keeps one clock, not two', async ($, on) => {
     const { clock } = engine(on)
     let ticks = 0 // each tick with work running writes now once

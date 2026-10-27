@@ -130,7 +130,7 @@ export const register: Register = on => {
     if (path && !failed && (e.tool === 'Edit' || e.tool === 'Write')) {
       const what = e.tool === 'Edit' ? `- ${String(args.old_string ?? '').slice(0, 300)}\n+ ${String(args.new_string ?? '').slice(0, 300)}` : `wrote ${String(args.content ?? '').slice(0, 400)}`
       const list = [...(changes.get(path) ?? []), what]
-      changes.set(path, list.length > MAX_CHANGES ? [list[0], ...list.slice(1 - MAX_CHANGES)] : list) // the first edit and the latest few
+      changes.set(path, list.length > MAX_CHANGES ? [list[0]!, ...list.slice(1 - MAX_CHANGES)] : list) // the first edit and the latest few
       await touch($, path, e.tool === 'Edit' ? 'edit' : 'write', true)
     }
     return r
@@ -347,7 +347,7 @@ async function renderSoon($: EngineInterface) {
   draw.pending = true
   draw.dirty = false
   $.clock.after(700, () => {
-    void (isWindows ? renderPage($) : renderMap($))
+    void (isWindows ? refreshPage($) : renderMap($))
       .catch(() => {})
       .finally(() => {
         draw.pending = false // only now: two Chromes must never share the profile
@@ -401,6 +401,18 @@ async function pagePath($: EngineInterface) {
 // The drawn map as a page the browser reloads: no Chrome to run, the browser draws the SVG.
 async function renderPage($: EngineInterface) {
   await $.fs.write(await pagePath($), page(svg(await read($, files), { width: 1400, height: 820, at: Date.now(), turn: await read($, turn) })))
+}
+
+// Redraws the open page; a failed write shows in the pane, as it does when opening.
+async function refreshPage($: EngineInterface) {
+  const was = draw.error
+  try {
+    await renderPage($)
+    draw.error = ''
+  } catch {
+    draw.error = `Could not update ${await pagePath($)}.`
+  }
+  if (draw.error !== was) await update($, now, () => Date.now()) // redraw the pane with the message
 }
 
 // Opens the drawn map in the default browser; from then on each change redraws it.
