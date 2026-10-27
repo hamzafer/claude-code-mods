@@ -272,8 +272,13 @@ export function inline(text: string): string {
 }
 
 // Only web, mail, relative and in-page links; never javascript: and the like.
+// Entities are decoded once, as the browser does (`&#106;` is j, the ; optional), before the test.
 function safeUrl(url: string) {
-  return /^\s*(?:javascript|vbscript|data|file):/i.test(url.replace(/&#?\w+;|[\u0000-\u001f]/g, '')) ? '#' : url
+  const named: Record<string, string> = { colon: ':', tab: '\t', newline: '\n' }
+  const decoded = url.replace(/&(?:#x([\da-f]+)|#(\d+)|([a-z]+));?/gi, (_m, hex?: string, dec?: string, name?: string) =>
+    hex || dec ? String.fromCodePoint(Math.min(parseInt((hex ?? dec) as string, hex ? 16 : 10), 0x10ffff)) : (named[(name as string).toLowerCase()] ?? ''),
+  )
+  return /^\s*(?:javascript|vbscript|data|file):/i.test(decoded.replace(/[\u0000-\u0020]/g, '')) ? '#' : url
 }
 
 /** Drops what can run: script-like elements and on* handlers, javascript: URLs. */
@@ -282,9 +287,10 @@ export function sanitize(html: string) {
     .replace(/<(base|meta|link)\b(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^'">])*(?:>|$)/gi, '') // void: only the tag goes, or the rest when it never closes
     .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
     .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form)\b[^>]*(?:>|$)/gi, '')
-    .replace(/<[a-z][^>]*>/gi, tag =>
+    .replace(/<[a-z](?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^'">])*(?:>|$)/gi, tag => // a > inside quotes does not end the tag
       tag
-        .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        // Quoted values are skipped whole; a handler after a space, / or quote goes (`<svg/onload=...>`).
+        .replace(/("[^"]*"|'[^']*')|(?:\s+|(?<=[/"']))on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (_m, quoted?: string) => quoted ?? '')
         .replace(/\b(href|src|action|formaction|srcset)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (m, attr: string, v: string) => (safeUrl(v.replace(/^["']|["']$/g, '')) === '#' ? `${attr}="#"` : m)),
     )
 }

@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="../../style.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "md-preview", "description": "See the Markdown files Claude Code edits rendered like GitHub, in a pane next to the chat, with before and after side by side. /md opens it.", "url": "https://hamzafer.github.io/claude-code-mods/mods/md-preview/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/md-preview", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.8", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/md-preview.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "md-preview", "description": "See the Markdown files Claude Code edits rendered like GitHub, in a pane next to the chat, with before and after side by side. /md opens it.", "url": "https://hamzafer.github.io/claude-code-mods/mods/md-preview/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/md-preview", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.9", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/md-preview.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "md-preview", "item": "https://hamzafer.github.io/claude-code-mods/mods/md-preview/"}]}</script>
 </head>
 <body class="mod c-see">
@@ -43,7 +43,7 @@
 <header class="mod-head">
   <h1>md-preview</h1>
   <p class="lede">Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. Before and after side by side.</p>
-  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.8</span></p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> See what&#x27;s happening</span> <span>Version 0.1.9</span></p>
 </header>
 <figure class="shot"><div class="shot-frame"><img style="--w:800px" src="../../images/md-preview.png" width="1600" height="530" alt="md-preview: Claude&#x27;s Markdown diff on the left, the README rendered like GitHub on the right, with a green bar on the changed blocks" decoding="async" fetchpriority="high"></div><figcaption>The diff Claude wrote on the left, the page rendered like GitHub on the right.</figcaption></figure>
 <div class="mod-body">
@@ -68,16 +68,18 @@ claude plugin install md-preview@claude-code-mods"><code><span class="ps" aria-h
 <div><dt><code>t</code></dt><dd>Page or text view</dd></div>
 <div><dt><code>r</code></dt><dd>Render again</dd></div>
 <div><dt><code>q</code></dt><dd>Closes it</dd></div>
+<div><dt><code>githubRenderer</code></dt><dd>Off, nothing is sent to GitHub and every page renders on your machine (default on). Change it in /config</dd></div>
 </dl>
 </section>
 <section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
 <ul class="notes">
 <li>When Claude edits a .md, .mdx or .markdown file, a toast says so, once per file per turn. Files written by shell commands count too.</li>
-<li>Renders with GitHub&#x27;s own renderer through gh api /markdown when gh is signed in, else a small built-in renderer, else a text view.</li>
+<li>Renders with GitHub&#x27;s own renderer through gh api /markdown when gh is signed in, else a small built-in renderer, else a text view. Files git ignores always use the built-in renderer.</li>
 <li>A green bar marks the blocks the last edit changed.</li>
 <li>It renders the files Claude edits ahead, in the background when the turn ends, so /md opens fast.</li>
 <li>Scripts in the Markdown never run.</li>
-<li>With the GitHub renderer, the file&#x27;s text goes to GitHub&#x27;s API under your own gh login. Nothing else is sent anywhere.</li>
+<li>With the GitHub renderer, the file&#x27;s text goes to GitHub&#x27;s API under your own gh login. Files git ignores are never sent. Nothing else is sent anywhere.</li>
+<li>Pages and the headless Chrome profile go to a temp folder of its own, made fresh for each session and readable only by you.</li>
 </ul>
 </section>
 </div>
