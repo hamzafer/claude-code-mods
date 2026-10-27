@@ -8,7 +8,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { RadarAgent } from '../types'
 import { bandsFile, parseOrder, stackBands } from './bands'
-import { TAILS_SH, baseName, blocks, clean, outputPathOf, parseOpen, shellLabel, tailLines } from './watch'
+import { OPEN_SH, TAILS_SH, baseName, blocks, clean, outputPathOf, parseOpen, shellLabel, tailLines } from './watch'
 
 const PANE = 'agent-radar'
 const SHOW_DONE_MS = 30_000 // a finished agent stays in the band this long
@@ -16,6 +16,8 @@ const BAND_ROWS = 4
 const POLL_MS = 5_000
 const MISSES_TO_FINISH = 2 // polls that find a shell's output file closed before it counts as over
 const UNSEEN_MIN_MS = 15_000 // a shell never seen open is over only after this long and the misses
+const MODEL_MAX = 24 // an unknown model id is cut to this many characters
+const LSOF_RETRY_MS = 60_000 // with no lsof, look again this often: one installed mid-session counts
 const LIMIT = 40
 
 // Held by the host, so the radar survives a hot reload of this file.
@@ -26,6 +28,8 @@ const now = atom({ plugin: 'agent-radar', key: 'now' } as const, 0)
 let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
 let isPolling = false // a slow lsof must not let two polls overlap
 let lsofBin: string | null | undefined // undefined: not tried yet; null: none works
+let lsofRetryAt = 0 // with lsofBin null: when to look for one again
+let hasProc: boolean | undefined // undefined: not tried yet; false: no Linux /proc to fall back on
 
 export const register: Register = on => {
   let timers: Timer[] = []
@@ -220,6 +224,8 @@ async function readBandOrder($: EngineInterface): Promise<string[]> {
 export function resetBandOrder() {
   bandOrder = undefined
   lsofBin = undefined
+  lsofRetryAt = 0
+  hasProc = undefined
   isPolling = false
 }
 
@@ -288,18 +294,27 @@ async function pollOnce($: EngineInterface) {
   }
 }
 
-// Which of these files some process holds open: one `lsof -Fn` for all. Undefined when lsof cannot say
-// (not installed, failed, timed out): nothing is guessed done.
+// Which of these files some process holds open: one `lsof -Fn` for all, else Linux's /proc. Undefined
+// when neither can say (not installed, failed, timed out): nothing is guessed done.
 async function openFiles($: EngineInterface, files: string[]): Promise<Set<string> | undefined> {
-  if (lsofBin === null) return undefined
+  if (lsofBin === null && (await $.clock.now()) < lsofRetryAt) return procOpen($)
   for (const bin of lsofBin ? [lsofBin] : ['/usr/sbin/lsof', 'lsof']) {
     const r = await $.process.run([bin, '-Fn', '--', ...files], { timeoutMs: 8_000 }).catch(() => null)
     if (!r) continue // would not start (or timed out): try the next one
     lsofBin = bin
     return r.exitCode === 0 || r.exitCode === 1 ? parseOpen(r.stdout) : undefined // 1: none of them open
   }
-  if (lsofBin === undefined) lsofBin = null
-  return undefined
+  lsofBin = null
+  lsofRetryAt = (await $.clock.now()) + LSOF_RETRY_MS
+  return procOpen($)
+}
+
+// The files open in any process we can see, from /proc/*/fd; undefined with no /proc (macOS).
+async function procOpen($: EngineInterface): Promise<Set<string> | undefined> {
+  if (hasProc === false) return undefined
+  const r = await $.process.run(['sh', '-c', OPEN_SH], { timeoutMs: 8_000 }).catch(() => null)
+  if (r?.exitCode === 2) hasProc = false // not Linux: no process every poll for nothing
+  return r && r.exitCode === 0 ? parseOpen(r.stdout) : undefined
 }
 
 // ---------------------------------------------------------------- display helpers
@@ -328,12 +343,16 @@ function modelTag(a: Pick<RadarAgent, 'model'>) {
 }
 
 // `claude-sonnet-5-5` -> `Sonnet 5.5`, `us.anthropic.claude-3-5-haiku-20241022-v1:0` -> `Haiku 3.5`,
-// `opus` -> `Opus`; anything else as it came.
+// `opus` -> `Opus`; anything else as it came, cut short so the counts after it stay on the line.
 export function modelName(id: string): string {
   const parts = id.toLowerCase().replace(/\[.*\]$/, '').split(/[-.:@_/]/)
   const family = parts.find(p => ['fable', 'opus', 'sonnet', 'haiku'].includes(p))
-  if (!family) return id
-  const start = parts.findIndex(p => /^\d{1,2}$/.test(p))
+  if (!family) {
+    const last = id.split('/').at(-1) ?? id // an ARN's profile id, not its region and account
+    return last.length > MODEL_MAX ? `${last.slice(0, MODEL_MAX - 1)}…` : last
+  }
+  const from = Math.max(0, parts.indexOf('claude')) // a version before `claude` is an ARN's region (us-east-1)
+  const start = parts.findIndex((p, i) => i >= from && /^\d{1,2}$/.test(p))
   const version: string[] = []
   for (let i = start; i >= 0 && i < parts.length && version.length < 2 && /^\d{1,2}$/.test(parts[i]!); i++) version.push(parts[i]!)
   const name = family[0]!.toUpperCase() + family.slice(1)

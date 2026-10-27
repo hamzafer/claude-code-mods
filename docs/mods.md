@@ -184,7 +184,7 @@ Shows one live line per running Claude Code subagent or background shell.
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes
 - `/radar` lists every agent this session
-- A background Bash command (`run_in_background`, or one moved to the background with Ctrl+B) gets a line too, tagged `sh`; one that runs `codex exec`, `opencode run` and the like is labeled with that agent and model. It ends when Claude Code closes its output file, found by `lsof` every 5 seconds, so without `lsof` it stays "running"
+- A background Bash command (`run_in_background`, or one moved to the background with Ctrl+B) gets a line too, tagged `sh`; one that runs `codex exec`, `opencode run` and the like is labeled with that agent and model. It ends when Claude Code closes its output file, found by `lsof` every 5 seconds (on Linux without `lsof`, by `/proc`; an `lsof` installed mid-session is found within a minute). With neither, it stays "running"
 - In the pane, `1` to `9` open that agent's messages, `b` goes back, `c` clears finished agents and `q` closes
 
 ### 🔀 switchboard

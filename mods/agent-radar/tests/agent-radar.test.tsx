@@ -9,11 +9,12 @@ const PANE = { component: 'Pane', requestId: 'agent-radar', props: { title: 'Age
 const OUT = '/private/tmp/c/p/s/tasks/bqumpaw3k.output'
 
 // Stands for the engine beneath the mod: lsof sees OUT open while `state.open` holds (and not at all
-// without `state.lsof`), the tails script answers from `state.tails`. A Bash call is a background one.
+// without `state.lsof`), /proc likewise while `state.proc` holds (no /proc while it is undefined), the
+// tails script answers from `state.tails`. A Bash call is a background one.
 function engine(on: any, files: Record<string, string> = {}, beneath?: unknown) {
   const clock = mock.clock(on, { now: 0 })
   const toasts: string[] = []
-  const state = { open: true, lsof: true, text: `Command running in background. Output is being written to: ${OUT}.`, tails: {} as Record<string, string> }
+  const state = { open: true, lsof: true, text: `Command running in background. Output is being written to: ${OUT}.`, tails: {} as Record<string, string>, proc: undefined as boolean | undefined }
   resetBandOrder()
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
@@ -35,6 +36,9 @@ function engine(on: any, files: Record<string, string> = {}, beneath?: unknown) 
       if (!state.lsof) throw new Error('lsof: not found')
       const files = (e.argv as string[]).slice(3)
       return { value: { exitCode: state.open ? 0 : 1, stdout: state.open ? files.map(f => `p42\nn${f}\n`).join('') : '', stderr: '' } }
+    }
+    if (cmd === 'sh' && flag === '-c' && script?.includes('radar:open')) {
+      return { value: { exitCode: state.proc === undefined ? 2 : 0, stdout: state.proc ? `n${OUT}\n` : 'n/dev/null\n', stderr: '' } }
     }
     if (cmd === 'sh' && flag === '-c' && script?.includes('radar:tails')) {
       const files = (e.argv as string[]).slice(4)
@@ -117,6 +121,8 @@ describe('agent-radar', () => {
     expect(modelName('claude-fable-5-1[1m]')).toBe('Fable 5.1')
     expect(modelName('haiku')).toBe('Haiku')
     expect(modelName('gpt-5')).toBe('gpt-5')
+    expect(modelName('arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0')).toBe('Sonnet 4') // not the region's 1
+    expect(modelName('arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/a1b2c3d4e5f6g7h8i9j0k1l2m3')).toBe('a1b2c3d4e5f6g7h8i9j0k1l…') // cut short
   })
 
   test('background command helpers', () => {
@@ -195,6 +201,44 @@ describe('agent-radar', () => {
     }
     expect(toasts).toEqual([])
     expect((await $.command.run({ command: 'radar', args: '' } as any)).text).toBe('1 running, 0 finished')
+  })
+
+  test('without lsof, /proc says when a command is over', async ($, on) => {
+    const { clock, toasts, state } = engine(on)
+    state.lsof = false
+    state.proc = true
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'sleep 600', description: 'Nap', run_in_background: true } as any)
+    await clock.advance(5_000)
+    await settle()
+    state.proc = false
+    await clock.advance(5_000)
+    await settle()
+    await clock.advance(5_000)
+    await eventually(() => toasts.length > 0)
+    expect(toasts[0]).toMatch(/^✓ Nap done/)
+  })
+
+  test('an lsof installed mid-session is found on a later look', async ($, on) => {
+    const { clock, toasts, state } = engine(on)
+    state.lsof = false
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'sleep 600', description: 'Nap', run_in_background: true } as any)
+    await clock.advance(5_000)
+    await settle()
+    state.lsof = true // installed now: found within a minute, and sees the command open
+    for (let i = 0; i < 13; i++) {
+      await clock.advance(5_000)
+      await settle()
+    }
+    expect(toasts).toEqual([])
+    state.open = false
+    for (let i = 0; i < 3 && toasts.length === 0; i++) {
+      await clock.advance(5_000)
+      await settle()
+    }
+    await eventually(() => toasts.length > 0)
+    expect(toasts[0]).toMatch(/^✓ Nap done/)
   })
 
   test('a command that runs another agent is labelled with it and its model; the pane shows its output', async ($, on) => {
