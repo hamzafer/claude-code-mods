@@ -109,6 +109,15 @@
       "tags": ["pane", "band", "command"]
     },
     {
+      "name": "review-inbox",
+      "marketplace": "review-inbox",
+      "repo": "SummerRiversound/review-inbox",
+      "author": "SummerRiversound",
+      "url": "https://github.com/SummerRiversound/review-inbox",
+      "description": "Your GitHub review queue above the prompt: PRs waiting for your review, your PRs that need something and issues that mention you, a one-sentence summary of each review request, and Review to put the chosen PRs into the prompt. Needs gh logged in",
+      "tags": ["band", "pane", "toast", "command"]
+    },
+    {
       "name": "cc-esol",
       "marketplace": "esol",
       "repo": "rapha-rodrigues/cc-esol",
