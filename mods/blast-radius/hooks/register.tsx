@@ -203,6 +203,8 @@ export function classify(command: string): Risk | null {
 
 // What the command would touch, from the tools' own commands.
 // Paths the preview can't resolve without running the command: shell variables, command substitution, ~user.
+// git in a folder the command names, before any prompt: never run that repo's own fsmonitor hook.
+const GIT = ['git', '-c', 'core.fsmonitor=false', '--no-optional-locks']
 const UNRESOLVED = /[$`]|^~[^/]/
 const UNRESOLVED_QUOTED = /[$`~]/ // with quotes around, even ~ and $HOME are unknown
 
@@ -238,8 +240,8 @@ async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldComman
       }
     }
     if (found.risk === 'force-push') {
-      const lost = await $.process.run(['git', 'log', '--oneline', 'HEAD..@{u}'], init)
-      const ahead = await $.process.run(['git', 'log', '--oneline', '@{u}..HEAD'], init)
+      const lost = await $.process.run([...GIT, 'log', '--oneline', 'HEAD..@{u}'], init)
+      const ahead = await $.process.run([...GIT, 'log', '--oneline', '@{u}..HEAD'], init)
       const gone = lost.stdout.split('\n').filter(Boolean)
       const added = ahead.stdout.split('\n').filter(Boolean)
       return {
@@ -247,7 +249,7 @@ async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldComman
         details: [...gone.map(c => `lost   ${c}`), ...added.map(c => `pushed ${c}`)].slice(0, MAX_LISTED),
       }
     }
-    const status = await $.process.run(['git', 'status', '--porcelain'], init)
+    const status = await $.process.run([...GIT, 'status', '--porcelain'], init)
     const touched = status.stdout.split('\n').filter(l => /migrat|schema|prisma|supabase|drizzle/i.test(l))
     return {
       summary: 'change the database schema (not previewable here)',
