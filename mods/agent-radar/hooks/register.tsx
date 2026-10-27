@@ -82,7 +82,7 @@ export const register: Register = on => {
     const command = e.command
     const { label, detail } = shellLabel(command, e.description)
     const id = `sh:${baseName(out)}`
-    const one: RadarAgent = { id, kind: 'shell', description: label, type: 'shell', status: 'running', startedAt: Date.now(), tools: 0, last: 'running', command, detail, out, misses: 0 }
+    const one: RadarAgent = { id, kind: 'shell', description: label, type: 'shell', status: 'running', startedAt: Date.now(), tools: 0, last: 'running', detail, out, misses: 0 }
     await update($, agents, list => [one, ...list.filter(a => a.id !== id)].slice(0, LIMIT))
     return r
   })
@@ -148,7 +148,7 @@ export const register: Register = on => {
             <Text color={color(one)} bold>{`${icon(one)} ${one.description}`}</Text>
             <Text dimColor>{`  shell · ${elapsed(one)} · ${one.status}`}</Text>
           </Text>
-          <Text dimColor wrap="truncate-end">{`$ ${clean(one.command ?? '').replace(/\s+/g, ' ').slice(0, 300)}`}</Text>
+          <Text dimColor wrap="truncate-end">{`$ ${clean(one.detail ?? '')}`}</Text>
           {one.out && <Text dimColor wrap="truncate-end">{`output: ${clean(one.out)}`}</Text>}
           <Text dimColor>{'─'.repeat(Math.max(10, e.props.bodyColumns - 2))}</Text>
           {lines.length === 0 && <Text dimColor>No output yet.</Text>}

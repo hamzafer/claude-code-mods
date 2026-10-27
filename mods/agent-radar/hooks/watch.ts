@@ -24,12 +24,12 @@ export function agentOf(full: string): { agent: string; model?: string } | undef
 }
 
 // What the band calls a background shell: the agent and model it runs, else the Bash
-// description, else the program it runs. `detail` is the other one, for the pane.
+// description, else the program it runs. `detail` is the other one, for the pane: never the whole command line.
 export function shellLabel(command: string, description?: string): { label: string; detail: string } {
   const flat = clean(command.slice(0, MAX_COMMAND)).replace(/\s+/g, ' ').trim()
   const text = clean(description ?? '').trim().slice(0, 200) || program(flat)
   const a = agentOf(command)
-  return a ? { label: a.model ? `${a.agent} ${a.model}` : a.agent, detail: text } : { label: text, detail: flat.slice(0, 200) }
+  return a ? { label: a.model ? `${a.agent} ${a.model}` : a.agent, detail: text } : { label: text, detail: program(flat) }
 }
 
 // The tools whose second word is a subcommand worth naming: `git push`, `npm test`.
