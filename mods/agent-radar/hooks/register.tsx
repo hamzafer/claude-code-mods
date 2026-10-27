@@ -8,7 +8,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { RadarAgent } from '../types'
 import { bandsFile, parseOrder, stackBands } from './bands'
-import { OPEN_SH, TAILS_SH, baseName, blocks, clean, outputPathOf, parseOpen, shellLabel, tailLines } from './watch'
+import { OPEN_SH, TAILS_SH, baseName, blocks, clean, outputPathOf, parseOpen, program, shellLabel, tailLines } from './watch'
 
 const PANE = 'agent-radar'
 const SHOW_DONE_MS = 30_000 // a finished agent stays in the band this long
@@ -56,7 +56,7 @@ export const register: Register = on => {
     const r = await next(e)
     if (r.agentId) {
       const id = r.agentId
-      const one: RadarAgent = { id, kind: 'agent', description: e.description || e.name || e.subagentType, type: e.subagentType, model: r.model, status: 'running', startedAt: Date.now(), tools: 0, last: 'starting' }
+      const one: RadarAgent = { id, kind: 'agent', description: clean(e.description || e.name || e.subagentType), type: e.subagentType, model: r.model, status: 'running', startedAt: Date.now(), tools: 0, last: 'starting' }
       await update($, agents, list => [one, ...list.filter(a => a.id !== id)].slice(0, 30))
     }
     return r
@@ -178,7 +178,7 @@ export const register: Register = on => {
           {messages.map(m => (
             <Text wrap="truncate-end">
               <Text color={m.role === 'assistant' ? 'cyan' : undefined} bold>{m.role === 'assistant' ? 'agent: ' : 'task:  '}</Text>
-              <Text>{m.text.replace(/\s+/g, ' ').slice(0, 400) || '(tool calls)'}</Text>
+              <Text>{clean(m.text).replace(/\s+/g, ' ').slice(0, 400) || '(tool calls)'}</Text>
             </Text>
           ))}
           <Box flexDirection="row" gap={1}>
@@ -237,7 +237,7 @@ async function adopt($: EngineInterface) {
     .map((a): RadarAgent => ({
       id: a.id,
       kind: 'agent',
-      description: a.description,
+      description: clean(a.description),
       type: a.type,
       status: a.status === 'running' ? 'running' : a.status === 'completed' ? 'done' : 'failed',
       startedAt: Date.now(),
@@ -372,12 +372,17 @@ export function elapsed(a: Pick<RadarAgent, 'startedAt' | 'endedAt'>, at = Date.
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
 }
 
-// A short label for one tool call: what a person would say the agent is doing.
+// A short label for one tool call: what a person would say the agent is doing. A Bash call
+// names its program, not the command line: any plugin can read the label once it is stored.
 export function describe(e: Record<string, unknown>): string {
+  return clean(labelOf(e)).replace(/\s+/g, ' ')
+}
+
+function labelOf(e: Record<string, unknown>): string {
   const tool = String(e.tool)
   const s = (k: string) => (typeof e[k] === 'string' ? (e[k] as string) : '')
   const file = (p: string) => p.split('/').slice(-2).join('/')
-  if (tool === 'Bash') return `running ${s('description') || s('command').slice(0, 50)}`
+  if (tool === 'Bash') return `running ${s('description') || program(s('command'))}`
   if (tool === 'Edit' || tool === 'Write') return `editing ${file(s('file_path'))}`
   if (tool === 'Read') return `reading ${file(s('file_path'))}`
   if (tool === 'Grep' || tool === 'Glob') return `searching ${s('pattern').slice(0, 30)}`

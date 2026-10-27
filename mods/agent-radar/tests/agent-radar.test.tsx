@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { describe as label, elapsed, isShown, modelName, resetBandOrder } from '../hooks/register'
-import { agentOf, baseName, outputPathOf, shellLabel, tailLines } from '../hooks/watch'
+import { agentOf, baseName, outputPathOf, program, shellLabel, tailLines } from '../hooks/watch'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 const PANE = { component: 'Pane', requestId: 'agent-radar', props: { title: 'Agent Radar', isFocused: true, bodyColumns: 100, placement: 'dock' } }
@@ -98,6 +98,18 @@ describe('agent-radar', () => {
     await band.unmount()
   })
 
+  test('a subagent\'s command line is not drawn; a control character does not reach the band', async ($, on) => {
+    engine(on)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn({ prompt: 'run it', description: 'sweep\x1b[2J runner‮' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'curl -H "Authorization: Bearer sk-SECRET123" https://x', agentId: 'a1' } as any)
+    const band = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: / ● sweep runner$/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /^ · running curl$/ })).toBeDefined()
+    expect(JSON.stringify(await band.drawn())).not.toMatch(/SECRET|\\u001b|‮/)
+    await band.unmount()
+  })
+
   test('follows the band order file', async ($, on) => {
     // another band mod drew its column beneath
     const beneath = {
@@ -134,7 +146,14 @@ describe('agent-radar', () => {
     expect(agentOf('gh run watch 123')).toBeUndefined()
     expect(shellLabel('codex exec --model gpt-5 "fix it"', 'Ask codex').label).toBe('codex gpt-5')
     expect(shellLabel('gh run watch 123 --exit-status', 'Watch CI')).toEqual({ label: 'Watch CI', detail: 'gh run watch 123 --exit-status' })
-    expect(shellLabel('sleep 600 && echo hi && echo a very long command line that goes on', undefined).label).toBe('sleep 600 && echo hi && echo a very long command l')
+    // with no description, the program it runs, never its arguments
+    expect(shellLabel('sleep 600 && echo hi && echo a very long command line that goes on', undefined).label).toBe('sleep')
+    expect(shellLabel('curl -H "Authorization: Bearer sk-SECRET123" https://x').label).toBe('curl')
+    expect(program('cd /work && npm test -- --watch')).toBe('npm test')
+    expect(program('gh api -H "Authorization: token ghp_SECRET" /user')).toBe('gh api')
+    expect(program('git -c user.token=SECRET push')).toBe('git')
+    expect(program('API_KEY=sk-SECRET ./run.sh')).toBe('a shell command')
+    expect(program('"$HOME/bin/x" --key SECRET')).toBe('a shell command')
     expect(outputPathOf(`Output is being written to: ${OUT}. You will be notified`)).toBe(OUT)
     expect(outputPathOf('Output is being written to: /tmp/b1.output')).toBe('/tmp/b1.output')
     expect(outputPathOf('nothing here')).toBeUndefined()
