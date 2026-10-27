@@ -133,6 +133,19 @@ These are built around my own tools and rules. Fork them and change the rules to
 
 Mods by other people, in their own marketplaces. They're not maintained here, so read the code before you install. They also show up last in the `npx claude-code-mods@latest` checklist.
 
+### ⭐ Community pick: image-view
+
+**[image-view](https://github.com/jarrodwatts/claude-image-view)** by [@jarrodwatts](https://github.com/jarrodwatts) shows the images you paste into Claude Code as thumbnails above the prompt, instead of bare `[Image #1]` tags.
+
+<img src="images/community/image-view.png" width="840" alt="image-view: a thumbnail of the pasted image, labeled #1, above the prompt that holds [Image #1]">
+
+<sub>Screenshot from the author's repo, cropped. The mod is maintained there, not here.</sub>
+
+```sh
+claude plugin marketplace add jarrodwatts/claude-image-view
+claude plugin install image-view@claude-image-view
+```
+
 | | Mod | What it does | Install |
 | --- | --- | --- | --- |
 | 🖼️ | **[image-view](https://github.com/jarrodwatts/claude-image-view)** by [@jarrodwatts](https://github.com/jarrodwatts) | See the images you paste into Claude Code: thumbnails above the prompt instead of bare [Image #1] tags | `claude plugin marketplace add jarrodwatts/claude-image-view` then `claude plugin install image-view@claude-image-view` |

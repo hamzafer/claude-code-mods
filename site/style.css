@@ -225,6 +225,7 @@ a.tl:hover .tl-tag, a.tl:focus-visible .tl-tag { opacity: 1; }
 }
 .steps p { margin: 0 0 8px; }
 .code + .aside { margin-top: 12px; }
+.code + .code { margin-top: 8px; }
 .aside { color: var(--muted); font-size: 0.95rem; max-width: 46em; }
 
 .code {

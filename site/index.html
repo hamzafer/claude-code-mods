@@ -138,6 +138,20 @@
   </section>
 </section>
 
+<section class="build" id="community" aria-labelledby="community-h">
+  <h2 id="community-h">Community pick</h2>
+  <p><a href="https://github.com/jarrodwatts/claude-image-view">image-view</a> by <a href="https://github.com/jarrodwatts">@jarrodwatts</a> shows the images you paste into Claude Code as thumbnails above the prompt, instead of bare <code>[Image #1]</code> tags. It lives in the author's own marketplace, so read the code before you install.</p>
+  <figure class="shot"><div class="shot-frame"><img style="--w:840px" src="images/community/image-view.png" width="1680" height="310" alt="image-view: a thumbnail of the pasted image, labeled #1, above the prompt that holds [Image #1]" decoding="async" loading="lazy"></div><figcaption>Screenshot from the author's repo, cropped.</figcaption></figure>
+<div class="code">
+  <pre id="c-iv-add" aria-label="Add the image-view marketplace" data-cmd="claude plugin marketplace add jarrodwatts/claude-image-view"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add jarrodwatts/claude-image-view</code></pre>
+  <button type="button" class="copy" data-copy="c-iv-add">Copy</button>
+</div>
+<div class="code">
+  <pre id="c-iv-inst" aria-label="Install image-view" data-cmd="claude plugin install image-view@claude-image-view"><code><span class="ps" aria-hidden="true">$ </span>claude plugin install image-view@claude-image-view</code></pre>
+  <button type="button" class="copy" data-copy="c-iv-inst">Copy</button>
+</div>
+</section>
+
 <section class="build" aria-labelledby="build-h">
   <h2 id="build-h">Build your own</h2>
   <p>A mod is a plugin made of function hooks: it can draw a line above the prompt, open a pane, show a toast or stop a tool call. Start from <a href="https://claude.dev/blog/getting-started-with-claude-code-mods/">Getting started with Claude Code mods</a>. The checks and the new-mod checklist are in <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
