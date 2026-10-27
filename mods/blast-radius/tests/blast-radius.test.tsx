@@ -6,7 +6,7 @@ const PANE = { component: 'Pane', requestId: 'blast-radius', props: { title: 'Bl
 
 // Stands for the engine beneath the mod: tools run, a 9-file build folder, panes that open, a terminal that draws.
 // Its clock is the test's: pass one from mock.clock to move it, or the engine makes its own.
-function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true, previews = [] as string[][] } = {}) {
+function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] as unknown[], clock = undefined as unknown, isPlaced = true, previews = [] as string[][], scripts = [] as string[] } = {}) {
   resetBandOrder()
   if (!clock) mock.clock(on)
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
@@ -18,6 +18,7 @@ function engine(on: any, ran: string[], { surfaces = ['terminal'], opened = [] a
   on('process.run', async (_$: any, e: any) => {
     const argv: string[] = e.argv
     if (argv[0] === 'bash') previews.push(argv.slice(4)) // the targets the preview looks at
+    if (argv[0] === 'bash') scripts.push(argv[2]!)
     if (argv[0] === 'sleep') await new Promise(done => (globalThis as any).setTimeout(done, 5)) // a real wait, so the hold loop yields
     const stdout = argv[0] === 'bash'
       ? ['S 1126', ...Array.from({ length: 9 }, (_, i) => `F build/chunk-${i}.js`)].join('\n')
@@ -102,6 +103,21 @@ describe('blast-radius', () => {
     const call = $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/deep/demo/build' } as any)
     const ui = await heldPane($)
     expect(await ui.find({ type: 'Text', text: /^  build\/chunk-1\.js$/ })).toBeDefined()
+    await ui.press({ key: 'cancel' })
+    await call
+    await ui.unmount()
+  })
+
+  test('a file named like a flag (-delete) is never read as one by the preview', async ($, on) => {
+    const ran: string[] = []
+    const scripts: string[] = []
+    engine(on, ran, { scripts })
+    const call = $.tool.call({ tool: 'Bash', command: 'rm -rf *' } as any)
+    const ui = await heldPane($)
+    expect(scripts).toHaveLength(1)
+    expect(scripts[0]).toContain('case $p in -*) p=./$p ;; esac') // before du and find see it
+    expect(scripts[0]).toContain('du -sk -- "$p"')
+    expect(scripts[0]!.indexOf('p=./$p')).toBeLessThan(scripts[0]!.indexOf('find "$p"'))
     await ui.press({ key: 'cancel' })
     await call
     await ui.unmount()
