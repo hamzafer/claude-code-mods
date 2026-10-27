@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { describe as label, elapsed, isShown, modelName, resetBandOrder } from '../hooks/register'
-import { agentOf, baseName, outputPathOf, shellLabel, tailLines } from '../hooks/watch'
+import { agentOf, baseName, outputPathOf, program, shellLabel, tailLines } from '../hooks/watch'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 const PANE = { component: 'Pane', requestId: 'agent-radar', props: { title: 'Agent Radar', isFocused: true, bodyColumns: 100, placement: 'dock' } }
@@ -98,6 +98,18 @@ describe('agent-radar', () => {
     await band.unmount()
   })
 
+  test('a subagent\'s command line is not drawn; a control character does not reach the band', async ($, on) => {
+    engine(on)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.agent.spawn({ prompt: 'run it', description: 'sweep\x1b[2J runner‮' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'curl -H "Authorization: Bearer sk-SECRET123" https://x', agentId: 'a1' } as any)
+    const band = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: / ● sweep runner$/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /^ · running curl$/ })).toBeDefined()
+    expect(JSON.stringify(await band.drawn())).not.toMatch(/SECRET|\\u001b|‮/)
+    await band.unmount()
+  })
+
   test('follows the band order file', async ($, on) => {
     // another band mod drew its column beneath
     const beneath = {
@@ -133,8 +145,15 @@ describe('agent-radar', () => {
     expect(agentOf('git commit -m "ask codex exec"')).toBeUndefined()
     expect(agentOf('gh run watch 123')).toBeUndefined()
     expect(shellLabel('codex exec --model gpt-5 "fix it"', 'Ask codex').label).toBe('codex gpt-5')
-    expect(shellLabel('gh run watch 123 --exit-status', 'Watch CI')).toEqual({ label: 'Watch CI', detail: 'gh run watch 123 --exit-status' })
-    expect(shellLabel('sleep 600 && echo hi && echo a very long command line that goes on', undefined).label).toBe('sleep 600 && echo hi && echo a very long command l')
+    expect(shellLabel('gh run watch 123 --exit-status', 'Watch CI')).toEqual({ label: 'Watch CI', detail: 'gh run' })
+    // with no description, the program it runs, never its arguments
+    expect(shellLabel('sleep 600 && echo hi && echo a very long command line that goes on', undefined).label).toBe('sleep')
+    expect(shellLabel('curl -H "Authorization: Bearer sk-SECRET123" https://x').label).toBe('curl')
+    expect(program('cd /work && npm test -- --watch')).toBe('npm test')
+    expect(program('gh api -H "Authorization: token ghp_SECRET" /user')).toBe('gh api')
+    expect(program('git -c user.token=SECRET push')).toBe('git')
+    expect(program('API_KEY=sk-SECRET ./run.sh')).toBe('a shell command')
+    expect(program('"$HOME/bin/x" --key SECRET')).toBe('a shell command')
     expect(outputPathOf(`Output is being written to: ${OUT}. You will be notified`)).toBe(OUT)
     expect(outputPathOf('Output is being written to: /tmp/b1.output')).toBe('/tmp/b1.output')
     expect(outputPathOf('nothing here')).toBeUndefined()
@@ -142,7 +161,7 @@ describe('agent-radar', () => {
     expect(tailLines('a\r\n\x1b[31mb\x1b[0m\n\n c \n', 2)).toEqual(['b', ' c'])
     // what a command prints reaches the terminal: no escape sequence or control character survives
     expect(tailLines('a\x1b]52;c;aGk=\x07b\x1b[>0qc\x9b2Jd\x1bPq#0\x1b\\e\bf')).toEqual(['abcdef'])
-    expect(shellLabel('echo \x1b]0;title\x07hi', 'run \x1b[2Jit')).toEqual({ label: 'run it', detail: 'echo hi' })
+    expect(shellLabel('echo \x1b]0;title\x07hi', 'run \x1b[2Jit')).toEqual({ label: 'run it', detail: 'echo' })
     // a huge command does not stall the label; the path must be absolute, with no `..`
     expect(Date.now() - (() => { const t = Date.now(); agentOf(`codex exec${' '.repeat(80_000)}`); shellLabel('(a'.repeat(40_000)); return t })()).toBeLessThan(500)
     expect(outputPathOf('Output is being written to: /x/tasks/../../any/tasks/a.output')).toBeUndefined()
@@ -254,9 +273,24 @@ describe('agent-radar', () => {
     const ui = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...PANE } as any)
     await ui.press({ key: 'agent-sh:bqumpaw3k.output' })
     await eventually(() => ui.find({ type: 'Text', text: /editing a\.ts/ }))
-    expect(await ui.find({ type: 'Text', text: /\$ codex exec -C \/x/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^\$ codex$/ })).toBeDefined() // the program, not its arguments
     expect(await ui.find({ type: 'Text', text: /editing a\.ts/ })).toBeDefined()
     await ui.unmount()
     await band.unmount()
+  })
+
+  test('the pane names a background command by its program, never its arguments', async ($, on) => {
+    const { clock } = engine(on)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'curl -H "Authorization: Bearer sk-SECRET123" https://x', description: 'Fetch the page', run_in_background: true } as any)
+    await clock.advance(5_000)
+    await settle()
+    await $.command.run({ command: 'radar', args: '' } as any)
+    const ui = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...PANE } as any)
+    await ui.press({ key: 'agent-sh:bqumpaw3k.output' })
+    await eventually(() => ui.find({ type: 'Text', text: /^\$ curl$/ }))
+    expect(await ui.find({ type: 'Text', text: /^\$ curl$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /SECRET/ })).toBeUndefined()
+    await ui.unmount()
   })
 })

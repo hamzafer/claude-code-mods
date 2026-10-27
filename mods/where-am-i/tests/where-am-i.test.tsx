@@ -185,6 +185,43 @@ describe('where-am-i', () => {
     expect(label({ tool: 'Bash', description: 'Run tests' })).toBe('running Run tests')
     expect(label({ tool: 'Edit', file_path: '/a/b/c.ts' })).toBe('editing b/c.ts')
     expect(label({ tool: 'mcp__claude_ai_Slack__slack_send_message' })).toBe('using claude_ai_Slack slack_send_message')
+    // a Bash call with no description names its program, never its arguments
+    expect(label({ tool: 'Bash', command: 'curl -H "Authorization: Bearer sk-SECRET123" https://x' })).toBe('running curl')
+    expect(label({ tool: 'Bash', command: 'cd /work && git push origin main' })).toBe('running git push')
+    expect(label({ tool: 'Bash', command: 'TOKEN=sk-SECRET123 ./deploy.sh' })).toBe('running a shell command')
+    expect(label({ tool: 'Read', file_path: '/a/b\x1b[2J/c.ts' })).toBe('reading b/c.ts')
+  })
+
+  test('a command line never reaches the band or Haiku', async ($, on) => {
+    const prompts: string[] = []
+    engine(on, (_$: any, e: any) => (prompts.push(e.prompt), { value: { isAnswered: true, text: '{"goal":"Ship it","now":"","waiting":"","next":""}', usage: { input_tokens: 1, output_tokens: 1 } } }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any) // a recap, so the band draws
+    await wait()
+    await $.prompt.submit({ text: 'fetch it' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'curl -H "Authorization: Bearer sk-SECRET123" https://x' } as any)
+    const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /^running curl$/ })).toBeDefined()
+    expect(JSON.stringify(await ui.drawn())).not.toMatch(/SECRET/)
+    await ui.unmount()
+    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+    expect(prompts.length).toBe(2)
+    expect(prompts[1]).toMatch(/Tools used this turn: running curl\n/)
+    expect(prompts[1]).not.toMatch(/SECRET/)
+  })
+
+  test('a control character in the recap does not reach the band', async ($, on) => {
+    engine(on, '{"goal":"Ship \\u001b[2Jit\\u202e","now":"built\\u0007 it","waiting":"","next":""}')
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await $.prompt.submit({ text: 'ship it' } as any)
+    await $.turn.complete({ reason: 'answer', answer: 'done', durationMs: 1 } as any)
+    await wait()
+    const ui = await $.ui.mount({ plugin: 'where-am-i', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /^Ship it$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^built it$/ })).toBeDefined()
+    expect(JSON.stringify(await ui.drawn())).not.toMatch(/\\u001b|\\u0007|‮/)
+    await ui.unmount()
   })
 
   test('reads the JSON and drops em dashes', () => {

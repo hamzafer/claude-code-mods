@@ -8,7 +8,7 @@
     {
       "name": "agent-radar",
       "description": "One live line above the prompt per running subagent or background shell: its model, time, tool count and what it's doing. /radar shows every agent and its messages.",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "source": "./mods/agent-radar",
       "category": "See what's happening",
       "tags": [
@@ -276,7 +276,7 @@
     {
       "name": "where-am-i",
       "description": "A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "source": "./mods/where-am-i",
       "category": "See what's happening",
       "tags": [

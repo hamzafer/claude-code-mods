@@ -129,12 +129,17 @@ export const register: Register = on => {
   })
 }
 
-// A short label for one tool call: what a person would say Claude is doing.
+// A short label for one tool call: what a person would say Claude is doing. A Bash call names
+// its program, not the command line: the label is drawn and sent to Haiku.
 export function describe(e: Record<string, unknown>): string {
+  return clean(labelOf(e)).replace(/\s+/g, ' ')
+}
+
+function labelOf(e: Record<string, unknown>): string {
   const tool = String(e.tool)
   const s = (k: string) => (typeof e[k] === 'string' ? (e[k] as string) : '')
   const file = (p: string) => p.split('/').slice(-2).join('/')
-  if (tool === 'Bash') return `running ${s('description') || s('command').slice(0, 60)}`
+  if (tool === 'Bash') return `running ${s('description') || program(s('command'))}`
   if (tool === 'Edit' || tool === 'Write') return `editing ${file(s('file_path'))}`
   if (tool === 'Read') return `reading ${file(s('file_path'))}`
   if (tool === 'Grep' || tool === 'Glob') return `searching for ${s('pattern').slice(0, 40)}`
@@ -190,8 +195,28 @@ async function longRecap($: EngineInterface, prompt: string, log: string[]) {
   return r.isAnswered ? r.text : 'Could not build a recap right now.'
 }
 
+// The tools whose second word is a subcommand worth naming: `git push`, `npm test`.
+const SUBCOMMANDS = new Set(['git', 'gh', 'npm', 'pnpm', 'yarn', 'bun', 'docker', 'cargo', 'go', 'kubectl', 'make'])
+
+// A command's program, never its arguments (a token often sits there): `curl -H "…" url` is `curl`,
+// `cd /x && npm test` is `npm test`. A start that is no plain name (`FOO=1`, a quote, a subshell) says so.
+export function program(command: string): string {
+  const words = command.replace(/^\s*cd\s+\S+\s*(?:&&|;)\s*/, '').trim().split(/\s+/)
+  const name = words[0]!.slice(words[0]!.lastIndexOf('/') + 1)
+  if (!/^[\w.+-]{1,30}$/.test(name)) return 'a shell command'
+  return SUBCOMMANDS.has(name) && /^[a-z][a-z-]{0,19}$/.test(words[1] ?? '') ? `${name} ${words[1]}` : name
+}
+
+// The engine refuses a band with a control character in it, and every mod's band goes with it: drop
+// escape sequences, control characters and bidi overrides. The same as agent-radar's `clean`.
+const ESCAPES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|[\]PX^_][\s\S]*?(?:\x07|\x1b\\|$)|[@-Z\\-_])|\x9b[0-?]*[ -/]*[@-~]|[\x90\x98\x9d\x9e\x9f][\s\S]*?(?:\x07|\x9c|$)|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f‪-‮⁦-⁩]/g
+export function clean(text: string) {
+  return text.replace(ESCAPES, '')
+}
+
 // At most 70 characters, cut at a word: the model does not always keep to the limit.
-export function clip(text: string, max = 70) {
+export function clip(raw: string, max = 70) {
+  const text = clean(raw).replace(/\s+/g, ' ')
   const first = text.split(/(?<=[.!?])\s/)[0] ?? text // one sentence
   if (first.length <= max) return first.replace(/\.$/, '')
   return `${first.slice(0, first.lastIndexOf(' ', max - 1))}…`
