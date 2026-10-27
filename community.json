@@ -114,8 +114,8 @@
       "repo": "rapha-rodrigues/cc-esol",
       "author": "rapha-rodrigues",
       "url": "https://github.com/rapha-rodrigues/cc-esol",
-      "description": "An English coach for non-native speakers in a sidebar: Claude logs a native rewrite of each English prompt, with the reasons, to a local learning log. Also a Focus progress band, terminal themes and model controls",
-      "tags": ["pane", "band", "command"]
+      "description": "An English coach for non-native speakers: Claude logs a native rewrite of each English prompt you type or dictate, with the reasons, to a local learning log you read and review in a pane. A Voice button toggles Claude Code's dictation",
+      "tags": ["pane", "command"]
     }
   ]
 }
