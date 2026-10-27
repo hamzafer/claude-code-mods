@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { MapFile, MissionNode } from '../types'
-import { importsOf, svg } from './map'
+import { importsOf, page, svg, textMap } from './map'
 import { label, lines, summary } from './tree'
 import { bandsFile, parseOrder, stackBands } from './bands'
 
@@ -37,9 +37,11 @@ const turn = atom({ plugin: 'mission-control', key: 'turn' } as const, 0)
 const now = atom({ plugin: 'mission-control', key: 'now' } as const, 0)
 
 // Drawing bookkeeping; a reload starts it over.
-const draw = { size: { columns: 100, rows: 30 }, pending: false, dirty: false, n: 0, error: '' }
+const draw = { size: { columns: 100, rows: 30 }, pending: false, dirty: false, n: 0, error: '', isPageOpen: false }
 const changes = new Map<string, string[]>() // path → this turn's edits, for the one-line "why"
 const MAX_CHANGES = 5 // the first edit and the latest few per file are enough for the "why"
+// No Windows terminal draws pictures: there the map is lines in the pane and a page in the browser.
+let isWindows = false
 
 // Under the cap, the oldest tool calls go first; main and the agents always stay.
 export function cap(list: MissionNode[]) {
@@ -65,6 +67,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
+    isWindows = (await $.env.get('OS')) === 'Windows_NT'
     await $.command.register({ name: 'mission', description: 'Open the live map of agents and tool calls; /mission code opens the code map', argumentHint: '[who|code]' }).catch(() => {})
     timer?.cancel()
     timer = $.clock.every(1000, () => {
@@ -112,7 +115,8 @@ export const register: Register = on => {
       const parent = e.agentId && list.some(n => n.id === e.agentId) ? e.agentId : 'main'
       return cap([...list, { id, parent, kind: 'tool', label: text, family, status: 'running', start: Date.now() }])
     })
-    const path = typeof args.file_path === 'string' ? args.file_path : undefined
+    const raw = typeof args.file_path === 'string' ? args.file_path : undefined
+    const path = raw && isWindows ? raw.replace(/\\/g, '/') : raw // one separator, so names and imports resolve
     if (path) await touch($, path, e.tool === 'Read' ? 'read' : e.tool === 'Write' ? 'write' : e.tool === 'Edit' ? 'edit' : 'search', false)
 
     let failed = true
@@ -170,6 +174,7 @@ export const register: Register = on => {
       <Box flexDirection="row" gap={1}>
         <Button key="who" label="Who" hotkey="w" variant={v === 'who' ? 'primary' : undefined} onPress={() => update($, view, () => 'who')} />
         <Button key="code" label="Code" hotkey="c" variant={v === 'code' ? 'primary' : undefined} onPress={() => void setCode($).catch(() => {})} />
+        {v === 'code' && isWindows && <Button key="open" label="Browser" hotkey="b" onPress={() => void openPage($).catch(() => {})} />}
         <Button key="close" label="Close" hotkey="q" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
       </Box>
     )
@@ -180,6 +185,27 @@ export const register: Register = on => {
           <Box flexDirection="column">
             {head}
             <Text dimColor>The code map draws in the terminal.</Text>
+          </Box>
+        )
+      }
+      if (isWindows) {
+        const t = await read($, turn)
+        const list = await read($, files)
+        const ls = textMap(list, { at: Date.now(), turn: t })
+        const changed = list.filter(f => f.changedTurn === t && t > 0).length
+        return (
+          <Box flexDirection="column">
+            {head}
+            <Text dimColor>{`${list.length} files · ${changed} changed · b: the drawn map in your browser`}</Text>
+            {draw.error !== '' && <Text color="red">{draw.error}</Text>}
+            {ls.length === 0 && <Text dimColor>Files Claude reads or edits show up here.</Text>}
+            {ls.slice(0, rows - 1).map(l => (
+              <Text wrap="truncate-end">
+                <Text color={l.tone === 'read' ? 'blue' : l.tone === 'edit' ? 'yellow' : l.tone === 'changed' ? 'green' : undefined} dimColor={l.tone === 'dim'}>{`${l.mark} `}</Text>
+                <Text bold={l.tone !== 'dim'}>{l.title}</Text>
+                {(l.imports.length > 0 || l.why) && <Text dimColor>{`${l.imports.length ? ` → ${l.imports.join(', ')}` : ''}${l.why ? `  ${l.why}` : ''}`}</Text>}
+              </Text>
+            ))}
           </Box>
         )
       }
@@ -311,13 +337,17 @@ async function renderSoon($: EngineInterface) {
     draw.dirty = true // drawing now: draw once more when it is done
     return
   }
-  if ((await read($, view)) !== 'code') return
-  const isUp = (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
-  if (!isUp) return
+  if (isWindows) {
+    if (!draw.isPageOpen) return // the browser page is the picture, kept fresh once opened
+  } else {
+    if ((await read($, view)) !== 'code') return
+    const isUp = (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
+    if (!isUp) return
+  }
   draw.pending = true
   draw.dirty = false
   $.clock.after(700, () => {
-    void renderMap($)
+    void (isWindows ? renderPage($) : renderMap($))
       .catch(() => {})
       .finally(() => {
         draw.pending = false // only now: two Chromes must never share the profile
@@ -361,4 +391,29 @@ async function renderMap($: EngineInterface) {
   }
   draw.error = `${chrome} could not draw the code map.`
   await update($, now, () => Date.now()) // redraw the pane with the message
+}
+
+async function pagePath($: EngineInterface) {
+  const tmp = ((await $.env.get('TEMP')) ?? 'C:\\Windows\\Temp').replace(/\\$/, '')
+  return `${tmp}\\mission-control-map.html` // right in TEMP, which always exists: the engine makes no folders
+}
+
+// The drawn map as a page the browser reloads: no Chrome to run, the browser draws the SVG.
+async function renderPage($: EngineInterface) {
+  await $.fs.write(await pagePath($), page(svg(await read($, files), { width: 1400, height: 820, at: Date.now(), turn: await read($, turn) })))
+}
+
+// Opens the drawn map in the default browser; from then on each change redraws it.
+async function openPage($: EngineInterface) {
+  try {
+    await renderPage($)
+  } catch {
+    draw.isPageOpen = false
+    draw.error = `Could not write ${await pagePath($)}.`
+    await update($, now, () => Date.now()) // redraw the pane with the message
+    return
+  }
+  draw.isPageOpen = true
+  draw.error = ''
+  await $.process.run(['explorer.exe', await pagePath($)]).catch(() => {}) // explorer exits 1 even when it opened the page
 }

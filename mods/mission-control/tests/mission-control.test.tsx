@@ -9,10 +9,12 @@ const PANE = { component: 'Pane', requestId: 'mission-control', props: { title: 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFails?: boolean; bands?: string; beneath?: unknown } = {}) {
+function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFails?: boolean; bands?: string; beneath?: unknown; env?: Record<string, string>; pageFails?: boolean } = {}) {
   const runs: string[][] = []
   resetBandOrder()
   const writes: Record<string, string> = {}
+  // A path as the mod wrote it: on Windows the engine hands `/tmp/x` on as `C:\tmp\x`.
+  const posix = (p: string) => p.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/')
   on('session.start', (_$: any, e: any) => ({ sessionId: 's', cwd: e.cwd }))
   on('command.register', () => ({ value: undefined }))
   const clock = mock.clock(on)
@@ -21,10 +23,13 @@ function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFa
   on('turn.complete', () => ({ text: '' }))
   on('agent.spawn', () => ({ model: 'sonnet', agentId: 'ag1' }))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
-  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : e.path.endsWith('/bands.json') ? opts.bands : '' }))
-  on('fs.write', (_$: any, e: any) => ((writes[e.path] = e.text), { value: undefined }))
-  on('fs.exists', (_$: any, e: any) => ({ value: e.path.endsWith('/bands.json') ? opts.bands !== undefined : opts.chromeAt !== undefined ? e.path === opts.chromeAt : !opts.noChrome }))
-  on('env.get', () => ({ value: '/tmp/' }))
+  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : posix(e.path).endsWith('/bands.json') ? opts.bands : '' }))
+  on('fs.write', (_$: any, e: any) => {
+    if (opts.pageFails && e.path.endsWith('.html')) throw new Error('EACCES')
+    return (writes[posix(e.path)] = e.text), { value: undefined }
+  })
+  on('fs.exists', (_$: any, e: any) => ({ value: posix(e.path).endsWith('/bands.json') ? opts.bands !== undefined : opts.chromeAt !== undefined ? e.path === opts.chromeAt : !opts.noChrome }))
+  on('env.get', (_$: any, e: any) => ({ value: opts.env?.[e.name] ?? '/tmp/' }))
   on('process.run', (_$: any, e: any) => (runs.push(e.argv), { value: { exitCode: opts.renderFails && e.argv[0] === 'sh' ? 1 : 0, stdout: '', stderr: '' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [{ id: 'mission-control', title: 'Mission Control', isShown: true, isFocused: true, isPlaced: true }] }))
@@ -212,6 +217,46 @@ describe('mission-control', () => {
     expect(await rowsAt(50)).toBe(30)
     expect(await rowsAt(60)).toBe(30)
     expect(summary([]).tools).toBe(0)
+  })
+
+  test('on Windows the code view is lines, and b opens the drawn map in a browser', async ($, on) => {
+    const { runs, writes, clock } = engine(on, { env: { OS: 'Windows_NT', TEMP: 'C:\\Users\\me\\AppData\\Local\\Temp' } })
+    const html = () => Object.entries(writes).find(([p]) => p.endsWith('/mission-control-map.html'))?.[1] ?? ''
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: 'C:\\repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: 'C:\\repo\\src\\pages\\login.tsx' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: 'C:\\repo\\src\\auth\\session.ts', old_string: 'a', new_string: 'b' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ type: 'Text', text: /2 files · 1 changed/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^login\.tsx$/ })).toBeDefined() // the name, not the whole C:\ path
+    expect(await pane.find({ type: 'Text', text: /→ session\.ts/ })).toBeDefined() // the import across backslash paths
+    expect(await pane.find({ type: 'Image' })).toBeUndefined()
+    await clock.advance(800)
+    expect(runs).toHaveLength(0) // no Chrome, and no page until it is asked for
+
+    await pane.press({ key: 'open' })
+    expect(html()).toContain('http-equiv="refresh"')
+    expect(html()).toContain('session.ts')
+    expect(runs.some(a => a[0] === 'explorer.exe' && a[1] === 'C:\\Users\\me\\AppData\\Local\\Temp\\mission-control-map.html')).toBe(true) // right in TEMP: no folder to make
+    // Once open, the page follows each change.
+    await $.tool.call({ tool: 'Read', file_path: 'C:\\repo\\README.md' } as any)
+    await clock.advance(800)
+    expect(html()).toContain('README.md')
+    await pane.unmount()
+  })
+
+  test('on Windows a page that cannot be written says so, and opens nothing', async ($, on) => {
+    const { runs } = engine(on, { env: { OS: 'Windows_NT', TEMP: 'C:\\Temp' }, pageFails: true })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: 'C:\\repo' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    await pane.press({ key: 'open' })
+    expect(runs.some(a => a[0] === 'explorer.exe')).toBe(false)
+    await pane.unmount()
+    const again = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await again.find({ type: 'Text', text: /Could not write C:\\Temp\\mission-control-map\.html/ })).toBeDefined()
+    await again.unmount()
   })
 
   test('a second session.start keeps one clock, not two', async ($, on) => {

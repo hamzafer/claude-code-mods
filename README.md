@@ -167,7 +167,7 @@ Install it like any mod, restart, and type `/mission` (or `/mission code` to ope
 - 🟠 **Orange** while it writes
 - 🟢 **Green** when done, with one line on what changed
 
-> The Code view runs on macOS and Linux and needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2). The Who view works everywhere.
+> The Code view runs on macOS and Linux and needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2). On Windows it lists the map as lines, and `b` opens the drawn map in your browser. The Who view works everywhere.
 
 ## 📚 More
 
