@@ -1,10 +1,18 @@
 {
   "name": "md-preview",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. Before and after side by side. /md opens it.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "githubRenderer": {
+      "type": "boolean",
+      "title": "GitHub renderer",
+      "default": true,
+      "description": "Render with GitHub's own renderer (gh api /markdown), which sends the file's text to GitHub under your gh login. Files git ignores are never sent. Off, everything renders on this machine."
+    }
+  }
 }

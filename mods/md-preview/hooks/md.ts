@@ -272,21 +272,94 @@ export function inline(text: string): string {
 }
 
 // Only web, mail, relative and in-page links; never javascript: and the like.
+// Entities are decoded once, as the browser does (`&#106;` is j, the ; optional), before the test.
 function safeUrl(url: string) {
-  return /^\s*(?:javascript|vbscript|data|file):/i.test(url.replace(/&#?\w+;|[\u0000-\u001f]/g, '')) ? '#' : url
+  const named: Record<string, string> = { colon: ':', tab: '\t', newline: '\n' }
+  const decoded = url.replace(/&(?:#x([\da-f]+)|#(\d+)|([a-z]+));?/gi, (_m, hex?: string, dec?: string, name?: string) =>
+    hex || dec ? String.fromCodePoint(Math.min(parseInt((hex ?? dec) as string, hex ? 16 : 10), 0x10ffff)) : (named[(name as string).toLowerCase()] ?? ''),
+  )
+  return /^\s*(?:javascript|vbscript|data|file):/i.test(decoded.replace(/[\u0000-\u0020]/g, '')) ? '#' : url
 }
 
 /** Drops what can run: script-like elements and on* handlers, javascript: URLs. */
 export function sanitize(html: string) {
-  return html
-    .replace(/<(base|meta|link)\b(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^'">])*(?:>|$)/gi, '') // void: only the tag goes, or the rest when it never closes
-    .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
-    .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form)\b[^>]*(?:>|$)/gi, '')
-    .replace(/<[a-z][^>]*>/gi, tag =>
-      tag
-        .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-        .replace(/\b(href|src|action|formaction|srcset)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (m, attr: string, v: string) => (safeUrl(v.replace(/^["']|["']$/g, '')) === '#' ? `${attr}="#"` : m)),
-    )
+  // Again until nothing changes: taking out `<set>` must not leave `<scr` + `ipt>` joined into a script.
+  let dropped = html
+  for (let before = '', pass = 0; before !== dropped; pass++) {
+    if (pass === 8) return escapeAll(dropped) // nested past any real page: show it all as text, fail closed
+    before = dropped
+    dropped = dropped
+      .replace(/<!--[\s\S]*?(?:-->|$)/g, '') // comments: the browser would hide the tags inside, scrubTags would not see them
+      .replace(/<(base|meta|link)\b(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^'">])*(?:>|$)/gi, '') // void: only the tag goes, or the rest when it never closes
+      .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
+      // Raw-text elements lose their tags, so what they held is read as HTML by the browser and scrubTags alike.
+      .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form|animate|animatemotion|animatetransform|set|textarea|noscript|xmp|title|noembed|noframes|plaintext|listing)\b[^>]*(?:>|$)/gi, '')
+  }
+  // `<!`, `<?` and `</` without a tag name open a bogus comment in the browser: shown as text instead.
+  return scrubTags(dropped.replace(/<(?=[!?]|\/(?![a-z]))/gi, '&lt;'))
+}
+
+function escapeAll(html: string) {
+  return html.replace(/</g, '&lt;')
+}
+
+// Each tag's attributes read the way a browser reads them: a quote starts a value only right after
+// `=`, an unquoted value runs to a blank or `>` (quotes and all). Then on* handlers go and a
+// javascript: URL becomes `#`. A regex can't tell `alt=it's` from the start of a quoted value.
+function scrubTags(html: string) {
+  let out = ''
+  let i = 0
+  while (i < html.length) {
+    const lt = html.indexOf('<', i)
+    const isEnd = html[lt + 1] === '/'
+    if (lt < 0 || !/[a-z]/i.test(html[lt + (isEnd ? 2 : 1)] ?? '')) {
+      out += lt < 0 ? html.slice(i) : html.slice(i, lt + 1)
+      if (lt < 0) break
+      i = lt + 1
+      continue
+    }
+    out += html.slice(i, lt)
+    let k = lt + (isEnd ? 2 : 1)
+    while (k < html.length && !/[\s/>]/.test(html[k]!)) k++
+    const name = html.slice(lt + (isEnd ? 2 : 1), k)
+    const attrs: string[] = []
+    let isSelfClosing = false
+    for (;;) {
+      while (k < html.length && /[\s/]/.test(html[k]!)) isSelfClosing = html[k++] === '/'
+      if (k >= html.length || html[k] === '>') break
+      isSelfClosing = false
+      const start = k
+      k++ // a name is at least one character, even a stray = or quote
+      while (k < html.length && !/[\s/>=]/.test(html[k]!)) k++
+      const attr = html.slice(start, k)
+      let j = k
+      while (j < html.length && /\s/.test(html[j]!)) j++
+      let value: string | undefined
+      if (html[j] === '=') {
+        j++
+        while (j < html.length && /\s/.test(html[j]!)) j++
+        const q = html[j]
+        if (q === '"' || q === "'") {
+          const close = html.indexOf(q, j + 1)
+          value = html.slice(j + 1, close < 0 ? html.length : close)
+          k = close < 0 ? html.length : close + 1
+        } else {
+          const from = j
+          while (j < html.length && !/[\s>]/.test(html[j]!)) j++
+          value = html.slice(from, j)
+          k = j
+        }
+      }
+      if (/^on|^srcdoc$/i.test(attr)) continue // handlers, and a whole page in an attribute
+      if (value === undefined) attrs.push(attr)
+      else if (/^(href|src|action|formaction|srcset|xlink:href|poster|background|data)$/i.test(attr) && safeUrl(value) === '#') attrs.push(`${attr}="#"`)
+      else attrs.push(`${attr}="${value.replace(/"/g, '&quot;')}"`)
+    }
+    // An end tag's attributes are read (the browser reads them too, quotes and all) but never written.
+    out += isEnd ? `</${name}>` : `<${name}${attrs.map(a => ` ${a}`).join('')}${isSelfClosing ? '/' : ''}>`
+    i = k < html.length ? k + 1 : html.length
+  }
+  return out
 }
 
 function emphasis(s: string) {

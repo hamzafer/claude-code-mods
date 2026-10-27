@@ -2,8 +2,9 @@
 //   A toast says when one changes; /md opens the pane on the latest one.
 //   b shows the file before the last edit next to it now; /md compare <a> <b> shows
 //   two files side by side; o opens the page in the browser.
-//   GitHub renders it (gh api /markdown) when the file is in a GitHub repo and gh is
-//   signed in; a small built-in renderer does otherwise. Headless Chrome draws the
+//   GitHub renders it (gh api /markdown) when the file is in a GitHub repo, git does not
+//   ignore it, gh is signed in and the githubRenderer option is on; a small built-in
+//   renderer does otherwise. Headless Chrome draws the
 //   page to PNG for the terminal; without Chrome or an image terminal, a text view.
 //   A file Claude edits is drawn ahead, in the background, so /md opens on a page that
 //   is already drawn; drawings are kept by what they show, so n/p back to a file is instant.
@@ -84,7 +85,8 @@ const ahead = new Set<string>() // files to draw before /md asks for them; newes
 const repos = new Map<string, string | null>() // each folder's GitHub repo, from its remotes
 const ghFailed = new Set<string>() // repos whose last GitHub render failed
 const turn = { isOn: false } // the main turn is under way: draw ahead once it ends
-const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0, opener: '' }
+const session = { cwd: '', home: '', command: 'md', canImage: false, chrome: '', noChrome: false, ghDownUntil: 0, opener: '', useGithub: true }
+let tmpDir: Promise<string> | null = null // this process's own folder for pages, pictures and the Chrome profile
 const toasted = new Set<string>() // files toasted this turn
 const turnBefore = new Map<string, string | null>() // each file's text before this turn's first edit
 // Markdown files before the turn's first shell command, to catch writes that skip Write/Edit (`cat > README.md`).
@@ -132,7 +134,8 @@ function absolute(arg: string) {
   return `/${parts.join('/')}`
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  session.useGithub = options.githubRenderer !== false
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     session.cwd = e.cwd
@@ -591,11 +594,12 @@ async function drawAgainIfStale($: EngineInterface) {
 }
 
 // GitHub's own renderer, through the person's gh; null when it cannot be used.
-async function github($: EngineInterface, md: string, dir: string): Promise<string | null> {
-  if ((await $.clock.now()) < session.ghDownUntil) return null
+async function github($: EngineInterface, md: string, path: string): Promise<string | null> {
+  if (!session.useGithub || (await $.clock.now()) < session.ghDownUntil) return null
   if (new TextEncoder().encode(md).length > GH_MAX_BYTES) return null // too large for the API: built-in, no penalty
-  const repo = await repoOf($, dir)
+  const repo = await repoOf($, folder(path))
   if (!repo) return null // not in a GitHub repo: the Markdown stays on this machine
+  if (!(await isTracked($, path))) return null // a file git ignores stays on this machine too
   const r = await $.process
     .run(['gh', 'api', '-X', 'POST', '/markdown', '--input', '-'], { stdin: JSON.stringify({ text: md, mode: 'markdown', context: repo }), timeoutMs: GH_TIMEOUT_MS })
     .catch(() => null)
@@ -617,14 +621,23 @@ async function repoOf($: EngineInterface, dir: string): Promise<string | null> {
   return repo
 }
 
+// Whether git does not ignore the file. Asked every time, as .gitignore can change; an
+// answer other than "not ignored" (git missing, an error) counts as ignored.
+async function isTracked($: EngineInterface, path: string) {
+  const r = await $.process
+    .run(['git', '-c', 'core.fsmonitor=false', '-C', folder(path), 'check-ignore', '-q', '--', path], { timeoutMs: 5000 })
+    .catch(() => null)
+  return r?.exitCode === 1
+}
+
 // The renderer html() would use now, without asking GitHub. A repo whose last GitHub
 // render failed counts as built-in until one works (or r), so kept drawings stay found.
 async function renderer($: EngineInterface, sides: Loaded[]): Promise<'GitHub' | 'built-in'> {
-  if ((await $.clock.now()) < session.ghDownUntil) return 'built-in'
+  if (!session.useGithub || (await $.clock.now()) < session.ghDownUntil) return 'built-in'
   for (const s of sides) {
     if (new TextEncoder().encode(withMarks(s.text, s.marks)).length > GH_MAX_BYTES) return 'built-in'
     const repo = await repoOf($, folder(s.path))
-    if (!repo || ghFailed.has(repo)) return 'built-in'
+    if (!repo || ghFailed.has(repo) || !(await isTracked($, s.path))) return 'built-in'
   }
   return 'GitHub'
 }
@@ -722,7 +735,7 @@ async function html($: EngineInterface, sides: Loaded[]): Promise<{ sides: Side[
   const mds = sides.map(s => withMarks(s.text, s.marks))
   const fromGithub: string[] = []
   for (const [k, md] of mds.entries()) {
-    const h1 = await github($, md, folder((sides[k] as Loaded).path))
+    const h1 = await github($, md, (sides[k] as Loaded).path)
     if (h1 === null) break // one side cannot: all sides use the built-in renderer, so they match
     fromGithub.push(h1)
   }
@@ -731,9 +744,18 @@ async function html($: EngineInterface, sides: Loaded[]): Promise<{ sides: Side[
   return { sides: out, via: isGithub ? 'GitHub' : 'built-in' }
 }
 
-async function tmpRoot($: EngineInterface) {
-  const tmp = ((await $.env.get('TMPDIR').catch(() => undefined)) ?? '/tmp').replace(/\/$/, '')
-  return `${tmp}/md-preview`
+// A new folder made by mktemp: only this user can open it (0700), and no other session
+// or user shares its pages or Chrome profile. Made once per load; a failed one is tried again.
+function tmpRoot($: EngineInterface) {
+  tmpDir ??= (async () => {
+    const tmp = ((await $.env.get('TMPDIR').catch(() => undefined)) ?? '/tmp').replace(/\/$/, '')
+    const r = await $.process.run(['mktemp', '-d', `${tmp}/md-preview.XXXXXXXX`], { timeoutMs: 5000 })
+    const dir = r.stdout.trim()
+    if (r.exitCode !== 0 || !dir.startsWith('/')) throw new Error('mktemp failed')
+    return dir
+  })()
+  tmpDir.catch(() => (tmpDir = null))
+  return tmpDir
 }
 
 async function renderFile($: EngineInterface) {
@@ -789,7 +811,9 @@ async function openInBrowser($: EngineInterface): Promise<string> {
   const loaded = await load($, p)
   if (loaded.length === 0) return `cannot read ${p.title}`
   const { sides } = await html($, loaded)
-  const file = `${await tmpRoot($)}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
+  const root = await tmpRoot($).catch(() => null)
+  if (!root) return 'could not make a temp folder for the page'
+  const file = `${root}/open-${draw.opened++ % 5}.html` // five in turn, so they do not pile up
   const isWritten = await $.fs.write(file, page(sides, { title: p.title, width: 0 })).then(() => true).catch(() => false)
   if (!isWritten) return `could not write the page to ${file}`
   const r = await $.process.run([await opener($), file], { timeoutMs: 10_000 }).catch(() => null)

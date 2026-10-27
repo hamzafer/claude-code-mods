@@ -7,7 +7,7 @@ import { githubRepo, MD_FILE } from '../hooks/register'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const PANE = { component: 'Pane', requestId: 'md-preview', props: { title: 'Markdown', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } }
 
-type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean; lsFails?: boolean; os?: string; openWriteFails?: boolean }
+type Opts = { chrome?: boolean; gh?: 'ok' | 'fail' | 'missing'; term?: string; remote?: string; shFails?: boolean; lsFails?: boolean; os?: string; openWriteFails?: boolean; ignored?: string[] }
 
 // Stands for the engine beneath the mod: a small disk, gh, git and Chrome.
 function engine(on: any, opts: Opts = {}) {
@@ -62,6 +62,8 @@ function engine(on: any, opts: Opts = {}) {
       const sep = e.argv.includes('-z') ? '\0' : '\n'
       return { value: { exitCode: 0, stdout: md.join(sep) + sep, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     }
+    if (cmd === 'git' && e.argv.includes('check-ignore')) return { value: { exitCode: opts.ignored?.includes(e.argv.at(-1)) ? 0 : 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    if (cmd === 'mktemp') return { value: { exitCode: 0, stdout: `${e.argv[2].replace(/X+$/, 'a1B2c3D4')}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'uname') return { value: { exitCode: 0, stdout: `${opts.os ?? 'Darwin'}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'git') return { value: { exitCode: 0, stdout: opts.remote ?? 'origin\tgit@github.com:someone/docs-repo.git (fetch)\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (cmd === 'gh') {
@@ -248,6 +250,46 @@ describe('md-preview', () => {
     await clock.advance(400)
     expect(runs.some(x => x.argv[0] === 'gh')).toBe(false)
     expect(runs.some(x => x.argv[0] === 'sh')).toBe(true)
+    await pane.unmount()
+  })
+
+  test('a file git ignores is not sent to gh: the built-in renderer draws it', async ($, on) => {
+    const { runs, clock } = engine(on, { ignored: ['/repo/README.md'] })
+    await start($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    await clock.advance(400)
+    expect(runs.some(x => x.argv[0] === 'gh')).toBe(false)
+    expect(runs.find(x => x.argv.includes('check-ignore'))?.argv).toEqual(['git', '-c', 'core.fsmonitor=false', '-C', '/repo', 'check-ignore', '-q', '--', '/repo/README.md'])
+    expect(runs.some(x => x.argv[0] === 'sh')).toBe(true)
+    await pane.unmount()
+    const drawn = await mount($)
+    expect(await drawn.find({ type: 'Text', text: /built-in/ })).toBeDefined()
+    await drawn.unmount()
+  })
+
+  test('githubRenderer off: nothing is sent to gh', { options: { githubRenderer: false } }, async ($, on) => {
+    const { runs, clock } = engine(on)
+    await start($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    await clock.advance(400)
+    expect(runs.some(x => x.argv[0] === 'gh')).toBe(false)
+    expect(runs.some(x => x.argv[0] === 'sh')).toBe(true)
+    await pane.unmount()
+  })
+
+  test('pages and the Chrome profile go to a folder of its own, made by mktemp once', async ($, on) => {
+    const { runs, clock } = engine(on)
+    await start($)
+    await $.command.run({ command: 'md', args: 'README.md' } as any)
+    const pane = await mount($)
+    await clock.advance(400)
+    await $.command.run({ command: 'md', args: 'open' } as any)
+    const mk = runs.filter(x => x.argv[0] === 'mktemp')
+    expect(mk).toHaveLength(1)
+    expect(mk[0]?.argv).toEqual(['mktemp', '-d', '/tmp/md-preview.XXXXXXXX'])
+    expect(runs.find(x => x.argv[0] === 'sh')?.argv[7]).toBe('/tmp/md-preview.a1B2c3D4/chrome')
     await pane.unmount()
   })
 
@@ -462,7 +504,7 @@ describe('md-preview', () => {
     const r = await $.command.run({ command: 'md', args: 'open' } as any)
     expect(r.text).toMatch(/^opened README\.md in the browser/)
     const open = runs.find(x => x.argv[0] === 'open')
-    expect(open?.argv[1]).toMatch(/^\/tmp\/md-preview\/open-\d+\.html$/)
+    expect(open?.argv[1]).toMatch(/^\/tmp\/md-preview\.a1B2c3D4\/open-\d+\.html$/)
     const page = writes[open?.argv[1] ?? ''] ?? ''
     expect(page).toContain('New paragraph.')
     expect(page).toContain('<style>') // self-contained
@@ -487,7 +529,7 @@ describe('md-preview', () => {
     const { runs } = engine(on, { gh: 'missing', openWriteFails: true })
     await start($)
     await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'New paragraph.' } as any)
-    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^could not write the page to \/tmp\/md-preview\/open-\d+\.html$/)
+    expect((await $.command.run({ command: 'md', args: 'open' } as any)).text).toMatch(/^could not write the page to \/tmp\/md-preview\.a1B2c3D4\/open-\d+\.html$/)
     expect(runs.some(x => x.argv[0] === 'open' || x.argv[0] === 'xdg-open')).toBe(false)
   })
 
@@ -501,7 +543,7 @@ describe('md-preview', () => {
     await clock.advance(400)
     expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(1) // one draw for one state
     const sh = runs.find(x => x.argv[0] === 'sh')
-    expect(sh?.argv[5]).toMatch(/^file:\/\/\/tmp\/md-preview\/page-\d\.html$/) // a URL, not a bare path
+    expect(sh?.argv[5]).toMatch(/^file:\/\/\/tmp\/md-preview\.a1B2c3D4\/page-\d\.html$/) // a URL, not a bare path
     // Two edits in one turn: b compares with the text before the first.
     await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Old paragraph.', new_string: 'Step one.' } as any)
     await $.tool.call({ tool: 'Edit', file_path: '/repo/README.md', old_string: 'Step one.', new_string: 'Step two.' } as any)
@@ -537,6 +579,46 @@ describe('md-preview', () => {
     await clock.advance(400)
     expect(runs.filter(x => x.argv[0] === 'sh')).toHaveLength(2)
     await again.unmount()
+  })
+
+  test('entity-encoded schemes are decoded before the test, as the browser decodes them', () => {
+    expect(toHtml(parse('[x](&#106;avascript:alert(1))'))).toContain('<a href="#">x</a>')
+    expect(sanitize('<a href="&#x6A;avascript&colon;x">a</a> <a href="&#106avascript:x">b</a> <a href="java&Tab;script:x">c</a>')).not.toMatch(/href="[^#]/)
+    expect(sanitize('<a href="https://x.dev/?a=1&amp;b=2">ok</a>')).toBe('<a href="https://x.dev/?a=1&amp;b=2">ok</a>')
+  })
+
+  test('handlers go after a / or a quote too, and a > inside quotes does not end the tag', () => {
+    expect(sanitize('<svg/onload=alert(1)>')).toBe('<svg>')
+    expect(sanitize('<img src="x"onerror=alert(1)>')).toBe('<img src="x">')
+    expect(sanitize('<img title="a>b" onerror=alert(1)>')).toBe('<img title="a>b">')
+    // a quote in an unquoted value is just a character: it does not hide the handler after it
+    expect(sanitize("<img src=x alt=it's onerror=alert(1)> don't")).toBe(`<img src="x" alt="it's"> don't`)
+    expect(sanitize('<img src=x title=a"b onerror=alert(1)>text <a href="y">')).toBe('<img src="x" title="a&quot;b">text <a href="y">')
+    // href= inside another value is text, the real href is still checked
+    expect(sanitize('<a title="x href=" href="javascript:alert(1)">a</a>')).toBe('<a title="x href=" href="#">a</a>')
+    // nothing the browser reads as a comment or as text hides a tag from the scrub
+    for (const evil of [
+      '<!-- <a title=" --> <img src=x onerror=alert(1)> "> -->',
+      '<?x <a title="?><img src=x onerror=alert(1)>">',
+      '</1 <a title="><img src=x onerror=alert(1)>">',
+      '<textarea><a title="</textarea><img src=x onerror=alert(1)>">',
+      '<noscript><a title="</noscript><img src=x onerror=alert(1)>">',
+      '<svg><![CDATA[<a title="]]><img src=x onerror=alert(1)>">]]>',
+      '<scr<set>ipt>alert(1)</scr<set>ipt>',
+      '<svg><anim<set>ate attributeName=href values=javascript:alert(1)>',
+      '<ifr<set>ame srcdoc="<script>alert(1)</script>">',
+      `</a x='<b title="'><img src=x onerror=alert(1)>">`,
+      `</a x="<b title='"><img src=x onerror=alert(1)>'>`,
+    ]) expect(sanitize(evil).replace(/="[^"]*"/g, '=""')).not.toMatch(/onerror|<script|<animate|<iframe|srcdoc/i) // values are always re-quoted: outside them is what runs
+    expect(sanitize('<p>a</p><!-- a note --><p>b</p>')).toBe('<p>a</p><p>b</p>')
+    expect(sanitize('<p>a</p >')).toBe('<p>a</p>')
+    const nested = `${'<se'.repeat(20000)}t>${'t>'.repeat(20000)}`
+    const at = Date.now()
+    expect(sanitize(nested)).not.toMatch(/<se/) // nested removals stop early, as text
+    expect(Date.now() - at).toBeLessThan(2000)
+    // SVG animation can't set a link to javascript:
+    expect(sanitize('<svg><a><animate attributeName=href values=javascript:alert(1) /><text>x</text></a></svg>')).not.toMatch(/javascript/)
+    expect(sanitize('<p title="say onclick=hi">k</p>')).toBe('<p title="say onclick=hi">k</p>') // text in a value stays
   })
 
   test('the built-in renderer is safe and handles real READMEs', () => {
