@@ -222,10 +222,11 @@ async function measure($: EngineInterface, found: Risk): Promise<Pick<HeldComman
         const list = unknown.length > 0 ? unknown : [`cd ${found.cwd}`]
         return { summary: `can't preview: ${list.length === 1 ? 'a path uses' : `${list.length} paths use`} a shell variable, check by hand`, details: list.slice(0, MAX_LISTED) }
       }
-      // Unquoted $t expands globs, and nothing else, without running the command.
+      // Unquoted $t expands globs, and nothing else, without running the command. A name starting with `-`
+      // (a file called `-delete` matched by `*`) goes in as `./-delete`, so du and find never read it as a flag.
       const script =
-        'shopt -s nullglob; for t in "$@"; do for p in $t; do [ -e "$p" ] || continue; ' +
-        'echo "S $(du -sk "$p" | cut -f1)"; find "$p" -type f | head -n 5000 | sed "s/^/F /"; done; done'
+        'shopt -s nullglob; for t in "$@"; do for p in $t; do [ -e "$p" ] || continue; case $p in -*) p=./$p ;; esac; ' +
+        'echo "S $(du -sk -- "$p" | cut -f1)"; find "$p" -type f | head -n 5000 | sed "s/^/F /"; done; done'
       const r = await $.process.run(['bash', '-c', script, 'blast-radius', ...targets], init)
       const lines = r.stdout.split('\n')
       const files = lines.filter(l => l.startsWith('F ')).map(l => short(l.slice(2), targets))
