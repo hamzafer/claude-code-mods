@@ -180,6 +180,7 @@ Shows one live line per running Claude Code subagent or background shell.
 
 ![agent-radar: a running subagent and two background shells with their latest output above the Claude Code prompt](../images/agent-radar.png)
 
+- A subagent's line names the model it runs on, like `sweep runner (Sonnet 5.5)`
 - A finished agent shows a check for 30 seconds, then its line goes away
 - A toast says when each one finishes
 - `/radar` lists every agent this session

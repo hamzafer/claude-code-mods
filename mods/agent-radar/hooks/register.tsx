@@ -52,7 +52,7 @@ export const register: Register = on => {
     const r = await next(e)
     if (r.agentId) {
       const id = r.agentId
-      const one: RadarAgent = { id, kind: 'agent', description: e.description || e.name || e.subagentType, type: e.subagentType, status: 'running', startedAt: Date.now(), tools: 0, last: 'starting' }
+      const one: RadarAgent = { id, kind: 'agent', description: e.description || e.name || e.subagentType, type: e.subagentType, model: r.model, status: 'running', startedAt: Date.now(), tools: 0, last: 'starting' }
       await update($, agents, list => [one, ...list.filter(a => a.id !== id)].slice(0, 30))
     }
     return r
@@ -118,7 +118,7 @@ export const register: Register = on => {
         {shown.slice(0, BAND_ROWS).map(a => (
           <Text wrap="truncate-end">
             <Text color={color(a)} bold>{` ${icon(a)} ${a.description}`}</Text>
-            <Text dimColor>{`  ${tag(a)} ${elapsed(a)}${kindOf(a) === 'agent' ? ` · ${a.tools} tools` : ''}`}</Text>
+            <Text dimColor>{`${modelTag(a)}  ${tag(a)} ${elapsed(a)}${kindOf(a) === 'agent' ? ` · ${a.tools} tools` : ''}`}</Text>
             {a.status === 'running' && <Text>{` · ${a.last}`}</Text>}
             {a.status === 'failed' && <Text color="red">{` · ${a.last}`}</Text>}
           </Text>
@@ -166,7 +166,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Text>
             <Text color={color(one)} bold>{`${icon(one)} ${one.description}`}</Text>
-            <Text dimColor>{`  ${one.type} · ${elapsed(one)} · ${one.tools} tools`}</Text>
+            <Text dimColor>{`${modelTag(one)}  ${one.type} · ${elapsed(one)} · ${one.tools} tools`}</Text>
           </Text>
           <Text dimColor wrap="truncate-end">{`now: ${one.last}`}</Text>
           <Text dimColor>{'─'.repeat(Math.max(10, e.props.bodyColumns - 2))}</Text>
@@ -196,7 +196,7 @@ export const register: Register = on => {
             plain
             hotkey={String(i + 1)}
             dimColor={a.status !== 'running'}
-            label={`${icon(a)} ${a.description} · ${tag(a)} · ${elapsed(a)}${kindOf(a) === 'agent' ? ` · ${a.tools} tools` : ''}${a.status === 'done' ? '' : ` · ${a.last}`}`}
+            label={`${icon(a)} ${title(a)} · ${tag(a)} · ${elapsed(a)}${kindOf(a) === 'agent' ? ` · ${a.tools} tools` : ''}${a.status === 'done' ? '' : ` · ${a.last}`}`}
             onPress={() => update($, selected, () => a.id)}
           />
         ))}
@@ -315,6 +315,29 @@ function tag(a: Pick<RadarAgent, 'kind'>) {
 // Running, or finished in the last 30 s.
 export function isShown(a: RadarAgent, at = Date.now()) {
   return a.status === 'running' || (a.endedAt !== undefined && at - a.endedAt < SHOW_DONE_MS)
+}
+
+// The description, then the model in parentheses when one is known: `sweep runner (Sonnet 5.5)`.
+function title(a: Pick<RadarAgent, 'description' | 'model'>) {
+  return a.description + modelTag(a)
+}
+
+// ` (Sonnet 5.5)`, or '' with no model: drawn dim after the bold description.
+function modelTag(a: Pick<RadarAgent, 'model'>) {
+  return a.model ? ` (${modelName(a.model)})` : ''
+}
+
+// `claude-sonnet-5-5` -> `Sonnet 5.5`, `us.anthropic.claude-3-5-haiku-20241022-v1:0` -> `Haiku 3.5`,
+// `opus` -> `Opus`; anything else as it came.
+export function modelName(id: string): string {
+  const parts = id.toLowerCase().replace(/\[.*\]$/, '').split(/[-.:@_/]/)
+  const family = parts.find(p => ['fable', 'opus', 'sonnet', 'haiku'].includes(p))
+  if (!family) return id
+  const start = parts.findIndex(p => /^\d{1,2}$/.test(p))
+  const version: string[] = []
+  for (let i = start; i >= 0 && i < parts.length && version.length < 2 && /^\d{1,2}$/.test(parts[i]!); i++) version.push(parts[i]!)
+  const name = family[0]!.toUpperCase() + family.slice(1)
+  return version.length ? `${name} ${version.join('.')}` : name
 }
 
 function icon(a: RadarAgent) {

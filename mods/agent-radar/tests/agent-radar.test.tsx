@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { describe as label, elapsed, isShown, resetBandOrder } from '../hooks/register'
+import { describe as label, elapsed, isShown, modelName, resetBandOrder } from '../hooks/register'
 import { agentOf, baseName, outputPathOf, shellLabel, tailLines } from '../hooks/watch'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
@@ -67,7 +67,8 @@ describe('agent-radar', () => {
     await $.agent.spawn({ prompt: 'run it', description: 'sweep runner' } as any)
 
     const band = await $.ui.mount({ plugin: 'agent-radar', surface: 'terminal', ...BAND } as any)
-    expect(await band.find({ type: 'Text', text: / ● sweep runner/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: / ● sweep runner$/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /^ \(Sonnet\)  sub / })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /band below/ })).toBeDefined()
     // the radar sits on top: what other mods draw stays below it
     const root: any = await band.drawn()
@@ -107,6 +108,15 @@ describe('agent-radar', () => {
     const root: any = await band.drawn()
     expect(root.children.map((c: any) => c.props.key)).toEqual(['band:where-am-i', 'band:agent-radar'])
     await band.unmount()
+  })
+
+  test('model names', () => {
+    expect(modelName('claude-sonnet-5-5')).toBe('Sonnet 5.5')
+    expect(modelName('claude-opus-4-1-20250805')).toBe('Opus 4.1')
+    expect(modelName('us.anthropic.claude-3-5-haiku-20241022-v1:0')).toBe('Haiku 3.5')
+    expect(modelName('claude-fable-5-1[1m]')).toBe('Fable 5.1')
+    expect(modelName('haiku')).toBe('Haiku')
+    expect(modelName('gpt-5')).toBe('gpt-5')
   })
 
   test('background command helpers', () => {

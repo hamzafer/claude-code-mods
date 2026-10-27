@@ -91,7 +91,7 @@ claude --plugin-dir mods/context-bar
 | 🔥 | **heatmap** | A GitHub-style grid of your Claude Code time, with your streak, peak hours and top projects | `/heatmap` |
 | 💳 | **openai-balance** | Your OpenAI API credit: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. Needs an OpenAI organization Admin key | `/openai-balance` |
 | 🪙 | **openrouter-balance** | Your OpenRouter credit: the real balance with a gauge, today's spend and the model the money mostly went to. A regular API key shows the balance too when OpenRouter allows it, plus its own spend and limit | `/openrouter-balance` |
-| 📡 | **agent-radar** | One live line per running subagent or background shell | `/radar` |
+| 📡 | **agent-radar** | One live line per running subagent (with its model) or background shell | `/radar` |
 | 🔍 | **review-watch** | One live line per running code review (Codex or a review subagent) with the model, target, elapsed time and Codex's latest output. A toast lists the findings when it ends | |
 | 🌐 | **browser-lanes** | Whether this session has a browser, and who holds it | `/browser` |
 | 🕌 | **prayer-times** | The current prayer and how long is left, the next one, and zawal. Computed on your computer, Hanafi or standard Asr | `/prayers` |

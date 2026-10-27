@@ -9,6 +9,7 @@ export type RadarAgent = {
   endedAt?: number
   tools: number
   last: string
+  model?: string // agent: the model it runs on, as agent.spawn resolved it
   kind?: RadarKind // absent: a subagent
   command?: string // shell: the Bash command
   detail?: string // shell: the Bash description, else the start of the command
