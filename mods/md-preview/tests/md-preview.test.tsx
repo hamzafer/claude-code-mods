@@ -607,8 +607,15 @@ describe('md-preview', () => {
       '<scr<set>ipt>alert(1)</scr<set>ipt>',
       '<svg><anim<set>ate attributeName=href values=javascript:alert(1)>',
       '<ifr<set>ame srcdoc="<script>alert(1)</script>">',
+      `</a x='<b title="'><img src=x onerror=alert(1)>">`,
+      `</a x="<b title='"><img src=x onerror=alert(1)>'>`,
     ]) expect(sanitize(evil).replace(/="[^"]*"/g, '=""')).not.toMatch(/onerror|<script|<animate|<iframe|srcdoc/i) // values are always re-quoted: outside them is what runs
     expect(sanitize('<p>a</p><!-- a note --><p>b</p>')).toBe('<p>a</p><p>b</p>')
+    expect(sanitize('<p>a</p >')).toBe('<p>a</p>')
+    const nested = `${'<se'.repeat(20000)}t>${'t>'.repeat(20000)}`
+    const at = Date.now()
+    expect(sanitize(nested)).not.toMatch(/<se/) // nested removals stop early, as text
+    expect(Date.now() - at).toBeLessThan(2000)
     // SVG animation can't set a link to javascript:
     expect(sanitize('<svg><a><animate attributeName=href values=javascript:alert(1) /><text>x</text></a></svg>')).not.toMatch(/javascript/)
     expect(sanitize('<p title="say onclick=hi">k</p>')).toBe('<p title="say onclick=hi">k</p>') // text in a value stays

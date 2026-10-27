@@ -285,7 +285,8 @@ function safeUrl(url: string) {
 export function sanitize(html: string) {
   // Again until nothing changes: taking out `<set>` must not leave `<scr` + `ipt>` joined into a script.
   let dropped = html
-  for (let before = ''; before !== dropped; ) {
+  for (let before = '', pass = 0; before !== dropped; pass++) {
+    if (pass === 8) return escapeAll(dropped) // nested past any real page: show it all as text, fail closed
     before = dropped
     dropped = dropped
       .replace(/<!--[\s\S]*?(?:-->|$)/g, '') // comments: the browser would hide the tags inside, scrubTags would not see them
@@ -298,6 +299,10 @@ export function sanitize(html: string) {
   return scrubTags(dropped.replace(/<(?=[!?]|\/(?![a-z]))/gi, '&lt;'))
 }
 
+function escapeAll(html: string) {
+  return html.replace(/</g, '&lt;')
+}
+
 // Each tag's attributes read the way a browser reads them: a quote starts a value only right after
 // `=`, an unquoted value runs to a blank or `>` (quotes and all). Then on* handlers go and a
 // javascript: URL becomes `#`. A regex can't tell `alt=it's` from the start of a quoted value.
@@ -306,16 +311,17 @@ function scrubTags(html: string) {
   let i = 0
   while (i < html.length) {
     const lt = html.indexOf('<', i)
-    if (lt < 0 || !/[a-z]/i.test(html[lt + 1] ?? '')) {
+    const isEnd = html[lt + 1] === '/'
+    if (lt < 0 || !/[a-z]/i.test(html[lt + (isEnd ? 2 : 1)] ?? '')) {
       out += lt < 0 ? html.slice(i) : html.slice(i, lt + 1)
       if (lt < 0) break
       i = lt + 1
       continue
     }
     out += html.slice(i, lt)
-    let k = lt + 1
+    let k = lt + (isEnd ? 2 : 1)
     while (k < html.length && !/[\s/>]/.test(html[k]!)) k++
-    const name = html.slice(lt + 1, k)
+    const name = html.slice(lt + (isEnd ? 2 : 1), k)
     const attrs: string[] = []
     let isSelfClosing = false
     for (;;) {
@@ -349,7 +355,8 @@ function scrubTags(html: string) {
       else if (/^(href|src|action|formaction|srcset|xlink:href|poster|background|data)$/i.test(attr) && safeUrl(value) === '#') attrs.push(`${attr}="#"`)
       else attrs.push(`${attr}="${value.replace(/"/g, '&quot;')}"`)
     }
-    out += `<${name}${attrs.map(a => ` ${a}`).join('')}${isSelfClosing ? '/' : ''}>`
+    // An end tag's attributes are read (the browser reads them too, quotes and all) but never written.
+    out += isEnd ? `</${name}>` : `<${name}${attrs.map(a => ` ${a}`).join('')}${isSelfClosing ? '/' : ''}>`
     i = k < html.length ? k + 1 : html.length
   }
   return out
