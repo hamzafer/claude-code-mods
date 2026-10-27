@@ -283,11 +283,19 @@ function safeUrl(url: string) {
 
 /** Drops what can run: script-like elements and on* handlers, javascript: URLs. */
 export function sanitize(html: string) {
-  const dropped = html
-    .replace(/<(base|meta|link)\b(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^'">])*(?:>|$)/gi, '') // void: only the tag goes, or the rest when it never closes
-    .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
-    .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form|animate|animatemotion|animatetransform|set)\b[^>]*(?:>|$)/gi, '')
-  return scrubTags(dropped)
+  // Again until nothing changes: taking out `<set>` must not leave `<scr` + `ipt>` joined into a script.
+  let dropped = html
+  for (let before = ''; before !== dropped; ) {
+    before = dropped
+    dropped = dropped
+      .replace(/<!--[\s\S]*?(?:-->|$)/g, '') // comments: the browser would hide the tags inside, scrubTags would not see them
+      .replace(/<(base|meta|link)\b(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^'">])*(?:>|$)/gi, '') // void: only the tag goes, or the rest when it never closes
+      .replace(/<(script|style|iframe|object|embed|frame|frameset|applet|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
+      // Raw-text elements lose their tags, so what they held is read as HTML by the browser and scrubTags alike.
+      .replace(/<\/?(script|style|iframe|object|embed|frame|frameset|applet|base|meta|link|form|animate|animatemotion|animatetransform|set|textarea|noscript|xmp|title|noembed|noframes|plaintext|listing)\b[^>]*(?:>|$)/gi, '')
+  }
+  // `<!`, `<?` and `</` without a tag name open a bogus comment in the browser: shown as text instead.
+  return scrubTags(dropped.replace(/<(?=[!?]|\/(?![a-z]))/gi, '&lt;'))
 }
 
 // Each tag's attributes read the way a browser reads them: a quote starts a value only right after
@@ -336,7 +344,7 @@ function scrubTags(html: string) {
           k = j
         }
       }
-      if (/^on/i.test(attr)) continue
+      if (/^on|^srcdoc$/i.test(attr)) continue // handlers, and a whole page in an attribute
       if (value === undefined) attrs.push(attr)
       else if (/^(href|src|action|formaction|srcset|xlink:href|poster|background|data)$/i.test(attr) && safeUrl(value) === '#') attrs.push(`${attr}="#"`)
       else attrs.push(`${attr}="${value.replace(/"/g, '&quot;')}"`)

@@ -596,6 +596,19 @@ describe('md-preview', () => {
     expect(sanitize('<img src=x title=a"b onerror=alert(1)>text <a href="y">')).toBe('<img src="x" title="a&quot;b">text <a href="y">')
     // href= inside another value is text, the real href is still checked
     expect(sanitize('<a title="x href=" href="javascript:alert(1)">a</a>')).toBe('<a title="x href=" href="#">a</a>')
+    // nothing the browser reads as a comment or as text hides a tag from the scrub
+    for (const evil of [
+      '<!-- <a title=" --> <img src=x onerror=alert(1)> "> -->',
+      '<?x <a title="?><img src=x onerror=alert(1)>">',
+      '</1 <a title="><img src=x onerror=alert(1)>">',
+      '<textarea><a title="</textarea><img src=x onerror=alert(1)>">',
+      '<noscript><a title="</noscript><img src=x onerror=alert(1)>">',
+      '<svg><![CDATA[<a title="]]><img src=x onerror=alert(1)>">]]>',
+      '<scr<set>ipt>alert(1)</scr<set>ipt>',
+      '<svg><anim<set>ate attributeName=href values=javascript:alert(1)>',
+      '<ifr<set>ame srcdoc="<script>alert(1)</script>">',
+    ]) expect(sanitize(evil).replace(/="[^"]*"/g, '=""')).not.toMatch(/onerror|<script|<animate|<iframe|srcdoc/i) // values are always re-quoted: outside them is what runs
+    expect(sanitize('<p>a</p><!-- a note --><p>b</p>')).toBe('<p>a</p><p>b</p>')
     // SVG animation can't set a link to javascript:
     expect(sanitize('<svg><a><animate attributeName=href values=javascript:alert(1) /><text>x</text></a></svg>')).not.toMatch(/javascript/)
     expect(sanitize('<p title="say onclick=hi">k</p>')).toBe('<p title="say onclick=hi">k</p>') // text in a value stays
