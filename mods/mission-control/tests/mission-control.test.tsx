@@ -269,10 +269,8 @@ describe('mission-control', () => {
     opts.pageFails = true
     await $.tool.call({ tool: 'Read', file_path: 'C:\\repo\\README.md' } as any)
     await clock.advance(800)
+    expect(await pane.find({ type: 'Text', text: /Could not update C:\\Temp\\mission-control-map\.html/ })).toBeDefined() // the open pane redraws
     await pane.unmount()
-    const again = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
-    expect(await again.find({ type: 'Text', text: /Could not update C:\\Temp\\mission-control-map\.html/ })).toBeDefined()
-    await again.unmount()
   })
 
   test('a second session.start keeps one clock, not two', async ($, on) => {

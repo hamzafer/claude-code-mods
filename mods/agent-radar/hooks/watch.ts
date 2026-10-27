@@ -72,9 +72,10 @@ exit 0
 `
 
 // Every file some process we can see holds open, as `lsof -Fn` lines (`n<path>`), from Linux's /proc:
-// for a machine without lsof. Exits 2 with no /proc, so the caller knows it cannot say.
+// for a Linux machine without lsof. Exits 2 elsewhere (macOS, or Git Bash, whose /proc shows only its
+// own processes), so the caller knows it cannot say.
 export const OPEN_SH = `# radar:open
-[ -d /proc/self/fd ] || exit 2
+[ "$(uname -s)" = Linux ] && [ -d /proc/self/fd ] || exit 2
 ls -l /proc/[0-9]*/fd/ 2>/dev/null | sed -n 's/.* -> /n/p'
 exit 0
 `
