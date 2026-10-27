@@ -588,9 +588,16 @@ describe('md-preview', () => {
   })
 
   test('handlers go after a / or a quote too, and a > inside quotes does not end the tag', () => {
-    expect(sanitize('<svg/onload=alert(1)>')).toBe('<svg/>')
+    expect(sanitize('<svg/onload=alert(1)>')).toBe('<svg>')
     expect(sanitize('<img src="x"onerror=alert(1)>')).toBe('<img src="x">')
     expect(sanitize('<img title="a>b" onerror=alert(1)>')).toBe('<img title="a>b">')
+    // a quote in an unquoted value is just a character: it does not hide the handler after it
+    expect(sanitize("<img src=x alt=it's onerror=alert(1)> don't")).toBe(`<img src="x" alt="it's"> don't`)
+    expect(sanitize('<img src=x title=a"b onerror=alert(1)>text <a href="y">')).toBe('<img src="x" title="a&quot;b">text <a href="y">')
+    // href= inside another value is text, the real href is still checked
+    expect(sanitize('<a title="x href=" href="javascript:alert(1)">a</a>')).toBe('<a title="x href=" href="#">a</a>')
+    // SVG animation can't set a link to javascript:
+    expect(sanitize('<svg><a><animate attributeName=href values=javascript:alert(1) /><text>x</text></a></svg>')).not.toMatch(/javascript/)
     expect(sanitize('<p title="say onclick=hi">k</p>')).toBe('<p title="say onclick=hi">k</p>') // text in a value stays
   })
 
