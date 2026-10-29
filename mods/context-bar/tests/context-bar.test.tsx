@@ -200,17 +200,22 @@ describe('context-bar', () => {
     await band.unmount()
   })
 
-  test('a hidden bar stays hidden after a /clear', async ($, on) => {
-    const { asked } = engine(on, { isHidden: true })
+  test('a /clear drops the old window and takes the stored hidden choice', async ($, on) => {
+    const { asked, store } = engine(on)
     const clock = mock.clock(on)
     on('session.end', (_$: any, e: any) => ({ sessionId: e.sessionId }))
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await settle()
+    expect(asked.length).toBe(1)
+    store.isHidden = true // hidden since, as another session would store it
     await $.session.end({ reason: 'clear', sessionId: 's', resume: {} } as any)
+    let band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeUndefined() // the old window is gone at once
+    await band.unmount()
     await clock.advance(20_000)
     await settle()
-    expect(asked.length).toBe(0)
-    const band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+    expect(asked.length).toBe(1) // hidden: no read
+    band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeUndefined()
     await band.unmount()
   })
