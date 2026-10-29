@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { cells, legend, resetBandOrder, share, toReading, tokens } from '../hooks/register'
 
@@ -160,6 +160,23 @@ describe('context-bar', () => {
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await settle()
     await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    await settle()
+    expect(asked.length).toBe(2)
+  })
+
+  test('reads the new window after a /clear, not after an exit', async ($, on) => {
+    const { asked } = engine(on)
+    const clock = mock.clock(on)
+    on('session.end', (_$: any, e: any) => ({ sessionId: e.sessionId }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    expect(asked.length).toBe(1)
+    await $.session.end({ reason: 'prompt_input_exit', sessionId: 's', resume: {} } as any)
+    await clock.advance(20_000)
+    expect(asked.length).toBe(1)
+    await $.session.end({ reason: 'clear', sessionId: 's', resume: {} } as any)
+    expect(asked.length).toBe(1) // not inside the end step's time bound
+    await clock.advance(20_000) // past it, whatever the bound
     await settle()
     expect(asked.length).toBe(2)
   })

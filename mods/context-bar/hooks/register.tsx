@@ -2,7 +2,7 @@
 //   Above the prompt, the window as one stacked bar, a color per category as /context
 //   draws them (system prompt, tools, MCP tools, memory files, skills, messages, free),
 //   with a legend of tokens and shares and where auto-compaction runs. It refreshes after
-//   each turn. /context-bar shows or hides it, and the choice is kept across sessions.
+//   each turn and a /clear. /context-bar shows or hides it, and the choice is kept across sessions.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -43,6 +43,20 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const r = await next(e)
     if (!e.agentId && 'messages' in r) void refresh($).catch(() => {}) // a /compact empties the window without a turn ending
+    return r
+  })
+
+  // A /clear starts a new session with no session.start and no turn yet: read the new window once the
+  // end step's time bound has passed (a read still running at it would be aborted).
+  on('session.end', async ($, e, next) => {
+    const r = await next(e)
+    if (e.reason !== 'clear') return r
+    const left = next.budget.remainingMs
+    try {
+      $.clock.after(Number.isFinite(left) ? left : 0, () => void refresh($).catch(() => {}))
+    } catch {
+      // no clock: the next turn refreshes
+    }
     return r
   })
 
