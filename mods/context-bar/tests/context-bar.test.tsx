@@ -84,6 +84,10 @@ describe('context-bar', () => {
       expect(size <= 40 || line.length === 1).toBe(true)
     }
     expect(toReading({ ...BREAKDOWN, isAutoCompactEnabled: false }).compactsAt).toBeUndefined()
+    // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE lowers the point; out-of-range values are ignored as auto-compaction does.
+    expect(toReading(BREAKDOWN, 50).compactsAt).toBe(500_000)
+    expect(toReading(BREAKDOWN, 100).compactsAt).toBe(950_000)
+    for (const pct of [undefined, NaN, 0, -5, 150]) expect(toReading(BREAKDOWN, pct).compactsAt).toBe(950_000)
   })
 
   test('draws the bar and legend above the prompt from a summary breakdown', async ($, on) => {

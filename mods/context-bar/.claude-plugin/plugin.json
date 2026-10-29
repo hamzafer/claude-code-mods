@@ -1,6 +1,6 @@
 {
   "name": "context-bar",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Your context window as a stacked bar above the prompt, a color per category, with token counts and the compaction point. /context-bar shows or hides it.",
   "author": {
     "name": "Hamza Zafar",

@@ -34,7 +34,7 @@
     {
       "name": "context-bar",
       "description": "Your context window as a stacked bar above the prompt, a color per category, with token counts and the compaction point. /context-bar shows or hides it.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "source": "./mods/context-bar",
       "category": "See what's happening",
       "tags": [

@@ -117,7 +117,15 @@ async function refresh($: EngineInterface) {
   const usage = await $.session.usage({ breakdown: 'summary' })
   const b = usage.context.breakdown
   if (!b || !(b.rawMaxTokens > 0)) return // no window to measure against
-  await update($, reading, () => toReading(b))
+  const pctOverride = Number(await $.env.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE').catch(() => undefined))
+  await update($, reading, () => toReading(b, pctOverride))
+}
+
+// The breakdown's threshold leaves out CLAUDE_AUTOCOMPACT_PCT_OVERRIDE; auto-compaction applies it
+// as min(threshold, window * pct / 100) when 0 < pct <= 100.
+export function compactPoint(threshold: number, window: number, pctOverride?: number) {
+  if (!(pctOverride !== undefined && pctOverride > 0 && pctOverride <= 100)) return threshold
+  return Math.min(threshold, Math.floor(window * (pctOverride / 100)))
 }
 
 export function toReading(b: {
@@ -127,7 +135,7 @@ export function toReading(b: {
   percentage: number
   autoCompactThreshold?: number
   isAutoCompactEnabled: boolean
-}): Reading {
+}, pctOverride?: number): Reading {
   const slices: Slice[] = b.categories
     .filter(c => c.kind !== 'deferred' && c.tokens > 0)
     .map(c => ({ name: c.name.toLowerCase(), tokens: c.tokens, color: c.color, kind: c.kind as Slice['kind'] }))
@@ -142,7 +150,9 @@ export function toReading(b: {
     total: b.totalTokens,
     window: b.rawMaxTokens,
     percent: b.percentage,
-    compactsAt: b.isAutoCompactEnabled ? b.autoCompactThreshold : undefined,
+    compactsAt: b.isAutoCompactEnabled && b.autoCompactThreshold !== undefined
+      ? compactPoint(b.autoCompactThreshold, b.rawMaxTokens, pctOverride)
+      : undefined,
   }
 }
 
