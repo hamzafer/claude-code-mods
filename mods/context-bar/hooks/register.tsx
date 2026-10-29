@@ -117,15 +117,18 @@ async function refresh($: EngineInterface) {
   const usage = await $.session.usage({ breakdown: 'summary' })
   const b = usage.context.breakdown
   if (!b || !(b.rawMaxTokens > 0)) return // no window to measure against
-  const pctOverride = Number(await $.env.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE').catch(() => undefined))
+  const pct = await $.env.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE').catch(() => undefined)
+  const pctOverride = pct ? parseFloat(pct) : undefined // parsed as auto-compaction parses it
   await update($, reading, () => toReading(b, pctOverride))
 }
 
 // The breakdown's threshold leaves out CLAUDE_AUTOCOMPACT_PCT_OVERRIDE; auto-compaction applies it
-// as min(threshold, window * pct / 100) when 0 < pct <= 100.
-export function compactPoint(threshold: number, window: number, pctOverride?: number) {
+// as min(threshold, effective window * pct / 100) when 0 < pct <= 100. The effective window (the
+// window less room for output) is what the threshold sits a fixed 13k buffer below.
+const AUTOCOMPACT_BUFFER = 13_000
+export function compactPoint(threshold: number, pctOverride?: number) {
   if (!(pctOverride !== undefined && pctOverride > 0 && pctOverride <= 100)) return threshold
-  return Math.min(threshold, Math.floor(window * (pctOverride / 100)))
+  return Math.min(threshold, Math.floor((threshold + AUTOCOMPACT_BUFFER) * (pctOverride / 100)))
 }
 
 export function toReading(b: {
@@ -151,7 +154,7 @@ export function toReading(b: {
     window: b.rawMaxTokens,
     percent: b.percentage,
     compactsAt: b.isAutoCompactEnabled && b.autoCompactThreshold !== undefined
-      ? compactPoint(b.autoCompactThreshold, b.rawMaxTokens, pctOverride)
+      ? compactPoint(b.autoCompactThreshold, pctOverride)
       : undefined,
   }
 }
