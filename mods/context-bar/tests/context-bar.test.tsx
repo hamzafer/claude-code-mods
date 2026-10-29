@@ -175,6 +175,8 @@ describe('context-bar', () => {
     await clock.advance(20_000)
     expect(asked.length).toBe(1)
     await $.session.end({ reason: 'clear', sessionId: 's', resume: {} } as any)
+    await clock.advance(1)
+    await settle()
     expect(asked.length).toBe(1) // not inside the end step's time bound
     await clock.advance(20_000) // past it, whatever the bound
     await settle()
@@ -195,6 +197,21 @@ describe('context-bar', () => {
     expect(store.isHidden).toBe(false)
     band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeDefined()
+    await band.unmount()
+  })
+
+  test('a hidden bar stays hidden after a /clear', async ($, on) => {
+    const { asked } = engine(on, { isHidden: true })
+    const clock = mock.clock(on)
+    on('session.end', (_$: any, e: any) => ({ sessionId: e.sessionId }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    await $.session.end({ reason: 'clear', sessionId: 's', resume: {} } as any)
+    await clock.advance(20_000)
+    await settle()
+    expect(asked.length).toBe(0)
+    const band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeUndefined()
     await band.unmount()
   })
 

@@ -51,6 +51,9 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     const r = await next(e)
     if (e.reason !== 'clear') return r
+    await update($, reading, () => null) // the old window is gone
+    const hidden = (await $.store.get('isHidden').catch(() => undefined)) === true
+    await update($, isHidden, () => hidden) // a hidden bar stays hidden in the new session
     const left = next.budget.remainingMs
     try {
       $.clock.after(Number.isFinite(left) ? left : 0, () => void refresh($).catch(() => {}))
