@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { cells, legend, resetBandOrder, share, toReading, tokens } from '../hooks/register'
 
@@ -164,6 +164,25 @@ describe('context-bar', () => {
     expect(asked.length).toBe(2)
   })
 
+  test('reads the new window after a /clear, not after an exit', async ($, on) => {
+    const { asked } = engine(on)
+    const clock = mock.clock(on)
+    on('session.end', (_$: any, e: any) => ({ sessionId: e.sessionId }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    expect(asked.length).toBe(1)
+    await $.session.end({ reason: 'prompt_input_exit', sessionId: 's', resume: {} } as any)
+    await clock.advance(20_000)
+    expect(asked.length).toBe(1)
+    await $.session.end({ reason: 'clear', sessionId: 's', resume: {} } as any)
+    await clock.advance(1)
+    await settle()
+    expect(asked.length).toBe(1) // not inside the end step's time bound
+    await clock.advance(20_000) // past it, whatever the bound
+    await settle()
+    expect(asked.length).toBe(2)
+  })
+
   test('/context-bar hides and shows it, and remembers the choice', async ($, on) => {
     const { store } = engine(on)
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
@@ -178,6 +197,26 @@ describe('context-bar', () => {
     expect(store.isHidden).toBe(false)
     band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
     expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeDefined()
+    await band.unmount()
+  })
+
+  test('a /clear drops the old window and takes the stored hidden choice', async ($, on) => {
+    const { asked, store } = engine(on)
+    const clock = mock.clock(on)
+    on('session.end', (_$: any, e: any) => ({ sessionId: e.sessionId }))
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await settle()
+    expect(asked.length).toBe(1)
+    store.isHidden = true // hidden since, as another session would store it
+    await $.session.end({ reason: 'clear', sessionId: 's', resume: {} } as any)
+    let band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeUndefined() // the old window is gone at once
+    await band.unmount()
+    await clock.advance(20_000)
+    await settle()
+    expect(asked.length).toBe(1) // hidden: no read
+    band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...BAND } as any)
+    expect(await band.find({ type: 'Text', text: /of 1M/ })).toBeUndefined()
     await band.unmount()
   })
 
