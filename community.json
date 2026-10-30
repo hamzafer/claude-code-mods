@@ -125,6 +125,15 @@
       "url": "https://github.com/rapha-rodrigues/cc-esol",
       "description": "An English coach for non-native speakers: Claude logs a native rewrite of each English prompt you type or dictate, with the reasons, to a local learning log you read and review in a pane. A Voice button toggles Claude Code's dictation",
       "tags": ["pane", "command"]
+    },
+    {
+      "name": "automode",
+      "marketplace": "automode",
+      "repo": "mralexivy/AutoMode",
+      "author": "mralexivy",
+      "url": "https://github.com/mralexivy/AutoMode",
+      "description": "Picks the model and effort for each prompt, shows the route above the prompt, and requires an Opus review for risky changes",
+      "tags": ["band", "command"]
     }
   ]
 }
