@@ -125,6 +125,15 @@
       "url": "https://github.com/rapha-rodrigues/cc-esol",
       "description": "An English coach for non-native speakers: Claude logs a native rewrite of each English prompt you type or dictate, with the reasons, to a local learning log you read and review in a pane. A Voice button toggles Claude Code's dictation",
       "tags": ["pane", "command"]
+    },
+    {
+      "name": "session-board",
+      "marketplace": "session-board",
+      "repo": "Avavaziri/claude-code-adhd-session-board",
+      "author": "Avavaziri",
+      "url": "https://github.com/Avavaziri/claude-code-adhd-session-board",
+      "description": "An ADHD-friendly manager view for parallel sessions: a pane with one card per Claude session in a project, showing which one needs you, its unmerged git work and what it waits on, with buttons to answer its question. Desktop app only; summaries use a small Haiku call",
+      "tags": ["pane", "command"]
     }
   ]
 }
