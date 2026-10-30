@@ -125,6 +125,15 @@
       "url": "https://github.com/rapha-rodrigues/cc-esol",
       "description": "An English coach for non-native speakers: Claude logs a native rewrite of each English prompt you type or dictate, with the reasons, to a local learning log you read and review in a pane. A Voice button toggles Claude Code's dictation",
       "tags": ["pane", "command"]
+    },
+    {
+      "name": "grammar",
+      "marketplace": "grammar",
+      "repo": "jaklimoff/claude-grammar",
+      "author": "jaklimoff",
+      "url": "https://github.com/jaklimoff/claude-grammar",
+      "description": "English fixes under each prompt you send, while you work: Haiku strikes the wrong words through in red, shows the fix in green and says why, and gives a native rewrite when a sentence is clearly a word-for-word translation. One Haiku call per prompt",
+      "tags": ["command"]
     }
   ]
 }
