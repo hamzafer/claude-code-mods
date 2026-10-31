@@ -134,6 +134,15 @@
       "url": "https://github.com/jaklimoff/claude-grammar",
       "description": "English fixes under each prompt you send, while you work: Haiku strikes the wrong words through in red, shows the fix in green and says why, and gives a native rewrite when a sentence is clearly a word-for-word translation. One Haiku call per prompt",
       "tags": ["command"]
+    },
+    {
+      "name": "session-companion",
+      "marketplace": "session-companion",
+      "repo": "MrGoln/session-companion",
+      "author": "MrGoln",
+      "url": "https://github.com/MrGoln/session-companion",
+      "description": "Your Jira tasks, your PRs grouped by CI and review state, PRs waiting for your review and the hours logged today, in a pane beside the chat, plus a pane of links, threads and decisions Claude saves as the session goes. A worklog skill builds the day's Jira worklog from session transcripts and logs it after you confirm. Jira Server or Data Center is optional; needs gh logged in",
+      "tags": ["pane", "band", "command"]
     }
   ]
 }
