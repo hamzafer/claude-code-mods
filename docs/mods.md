@@ -3,6 +3,60 @@
 - 🎥 Videos and screenshots: [demo.md](demo.md)
 - 🏠 Overview: [README](../README.md)
 
+## 📋 All mods
+
+### 👀 See what's happening
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 🛰️ | **mission-control** | Live map of agents, tool calls and the code they touch | `/mission` |
+| 📊 | **context-bar** | Your context window as one stacked bar, a color per category, with token counts and where it compacts | `/context-bar` |
+| 🌦️ | **token-weather** | Context fill from Clear to Compact soon, plus a prompt-cache countdown | |
+| ⏱️ | **cache-clock** | A prompt-cache line under your status line, from Claude Code's own figures: time left, hit rate and misses, and the tokens your next message re-caches once it goes cold. Needs Node and Claude Code 2.1.287+ | `/cache-clock setup` |
+| 📍 | **where-am-i** | Goal, doing now, waiting on you, next step | `/where` |
+| ➡️ | **next-steps** | 2 or 3 likely next prompts after each turn, one key to draft one. `language` sets their language, `layout: rows` keeps one per row | `1` `2` `3`, `0` hides |
+| 💰 | **usage-meter** | 5-hour and 7-day plan usage, the reset countdown and the session's cost | |
+| 🔥 | **heatmap** | A GitHub-style grid of your Claude Code time, with your streak, peak hours and top projects | `/heatmap` |
+| 💳 | **openai-balance** | Your OpenAI API credit: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. Needs an OpenAI organization Admin key | `/openai-balance` |
+| 🪙 | **openrouter-balance** | Your OpenRouter credit: the real balance with a gauge, today's spend and the model the money mostly went to. A regular API key shows the balance too when OpenRouter allows it, plus its own spend and limit | `/openrouter-balance` |
+| 📡 | **agent-radar** | One live line per running subagent (with its model) or background shell | `/radar` |
+| 🔍 | **review-watch** | One live line per running code review (Codex or a review subagent) with the model, target, elapsed time and Codex's latest output. A toast lists the findings when it ends | |
+| 🌐 | **browser-lanes** | Whether this session has a browser, and who holds it | `/browser` |
+| 🕌 | **prayer-times** | The current prayer and how long is left, the next one, and zawal. Computed on your computer, Hanafi or standard Asr | `/prayers` |
+| 🎬 | **replay-theater** | Steps through the last turn's edits, one diff at a time | `/replay` |
+| 📝 | **md-preview** | Renders the Markdown files Claude edits like GitHub does, with before and after side by side. Needs Chrome and a terminal that shows images | `/md` |
+
+### 🛡️ Guard your repo
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 💥 | **blast-radius** | Holds `rm -r`, force pushes and migrations, shows what they'd delete, cancels after 60 s with no answer | |
+
+### 💸 Spend less
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 🔀 | **switchboard** | Picks the model for each subagent that doesn't name one, with [OpenAI's Decisions API](https://developers.openai.com/api/docs/guides/decisions) or [Jev](https://docs.typesafe.ai), from its short label only. Shows what every subagent cost | `/route` |
+
+### 🔧 My setup (fork and adapt)
+
+These are built around my own tools and rules. Fork them and change the rules to yours.
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 👀 | **glance** | One line with what needs you: next meeting, PRs, Linear issues, Slack DMs. Needs `gh` and the Google Calendar, Linear and Slack connectors | `/glance` |
+| 🚦 | **merge-gate** | Holds `gh pr merge` until CI is green and Codex reviewed once. Needs `gh` and the Codex CLI. Reviews run on one fixed model; change it to yours | `/gate` |
+| 📏 | **rulebook-guard** | Enforces my writing and git rules: rewrites em dashes, asks before `--amend`, unformatted pushes, emails and phone numbers in notes | |
+| 💾 | **session-saver** | Saves where you left off, shows it on resume. Needs [unpause](https://github.com/hamzafer/unpause) | `/park [note]` |
+
+### 🎮 For fun (opt-in)
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 📱 | **reels** | YouTube Shorts while Claude works, pauses when it's done | `/reels` |
+| 🐍 | **snake** | Snake while Claude works | `/snake` |
+| 🎵 | **now-playing** | What Spotify is playing, with a progress bar, the lyric being sung, and ⏮ ⏸ ⏭ buttons. Needs macOS and the Spotify app | `/music` |
+
 ## 🧭 How they behave
 
 ### 📏 Lines above the prompt
@@ -39,6 +93,7 @@ Shows every Claude Code subagent, tool call and touched file in a live pane.
 - On Windows, whose terminals show no images, the Code view lists the map as lines, and `b` opens the drawn map in your browser, which follows each change
 - A file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed
 - One Haiku call after each turn writes the line under each changed file
+- The Who view works everywhere
 
 ### 📊 context-bar
 

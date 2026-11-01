@@ -1,4 +1,4 @@
-// community.json lists other people's mods for the CLI checklist; the README table lists the same.
+// community.json lists other people's mods for the CLI checklist; docs/community.md lists the same.
 // Run from the repo root: node --test test/*.test.mjs
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -43,18 +43,15 @@ test('names are unique across community.json and the marketplace', () => {
   assert.deepEqual(dupes, [])
 })
 
-// The section runs to the next heading, or to the end of the file.
-const readme = read('README.md')
-const section = /^## .*Community mods$([\s\S]*?)(?=^#{1,2} |(?![\s\S]))/m.exec(readme)?.[1] ?? ''
+const section = read('docs/community.md')
 const rows = [...section.matchAll(/^\|[^|\n]*\| \*\*\[([^\]]+)\]\(.*$/gm)].map(r => ({ name: r[1], line: r[0] }))
 
-test('README Community mods table and community.json list the same mods', () => {
-  assert.ok(section, 'README has no Community mods section')
+test('docs/community.md and community.json list the same mods', () => {
   assert.deepEqual(rows.map(r => r.name).sort(), mods.map(m => m.name).sort())
 })
 
 for (const m of mods) {
-  test(`${m.name}: README row installs from the same marketplace`, () => {
+  test(`${m.name}: community row installs from the same marketplace`, () => {
     const row = rows.find(r => r.name === m.name)?.line ?? ''
     assert.ok(row.includes(`marketplace add ${m.repo}`), `row should say marketplace add ${m.repo}`)
     assert.ok(row.includes(`install ${m.name}@${m.marketplace}`), `row should say install ${m.name}@${m.marketplace}`)
