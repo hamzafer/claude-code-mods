@@ -98,4 +98,4 @@ Built by other people and maintained in their own repos, so read the code before
 ## More
 
 - [Add your own mod](CONTRIBUTING.md)
-- My earlier project: [cursor-commands](https://github.com/hamzafer/cursor-commands), 600+ stars for Cursor slash commands
+- My earlier project: [cursor-commands](https://github.com/hamzafer/cursor-commands), 670+ stars for Cursor slash commands
