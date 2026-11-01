@@ -143,6 +143,15 @@
       "url": "https://github.com/Avavaziri/claude-code-adhd-session-board",
       "description": "An ADHD-friendly manager view for parallel sessions: a pane with one card per Claude session in a project, showing which one needs you, its unmerged git work and what it waits on, with buttons to answer its question. Desktop app only. Opens at each session start; Haiku re-summarizes changed sessions each minute, and status replies go to the card, not your chat",
       "tags": ["pane", "command"]
+    },
+    {
+      "name": "automode",
+      "marketplace": "automode",
+      "repo": "mralexivy/AutoMode",
+      "author": "mralexivy",
+      "url": "https://github.com/mralexivy/AutoMode",
+      "description": "Picks the model and effort for each prompt, shows the route above the prompt, and tells Claude to run an independent review (Opus or Sonnet) on risky changes. On by default in every session: several Haiku calls per prompt, auto compacting, shortening long outputs and ending stuck turns",
+      "tags": ["band", "command"]
     }
   ]
 }
