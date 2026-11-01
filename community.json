@@ -141,7 +141,7 @@
       "repo": "Avavaziri/claude-code-adhd-session-board",
       "author": "Avavaziri",
       "url": "https://github.com/Avavaziri/claude-code-adhd-session-board",
-      "description": "An ADHD-friendly manager view for parallel sessions: a pane with one card per Claude session in a project, showing which one needs you, its unmerged git work and what it waits on, with buttons to answer its question. Desktop app only; summaries use a small Haiku call",
+      "description": "An ADHD-friendly manager view for parallel sessions: a pane with one card per Claude session in a project, showing which one needs you, its unmerged git work and what it waits on, with buttons to answer its question. Desktop app only. Opens at each session start; Haiku re-summarizes changed sessions each minute, and status replies go to the card, not your chat",
       "tags": ["pane", "command"]
     }
   ]
