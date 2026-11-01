@@ -38,6 +38,6 @@ for (const m of mods) {
 }
 
 if (problems.length) {
-  console.error(`\n${problems.length} problem(s): update community.json or the README row.`)
+  console.error(`\n${problems.length} problem(s): update community.json or the row in docs/community.md.`)
   process.exit(1)
 }

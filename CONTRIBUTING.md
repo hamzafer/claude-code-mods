@@ -30,7 +30,7 @@ cd cli && node --test
 
 - 📁 Put it in `mods/<name>/`
 - 🧾 Add an entry to `.claude-plugin/marketplace.json`
-- 📋 Add a row to the README table and notes to `docs/mods.md`
+- 📋 Add a short line to the README, and a row and notes to `docs/mods.md`
 - 🌐 Add a site page at `site/mods/<name>/index.html`, with the version in its chip and its JSON-LD
 - 🗂️ Add a row and a JSON-LD entry to `site/index.html`, and bump the "All N mods" and "See all N mods" counts across the site pages
 - 🗺️ Add the page to `site/sitemap.xml`
@@ -45,7 +45,7 @@ Gotchas: [docs/mods.md](docs/mods.md#-gotchas).
 
 ## 🏷️ Keep it in your own repo
 
-Rather maintain your mod yourself? Publish it in your own marketplace and open a PR that adds both a row to [Community mods](README.md#-community-mods) and an entry to `community.json`. `test/community.test.mjs` checks the fields and that the two lists match.
+Rather maintain your mod yourself? Publish it in your own marketplace and open a PR that adds both a row to [docs/community.md](docs/community.md) and an entry to `community.json`. `test/community.test.mjs` checks the fields and that the two lists match.
 
 ## 🚀 Releasing the CLI
 
