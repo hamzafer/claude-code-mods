@@ -141,7 +141,7 @@
       "repo": "mralexivy/AutoMode",
       "author": "mralexivy",
       "url": "https://github.com/mralexivy/AutoMode",
-      "description": "Picks the model and effort for each prompt, shows the route above the prompt, and requires an Opus review for risky changes",
+      "description": "Picks the model and effort for each prompt, shows the route above the prompt, and tells Claude to run an independent review (Opus or Sonnet) on risky changes. On by default in every session: several Haiku calls per prompt, auto compacting, shortening long outputs and ending stuck turns",
       "tags": ["band", "command"]
     }
   ]
