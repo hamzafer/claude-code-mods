@@ -134,6 +134,15 @@
       "url": "https://github.com/jaklimoff/claude-grammar",
       "description": "English fixes under each prompt you send, while you work: Haiku strikes the wrong words through in red, shows the fix in green and says why, and gives a native rewrite when a sentence is clearly a word-for-word translation. One Haiku call per prompt",
       "tags": ["command"]
+    },
+    {
+      "name": "session-board",
+      "marketplace": "session-board",
+      "repo": "Avavaziri/claude-code-adhd-session-board",
+      "author": "Avavaziri",
+      "url": "https://github.com/Avavaziri/claude-code-adhd-session-board",
+      "description": "An ADHD-friendly manager view for parallel sessions: a pane with one card per Claude session in a project, showing which one needs you, its unmerged git work and what it waits on, with buttons to answer its question. Desktop app only. Opens at each session start; Haiku re-summarizes changed sessions each minute, and status replies go to the card, not your chat",
+      "tags": ["pane", "command"]
     }
   ]
 }
