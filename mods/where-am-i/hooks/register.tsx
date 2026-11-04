@@ -120,7 +120,10 @@ export const register: Register = on => {
           {nextStep !== '' && <Text>{clip(nextStep)}</Text>}
         </Text>
         {r.waiting !== '' && (
-          <Text color="yellow" wrap="truncate-end">{`  waiting on you: ${clip(r.waiting)}`}</Text>
+          <Text wrap="truncate-end">
+            <Text bold>{'  waiting on you: '}</Text>
+            <Text>{clip(r.waiting)}</Text>
+          </Text>
         )}
       </Box>
     )
