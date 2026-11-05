@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>secret-guard: keep API keys out of Claude Code's context and your commits</title>
+<meta name="description" content="Hides API keys and tokens in Claude Code's tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed; nothing leaves your machine.">
+<link rel="canonical" href="https://hamzafer.github.io/claude-code-mods/mods/secret-guard/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1f25" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Claude Code mods">
+<meta property="og:title" content="secret-guard: keep API keys out of Claude Code's context and your commits">
+<meta property="og:description" content="Hides API keys and tokens in Claude Code's tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed; nothing leaves your machine.">
+<meta property="og:url" content="https://hamzafer.github.io/claude-code-mods/mods/secret-guard/">
+<meta property="og:image" content="https://hamzafer.github.io/claude-code-mods/images/secret-guard.png">
+<meta property="og:image:alt" content="secret-guard in Claude Code: cat .env shows each key as hidden by secret-guard, and a commit that adds a Stripe key waits for Block it or Allow once">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="secret-guard: keep API keys out of Claude Code's context and your commits">
+<meta name="twitter:description" content="Hides API keys and tokens in Claude Code's tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed; nothing leaves your machine.">
+<meta name="twitter:image" content="https://hamzafer.github.io/claude-code-mods/images/secret-guard.png">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="../../style.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "secret-guard", "description": "Hides API keys and tokens in Claude Code's tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed; nothing leaves your machine.", "url": "https://hamzafer.github.io/claude-code-mods/mods/secret-guard/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/secret-guard", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.0", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/secret-guard.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "secret-guard", "item": "https://hamzafer.github.io/claude-code-mods/mods/secret-guard/"}]}</script>
+</head>
+<body class="mod c-guard">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="mark" href="../../"><span class="mark-caret" aria-hidden="true">❯</span> claude-code-mods</a>
+  <nav aria-label="Site">
+    <a href="../../#mods">Mods</a>
+    <a href="../../#install">Install</a>
+    <a href="https://github.com/hamzafer/claude-code-mods">GitHub</a>
+  </nav>
+</header>
+<main id="main">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="../../">claude-code-mods</a> <span aria-hidden="true">/</span> <a href="../../#cat-guard">Guard your repo</a> <span aria-hidden="true">/</span> <span aria-current="page">secret-guard</span></nav>
+<header class="mod-head">
+  <h1>secret-guard</h1>
+  <p class="lede">Keeps API keys and tokens out of Claude's context, your files and your commits.</p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> Guard your repo</span> <span>Version 0.1.0</span></p>
+</header>
+<figure class="shot"><div class="shot-frame"><img style="--w:994px" src="../../images/secret-guard.png" width="1989" height="850" alt="secret-guard in Claude Code: cat .env shows each key as hidden by secret-guard, and a commit that adds a Stripe key waits for Block it or Allow once" decoding="async" fetchpriority="high"></div><figcaption>The keys in cat .env never reach Claude, and a commit that adds one waits for you.</figcaption></figure>
+<div class="mod-body">
+<div class="mod-main">
+<section aria-labelledby="install-h"><h2 id="install-h">Install</h2>
+<div class="code">
+  <pre id="c-inst" aria-label="Install secret-guard" data-cmd="claude plugin marketplace add hamzafer/claude-code-mods
+claude plugin install secret-guard@claude-code-mods"><code><span class="ps" aria-hidden="true">$ </span>claude plugin marketplace add hamzafer/claude-code-mods
+<span class="ps" aria-hidden="true">$ </span>claude plugin install secret-guard@claude-code-mods</code></pre>
+  <button type="button" class="copy" data-copy="c-inst">Copy</button>
+</div>
+<p class="aside">Restart Claude Code after installing. For 150+ more rules, also <code>brew install gitleaks</code>. To try it without installing, clone the repo and run <code>claude --plugin-dir mods/secret-guard</code>.</p>
+</section>
+<section aria-labelledby="use-h"><h2 id="use-h">How to use</h2>
+<dl class="keys">
+<div><dt><code>/secret-guard</code></dt><dd>Shows the scanner in use and what it hid or held this session</dd></div>
+<div><dt><code>Block it</code></dt><dd>Refuses the write, commit or push. Allow once lets it through this time</dd></div>
+<div><dt><code>redactOutput</code></dt><dd>Hide keys in tool output (on). Change it in /config</dd></div>
+<div><dt><code>useGitleaks</code></dt><dd>Add gitleaks&#x27;s rules when it&#x27;s installed (on)</dd></div>
+</dl>
+</section>
+<section aria-labelledby="how-h"><h2 id="how-h">How it behaves</h2>
+<ul class="notes">
+<li>A key in what a tool returns (cat .env, env, a file read, an MCP answer) becomes [hidden by secret-guard: GitHub token] before Claude reads it. It never reaches the model or the transcript.</li>
+<li>A Write or Edit that adds a key asks first. A file git ignores, like .env, goes through with a toast.</li>
+<li>A write that would put the label back into a file is refused, so the real key isn&#x27;t overwritten.</li>
+<li>git commit scans every change since the last commit, plus new files when the same command runs git add. git push scans each commit not on a remote yet.</li>
+<li>Asks and toasts name the kind of key and the file, never the key.</li>
+<li>gitleaks runs on your machine from a neutral folder, so a repo can&#x27;t switch it off. Nothing is sent anywhere.</li>
+<li>A command you run yourself with ! goes straight to Claude.</li>
+</ul>
+</section>
+</div>
+<aside class="mod-side" aria-label="Details">
+<section aria-labelledby="needs-h"><h2 id="needs-h">Needs</h2>
+<ul class="needs">
+<li>Claude Code 2.1.287 or newer</li>
+<li>Optional: gitleaks, for 150+ more rules</li>
+</ul>
+</section>
+<section aria-labelledby="links-h"><h2 id="links-h">On GitHub</h2>
+<ul class="links">
+<li><a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md#-secret-guard">Full notes for secret-guard</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/tree/main/mods/secret-guard">Source folder: mods/secret-guard</a></li>
+<li><a href="https://github.com/hamzafer/claude-code-mods/issues">Report a problem</a></li>
+</ul>
+</section>
+</aside>
+</div>
+<section class="related" aria-labelledby="rel-h"><h2 id="rel-h">Related mods</h2>
+<ul class="rows">
+<li class="row c-guard"><a href="../../mods/blast-radius/"><span class="row-text"><span class="row-name">blast-radius</span><span class="row-desc">Holds rm -r, force pushes and migrations, and shows what they&#x27;d delete</span></span></a></li>
+<li class="row c-setup"><a href="../../mods/rulebook-guard/"><span class="row-text"><span class="row-name">rulebook-guard</span><span class="row-desc">Rewrites em dashes, asks before --amend, unformatted pushes and personal info</span></span></a></li>
+<li class="row c-setup"><a href="../../mods/merge-gate/"><span class="row-text"><span class="row-name">merge-gate</span><span class="row-desc">Holds gh pr merge until CI is green and Codex reviewed once</span></span></a></li>
+</ul>
+<p><a href="../../#mods">See all 26 mods</a></p>
+</section>
+</main>
+<footer class="foot">
+  <p>Claude Code mods are plugins built on Claude Code's function hooks. MIT licensed.</p>
+  <p><a href="https://github.com/hamzafer/claude-code-mods">Source on GitHub</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md">Notes per mod</a> <a href="https://github.com/hamzafer/claude-code-mods/blob/main/CONTRIBUTING.md">Add your own mod</a></p>
+</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = document.getElementById(b.getAttribute('data-copy'));
+    var t = pre.getAttribute('data-cmd') || pre.innerText.replace(/^\$ /gm, '').trim();
+    navigator.clipboard.writeText(t).then(function () {
+      b.textContent = 'Copied';
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+});
+</script>
+</body>
+</html>

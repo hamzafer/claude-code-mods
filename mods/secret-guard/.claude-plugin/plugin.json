@@ -1,0 +1,23 @@
+{
+  "name": "secret-guard",
+  "version": "0.1.0",
+  "description": "Keeps API keys and tokens out of Claude's context, your files and your commits: hides them in tool output, and asks before a write, commit or push adds one.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "userConfig": {
+    "redactOutput": {
+      "type": "boolean",
+      "title": "Hide secrets in tool output",
+      "default": true,
+      "description": "Replace a secret in what a tool returns (cat .env, env, a file read) with a label before Claude reads it."
+    },
+    "useGitleaks": {
+      "type": "boolean",
+      "title": "Use gitleaks",
+      "default": true,
+      "description": "When gitleaks is installed, scan with its 150+ rules on top of the built-in ones. It runs on this machine and sends nothing."
+    }
+  }
+}

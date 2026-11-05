@@ -67,6 +67,7 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 ### Guard your repo
 
 - 💥 [**blast-radius**](docs/mods.md#-blast-radius): see what `rm -r` would delete before it runs
+- 🔑 [**secret-guard**](docs/mods.md#-secret-guard): keeps API keys out of Claude's context and your commits
 
 ### Spend less
 
