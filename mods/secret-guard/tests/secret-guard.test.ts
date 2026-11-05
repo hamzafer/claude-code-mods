@@ -23,6 +23,7 @@ type Opts = {
   editRecord?: string // an Edit result's originalFile
   folder?: Record<string, string> | null // files in /repo before git init; null: the folder doesn't exist yet
   truncated?: boolean // git's output was cut at 4 MiB
+  timedOut?: boolean // git diff failed, but the folder is a repo
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -76,6 +77,7 @@ function engine(on: any, opts: Opts = {}) {
       return { value: { exitCode: 0, stdout: JSON.stringify(rows), stderr: '' } }
     }
     if (argv.includes('ls-files')) return { value: { exitCode: 0, stdout: Object.keys(opts.untracked ?? {}).map(f => `${f}\0`).join(''), stderr: '' } }
+    if (argv.includes('rev-parse')) return { value: { exitCode: opts.gitFails && !opts.timedOut ? 128 : 0, stdout: '.git\n', stderr: '' } }
     if (argv.includes('check-ignore')) return { value: { exitCode: opts.ignored ? 0 : 1, stdout: '', stderr: '' } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.gitFails) return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.truncated) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '', isStdoutTruncated: true } }
@@ -306,10 +308,23 @@ describe('secret-guard', () => {
     expect(ran.length).toBe(1)
   })
 
+  test('git init elsewhere does not skip the check when git timed out in a real repo', async ($, on) => {
+    const { asked } = engine(on, { gitFails: true, timedOut: true, folder: { 'a.ts': 'export {}' } })
+    await $.tool.call({ tool: 'Bash', command: 'git init tools/x && git commit -am wip' } as any)
+    expect(asked[0]).toMatch(/Couldn't read what this commit adds/)
+  })
+
   test('a diff too big to read whole asks instead of passing as clean', async ($, on) => {
     const { asked } = engine(on, { truncated: true, diff: '+++ b/a.ts\n+fine\n', answer: 'Allow once' })
     await $.tool.call({ tool: 'Bash', command: 'git commit -m big' } as any)
     expect(asked[0]).toMatch(/too big to check whole/)
+  })
+
+  test('a cut diff with a key in its start says both in one ask', async ($, on) => {
+    const { asked } = engine(on, { truncated: true, diff: `+++ b/a.ts\n+k = '${STRIPE}'\n`, answer: 'Allow once' })
+    await $.tool.call({ tool: 'Bash', command: 'git commit -m big' } as any)
+    expect(asked.length).toBe(1)
+    expect(asked[0]).toMatch(/a Stripe key.*too big to check whole/)
   })
 
   test('a clean commit and text that only mentions git go straight through', async ($, on) => {

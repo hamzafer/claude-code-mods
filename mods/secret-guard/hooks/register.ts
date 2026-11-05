@@ -79,7 +79,8 @@ export const register: Register = (on, options) => {
       let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell))
       // `git init && git add . && git commit`: no repo yet, so git can't answer. The folder's
       // files are what the first commit takes; a folder the command makes has none yet.
-      if (diff === null && step === 'commit' && GIT_INIT.test(shell)) diff = await folderFiles($, cwd)
+      // Only when git says the folder is no repo: a timeout in a big repo still asks.
+      if (diff === null && step === 'commit' && GIT_INIT.test(shell) && (await notARepo($, cwd))) diff = await folderFiles($, cwd)
       if (diff === null) {
         // git couldn't say what goes in (not a repo, a timeout): ask rather than wave it through.
         stats.held++
@@ -98,7 +99,9 @@ export const register: Register = (on, options) => {
       if (found.length === 0) continue
       const what = `${describe(found.map(f => f.finding))} in ${[...new Set(found.map(f => f.file))].slice(0, 3).join(', ')}`
       stats.held++
-      if (await allow($, `This ${step} adds what looks like ${what}.`)) continue
+      // A cut diff with a key in its start: one ask says both, so Allow once can't skip the cut.
+      const cut = diff.endsWith(TRUNCATED) ? ` It's also too big to check whole: only its first 4 MB was read.` : ''
+      if (await allow($, `This ${step} adds what looks like ${what}.${cut}`)) continue
       stats.blocked++
       return {
         deny: `secret-guard: the user blocked this ${step}: it adds what looks like ${what}. Take the secret out of the code (read it from an environment variable or a git-ignored file), ${step === 'push' ? 'rewrite the commit that added it, ' : 'unstage it, '}then try again. If the key was real, tell the user to rotate it.`,
@@ -237,16 +240,27 @@ async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push',
   return out + (r.isStdoutTruncated ? TRUNCATED : '')
 }
 
+// Whether git says the folder is in no repo (exit 128), as opposed to failing some other way.
+// A folder that doesn't exist yet (`mkdir app && cd app && git init`) counts as no repo.
+async function notARepo($: EngineInterface, cwd: string) {
+  if (!(await $.fs.exists(cwd).catch(() => false))) return true
+  const r = await $.process.run([...GIT_SAFE, 'rev-parse', '--git-dir'], { cwd, timeoutMs: 5_000 }).catch(() => null)
+  return r !== null && r.exitCode === 128
+}
+
 // A folder's files as a diff that adds them whole, for a commit right after `git init`.
-// Skips .git, node_modules and dot-folders; at most 200 files of 1 MB, 6 levels deep.
+// Skips .git, node_modules and dot-folders; at most 200 files, 5 MB in all, 300 folders, 6
+// levels. Links are never followed. It doesn't read .gitignore, so an ignored key file asks.
 async function folderFiles($: EngineInterface, root: string): Promise<string> {
   if (!(await $.fs.exists(root).catch(() => false))) return ''
   let out = ''
   let left = 200
+  let dirs = 300
   const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
+    if (dirs-- <= 0) return
     const entries = await $.fs.list(dir).catch(() => [])
     for (const en of entries) {
-      if (left <= 0) return
+      if (left <= 0 || out.length > 5_000_000) return
       const path = `${dir.replace(/\/$/, '')}/${en.name}`
       const name = rel ? `${rel}/${en.name}` : en.name
       if (en.kind === 'dir' && depth < 6 && en.name !== 'node_modules' && !en.name.startsWith('.')) await walk(path, name, depth + 1)
