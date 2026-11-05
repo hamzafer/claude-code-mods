@@ -105,6 +105,17 @@ describe('rulebook-guard', () => {
     expect(ran.filter(e => e.tool === 'Bash')).toEqual([])
   })
 
+  test('a long run of git options is matched fast, and the usual forms still match', async ($, on) => {
+    const { asked } = engine(on, { answer: 'Block it' })
+    const t = Date.now()
+    await $.tool.call({ tool: 'Bash', command: 'git' + ' -C -C'.repeat(40) + ' x' } as any)
+    expect(Date.now() - t).toBeLessThan(500) // was minutes: the option forms overlapped and backtracked
+    for (const command of ['git commit --amend', 'git -c user.name=demo commit --amend', 'git --no-pager -C . commit --amend', 'git -C "my repo" commit --amend']) {
+      await $.tool.call({ tool: 'Bash', command } as any)
+    }
+    expect(asked.length).toBe(4)
+  })
+
   test('text that only mentions --amend is not held', async ($, on) => {
     const { ran, asked } = engine(on)
     const script = "python3 - <<'EOF'\nprint('git commit --amend')\nEOF"

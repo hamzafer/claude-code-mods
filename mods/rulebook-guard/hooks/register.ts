@@ -9,7 +9,8 @@ import type { EngineInterface, Register } from 'claude-code'
 const PROSE_FILE = /\.(md|mdx|markdown|txt)$/i
 const PROSE_COMMAND = /\bgh\s+(pr|issue)\s+(create|comment|edit|review)\b/
 // `git`, then any global options (`-c k=v`, `-C dir`, `--no-pager`), then the subcommand.
-const GIT = String.raw`\bgit(?:\s+(?:-[cC]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+`
+// The three option forms can't match the same text, so a long run of them can't backtrack.
+const GIT = String.raw`\bgit(?:\s+(?:-[cC]\s+[^\s-]\S*|--[\w-]+(?:=\S+)?|-[^\s-cC]\S*))*\s+`
 const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
 const GIT_AMEND = new RegExp(`${GIT}commit\\b[^|;&]*--amend\\b`)
 const GIT_PUSH = new RegExp(`${GIT}push\\b`)
