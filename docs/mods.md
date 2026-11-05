@@ -356,16 +356,16 @@ Keeps API keys, tokens and private keys out of Claude's context, your files and 
 
 ![secret-guard: cat .env in Claude Code shows each key as hidden by secret-guard, and a commit that adds a Stripe key waits for Block it or Allow once](../images/secret-guard.png)
 
-- **Tool output:** a key in what a tool returns (`cat .env`, `env`, a file read, an MCP answer) is swapped for `[hidden by secret-guard: GitHub token]` before Claude reads it. The key never reaches the model or the transcript. A toast says what was hidden
+- **Tool output:** a key in what a tool returns (`cat .env`, `env`, a file read, an MCP answer) is swapped for `[hidden by secret-guard: GitHub token]` before Claude reads it. The key never reaches the model or the transcript. A toast says what was hidden. If the key can't be cut out cleanly (it's in an error, or in a note another hook added), the whole result is withheld and Claude reads a redacted copy
 - **Writes:** a Write or Edit that adds a key asks first (Block it / Allow once). A file git ignores, like `.env`, goes through with a toast
-- **The label stays a label:** a write that would put `[hidden by secret-guard: …]` back into a file is refused, so the real key isn't overwritten
-- **Commits:** `git commit` scans every change since the last commit, plus new files when the same command runs `git add`, and asks if one adds a key
-- **Pushes:** `git push` scans each commit not on a remote yet, so a key added and then deleted is still caught
+- **The label stays a label:** a write that would bring `[hidden by secret-guard: …]` into a file is refused, so the real key isn't overwritten. An edit that only keeps a label already there is fine
+- **Commits:** `git commit` scans every change since the last commit, plus new files when the same command runs `git add`, and asks if one adds a key. It follows a leading `cd` and `git -C`
+- **Pushes:** `git push` scans each commit on a local branch that no remote has yet, so a key added and then deleted is still caught
 - Asks and toasts name the kind of key and the file, never the key
-- **Scanner:** 19 built-in rules (AWS, GitHub, GitLab, Anthropic, OpenAI, OpenRouter, Stripe, Slack, Google, npm, Hugging Face, SendGrid, JWTs, private keys, passwords in URLs, `SECRET=`/`TOKEN=`/`API_KEY=` lines). With [gitleaks](https://github.com/gitleaks/gitleaks) installed (`brew install gitleaks`), its 150+ rules run too. gitleaks runs on your machine from a neutral folder, so a repo's own `.gitleaks.toml` or `gitleaks:allow` comments can't switch it off. Nothing is sent anywhere, and no key is ever checked against its service
+- **Scanner:** 18 built-in rules (AWS, GitHub, GitLab, Anthropic, OpenAI, OpenRouter, Stripe, Slack, Google, npm, Hugging Face, SendGrid, JWTs, private keys, passwords in URLs, `SECRET=`/`TOKEN=`/`API_KEY=` lines). With [gitleaks](https://github.com/gitleaks/gitleaks) installed (`brew install gitleaks`), its 150+ rules run too (on tool output up to 512 KB; bigger outputs get the built-in rules). gitleaks runs on your machine from a neutral folder, so a repo's own `.gitleaks.toml` or `gitleaks:allow` comments can't switch it off. Nothing is sent anywhere, and no key is ever checked against its service
 - `/secret-guard` shows the scanner in use and what it hid or held this session
 - Options in `/config`: `redactOutput` (hide keys in tool output, on) and `useGitleaks` (on)
-- **Limits:** a command you run yourself with `!` goes straight to Claude. A key in a format no rule knows gets through. It's a seatbelt, not a vault: keep keys in a secret manager or a git-ignored `.env`
+- **Limits:** a command you run yourself with `!` and a file you attach with `@` go straight to Claude. A shell command that writes a file (`sed -i`, `echo >`) isn't checked like a Write, and `sh -c "git commit"` or a git alias isn't seen as a commit. A key in a format no rule knows gets through. It's a seatbelt, not a vault: keep keys in a secret manager or a git-ignored `.env`
 
 ### 💾 session-saver
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bare, cdOf } from '../hooks/register'
+import { bare, cdOf, gitCOf } from '../hooks/register'
 import { addedLines, builtin, describe as say, mapStrings, redact } from '../hooks/rules'
 
 // Fake keys, built at run time so no scanner (GitHub push protection included) sees a key in this file.
@@ -17,6 +17,8 @@ type Opts = {
   ignored?: boolean // git check-ignore answer
   gitleaks?: { Secret: string; RuleID: string }[] | null // null: not installed
   untracked?: Record<string, string> // untracked files git doesn't ignore, by name
+  context?: string[] // what the model reads after the result
+  existing?: string // the file's text before a Write
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -25,6 +27,7 @@ function engine(on: any, opts: Opts = {}) {
   const asked: string[] = []
   const toasts: string[] = []
   const runs: string[][] = []
+  const cwds: (string | undefined)[] = []
   on('tool.call', { tool: 'AskUserQuestion' }, (_$: any, e: any) => {
     asked.push(JSON.stringify(e))
     const q = e.questions[0].question
@@ -40,7 +43,8 @@ function engine(on: any, opts: Opts = {}) {
     }
     if (e.tool === 'Read') {
       const content = opts.output ?? ''
-      return { result: { type: 'text', file: { filePath: e.file_path, content, numLines: 1, startLine: 1, totalLines: 1 } }, text: content }
+      const text = content.split('\n').map((l, i) => `${String(i + 1).padStart(6)}\t${l}`).join('\n')
+      return { result: { type: 'text', file: { filePath: e.file_path, content, numLines: 1, startLine: 1, totalLines: 1 } }, text, ...(opts.context ? { context: opts.context } : {}) }
     }
     return { result: {}, text: 'ok' }
   })
@@ -52,10 +56,12 @@ function engine(on: any, opts: Opts = {}) {
   on('session.cwd', () => ({ value: '/repo' }))
   const file = (path: string) => (opts.untracked ?? {})[path.replace('/repo/', '')]
   on('fs.stat', (_$: any, e: any) => ({ value: { kind: 'file', size: (file(e.path) ?? '').length, mtimeMs: 0, isLink: false, realPath: e.path } }))
-  on('fs.read', (_$: any, e: any) => ({ value: file(e.path) ?? '' }))
+  on('fs.read', (_$: any, e: any) => ({ value: file(e.path) ?? opts.existing ?? '' }))
+  on('fs.exists', () => ({ value: true }))
   on('process.run', (_$: any, e: any) => {
     const argv = [...e.argv] as string[]
     runs.push(argv)
+    cwds.push(e.init?.cwd)
     if (argv[0] === 'gitleaks') {
       if (opts.gitleaks === null || opts.gitleaks === undefined) throw new Error('not installed')
       if (argv[1] === 'version') return { value: { exitCode: 0, stdout: '8.30.1\n', stderr: '' } }
@@ -68,7 +74,7 @@ function engine(on: any, opts: Opts = {}) {
     if (argv.includes('diff') || argv.includes('log')) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '' } }
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
   })
-  return { ran, asked, toasts, runs }
+  return { ran, asked, toasts, runs, cwds }
 }
 
 describe('secret-guard', () => {
@@ -88,6 +94,22 @@ describe('secret-guard', () => {
     expect(builtin('API_KEY=settings.API_KEY')).toEqual([])
     expect(builtin('SECRET_KEY=os.getenv("SECRET")')).toEqual([])
     expect(builtin('api_key = "not checked: lower-case names are code"')).toEqual([])
+    // Dotted values are code only for the env and URL rules: a JWT and a SendGrid key still count.
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9' + '.eyJzdWIiOiIxMjM0NTY3ODkwIn0' + '.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'
+    expect(kinds(`Authorization: Bearer ${jwt}`)).toEqual(['JWT'])
+    const sg = 'SG.' + 'aZ9Bc1De2Fg3Hi4Jk5Lm6N'.slice(0, 22) + '.' + 'Pq8Rs9Tu0Vw1Xy2Za3Bc4De5Fg6Hi7Jk8Lm9No0Pq1Rs2T'.slice(0, 43)
+    expect(kinds(sg)).toEqual(['SendGrid key'])
+    // A line number or a grep prefix before an env line.
+    expect(builtin('    12\tDB_PASSWORD=Hx7pQ2vLk9zz')[0]?.secret).toBe('Hx7pQ2vLk9zz')
+    expect(builtin('config/.env:3:API_KEY=Hx7pQ2vLk9zz')[0]?.secret).toBe('Hx7pQ2vLk9zz')
+  })
+
+  test('the git matcher stays fast on a long run of options', () => {
+    const t = Date.now()
+    bare('git' + ' -C -C'.repeat(40) + ' x')
+    expect(/commit/.test('git' + ' -C -C'.repeat(40))).toBe(false)
+    expect(gitCOf('git' + ' -C -C'.repeat(40) + ' status')).toBe(undefined)
+    expect(Date.now() - t).toBeLessThan(200)
   })
 
   test('helpers', () => {
@@ -102,6 +124,10 @@ describe('secret-guard', () => {
     ])
     expect(bare('echo "git push"')).toBe('echo ""')
     expect(cdOf('cd api && git commit -m x')).toBe('api')
+    expect(cdOf('cd api; git commit -m x')).toBe('api')
+    expect(gitCOf('git -C ../other commit -m x')).toBe('../other')
+    expect(gitCOf('git -c a=b -C "my repo" push')).toBe('my repo')
+    expect(gitCOf('git commit -m x')).toBe(undefined)
   })
 
   test('a secret in Bash output is hidden before Claude reads it, with a toast', async ($, on) => {
@@ -112,10 +138,23 @@ describe('secret-guard', () => {
     expect(toasts[0]).toMatch(/hid a GitHub token from Claude \(Bash output\)/)
   })
 
-  test('a Read of a key file is hidden; a clean read is untouched', async ($, on) => {
+  test('a Read of a key file is hidden, though the model text has line numbers', async ($, on) => {
     engine(on, { output: PEM })
     const r: any = await $.tool.call({ tool: 'Read', file_path: '/repo/id_rsa' } as any)
     expect(r.result.file.content).toBe('[hidden by secret-guard: private key]')
+  })
+
+  test('a Read of .env hides each value with the built-in rules alone', async ($, on) => {
+    engine(on, { output: 'PORT=3000\nDB_PASSWORD=Hx7pQ2vLk9zz\n' })
+    const r: any = await $.tool.call({ tool: 'Read', file_path: '/repo/.env' } as any)
+    expect(r.result.file.content).toBe('PORT=3000\nDB_PASSWORD=[hidden by secret-guard: secret in an env variable]\n')
+  })
+
+  test('a secret in the context the model reads withholds the result, redacted', async ($, on) => {
+    engine(on, { output: 'fine', context: [`note: token ${GH}`] })
+    const r: any = await $.tool.call({ tool: 'Read', file_path: '/repo/a.txt' } as any)
+    expect(r.deny).toMatch(/note: token \[hidden by secret-guard: GitHub token\]/)
+    expect(JSON.stringify(r)).not.toContain(GH)
   })
 
   test('clean output passes through as the same object', async ($, on) => {
@@ -164,6 +203,13 @@ describe('secret-guard', () => {
     expect(toasts[0]).toMatch(/git ignores it/)
   })
 
+  test('an edit that keeps a label already in the file is fine', async ($, on) => {
+    const { ran } = engine(on)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/notes.md', old_string: 'see [hidden by secret-guard: JWT]', new_string: 'shows [hidden by secret-guard: JWT]' } as any)
+    await $.tool.call({ tool: 'Write', file_path: '/repo/doc.md', content: 'shows [hidden by secret-guard: JWT]' } as any)
+    expect(ran.length).toBe(1) // the Edit; the Write brings the label into a file that doesn't have it
+  })
+
   test("writing secret-guard's own label back is refused", async ($, on) => {
     const { ran, asked } = engine(on)
     const r: any = await $.tool.call({ tool: 'Write', file_path: '/repo/.env', content: 'GITHUB_TOKEN=[hidden by secret-guard: GitHub token]\n' } as any)
@@ -202,7 +248,14 @@ describe('secret-guard', () => {
     await $.tool.call({ tool: 'Bash', command: 'cd api && git push' } as any)
     expect(runs.find(a => a.includes('diff'))).toContain('HEAD')
     const log = runs.find(a => a.includes('log'))!
-    expect(log.slice(-3)).toEqual(['HEAD', '--not', '--remotes'])
+    expect(log.slice(-3)).toEqual(['--branches', '--not', '--remotes'])
+  })
+
+  test('git -C scans the repo it names', async ($, on) => {
+    const { runs, cwds } = engine(on, { diff: '+++ b/a.ts\n+fine\n' })
+    await $.tool.call({ tool: 'Bash', command: 'git -C ../other commit -m x' } as any)
+    expect(runs.some(a => a.includes('diff'))).toBe(true)
+    expect(cwds).toContain('/repo/../other')
   })
 
   test('a clean commit and text that only mentions git go straight through', async ($, on) => {

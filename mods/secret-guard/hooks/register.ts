@@ -13,19 +13,23 @@ import type { EngineInterface, Register } from 'claude-code'
 import { addedLines, builtin, describe, type Finding, mapStrings, MARKER, redact, unique } from './rules'
 
 // `git`, then any global options (`-c k=v`, `-C dir`, `--no-pager`), then the subcommand.
-const GIT = String.raw`\bgit(?:\s+(?:-[cC]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+`
+// The three option forms can't match the same text, so a long run of them can't backtrack.
+const GIT = String.raw`\bgit(?:[ \t]+(?:-[cC][ \t]+[^\s-]\S*|--[\w-]+(?:=\S+)?|-[^\s-cC]\S*))*[ \t]+`
 const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
 const GIT_ADD = new RegExp(`${GIT}add\\b`)
 const GIT_PUSH = new RegExp(`${GIT}push\\b`)
+const GIT_C = /\bgit(?:[ \t]+(?:-c[ \t]+[^\s-]\S*|--[\w-]+(?:=\S+)?|-[^\s-cC]\S*))*[ \t]+-C[ \t]+("[^"]+"|'[^']+'|[^\s;&|-][^\s;&|]*)/
 const GIT_SAFE = ['git', '-c', 'core.fsmonitor=false', '--no-pager'] as const
 // Tools whose results are the person's own words or Claude's: nothing to hide from Claude.
 const SKIP = new Set(['AskUserQuestion', 'TodoWrite', 'ExitPlanMode', 'EnterPlanMode'])
-const GITLEAKS_MAX = 2_000_000
+const GITLEAKS_MAX = 2_000_000 // a diff
+const GITLEAKS_OUTPUT_MAX = 512_000 // a tool's output: bigger outputs get the built-in rules only, to stay fast
 
 type Stats = { hidden: Map<string, number>; held: number; blocked: number }
 const stats: Stats = { hidden: new Map(), held: 0, blocked: 0 }
-// undefined: not looked for yet; null: not installed.
+// undefined: not looked for yet; null: not installed (looked for again after 5 minutes).
 let gitleaks: string | null | undefined
+let gitleaksCheckedAt = 0
 
 export const register: Register = (on, options) => {
   const redactOutput = options.redactOutput !== false
@@ -47,7 +51,7 @@ export const register: Register = (on, options) => {
     return denied ? { deny: denied } : next(e)
   })
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
-    const denied = await checkWrite($, e.file_path, e.new_string, useGitleaks)
+    const denied = await checkWrite($, e.file_path, e.new_string, useGitleaks, e.old_string)
     return denied ? { deny: denied } : next(e)
   })
   on('tool.call', { tool: 'NotebookEdit' }, async ($, e, next) => {
@@ -83,20 +87,43 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     const r = await next(e)
     if (!redactOutput || SKIP.has(e.tool) || r.deny !== undefined || typeof r.text !== 'string') return r
-    const found = await scan($, r.text, useGitleaks)
-    if (found.length === 0) return r
-    for (const f of found) stats.hidden.set(f.kind, (stats.hidden.get(f.kind) ?? 0) + 1)
-    $.ui.toast(`secret-guard: hid ${describe(found)} from Claude (${e.tool} output)`)
-    if (r.isError) return { deny: redact(r.text, found) }
+    // The tool's own record is scanned, string by string: the text the model reads is mapped
+    // from it (Read adds line numbers, an MCP mapper may escape), so a secret found in that
+    // text may not be a substring of the record. The record is what gets rewritten.
+    const leaves: string[] = []
+    mapStrings(r.result, s => (leaves.push(s), s))
+    const context = r.context ?? []
+    const found = await scanAll($, [...leaves, ...context], useGitleaks)
+    // What the model reads but the record doesn't spell the same way: withheld whole, redacted.
+    const left = found.length === 0 ? unique(builtin(r.text)) : []
+    if (found.length === 0 && left.length === 0) return r
+    const all = [...found, ...left]
+    for (const f of all) stats.hidden.set(f.kind, (stats.hidden.get(f.kind) ?? 0) + 1)
+    $.ui.toast(`secret-guard: hid ${describe(all)} from Claude (${e.tool} output)`)
+    // Context entries other hooks attached can't be rewritten or dropped, only withheld with the
+    // result: so a secret there, an error, or one only the mapped text shows withholds it all.
+    const inContext = context.some(c => all.some(f => c.includes(f.secret)))
+    if (r.isError || left.length > 0 || inContext) return { deny: redact([r.text, ...context].join('\n'), all) }
     return { result: mapStrings(r.result, s => redact(s, found)), context: r.context } as typeof r
   })
 }
 
 // Built-in rules, plus gitleaks when installed; one finding per distinct secret.
-export async function scan($: EngineInterface, text: string, useGitleaks: boolean): Promise<Finding[]> {
+export async function scan($: EngineInterface, text: string, useGitleaks: boolean, max = GITLEAKS_MAX): Promise<Finding[]> {
   if (text.length < 8) return []
   const found = builtin(text)
-  if (useGitleaks && text.length <= GITLEAKS_MAX) found.push(...(await runGitleaks($, text)))
+  if (useGitleaks && text.length <= max) found.push(...(await runGitleaks($, text)))
+  return unique(found)
+}
+
+// Several strings: the built-in rules on each, gitleaks once on them all. A finding that
+// spans two strings can't be cut out of either, so gitleaks's are kept only when one string holds it.
+async function scanAll($: EngineInterface, texts: readonly string[], useGitleaks: boolean): Promise<Finding[]> {
+  const found = texts.flatMap(t => builtin(t))
+  const joined = texts.filter(t => t.length >= 8).join('\n')
+  if (useGitleaks && joined.length >= 8 && joined.length <= GITLEAKS_OUTPUT_MAX) {
+    for (const f of await runGitleaks($, joined)) if (texts.some(t => t.includes(f.secret))) found.push(f)
+  }
   return unique(found)
 }
 
@@ -120,7 +147,8 @@ async function runGitleaks($: EngineInterface, text: string): Promise<Finding[]>
 }
 
 async function findGitleaks($: EngineInterface): Promise<string | null> {
-  if (gitleaks !== undefined) return gitleaks
+  if (gitleaks || (gitleaks === null && Date.now() - gitleaksCheckedAt < 300_000)) return gitleaks ?? null
+  gitleaksCheckedAt = Date.now()
   const r = await $.process.run(['gitleaks', 'version'], { timeoutMs: 5_000 }).catch(() => null)
   gitleaks = r && r.exitCode === 0 ? 'gitleaks' : null
   return gitleaks
@@ -132,8 +160,8 @@ function kindOf(rule: string) {
 }
 
 // A Write or Edit: undefined to let it through, or the deny text.
-async function checkWrite($: EngineInterface, path: string, text: string, useGitleaks: boolean): Promise<string | undefined> {
-  if (text.includes(MARKER)) {
+async function checkWrite($: EngineInterface, path: string, text: string, useGitleaks: boolean, before?: string): Promise<string | undefined> {
+  if (text.includes(MARKER) && !(before ?? (await $.fs.read(path).catch(() => ''))).toString().includes(MARKER)) {
     return `secret-guard: this write to ${path} contains "${MARKER}: …]", the label secret-guard showed you in place of a real secret. Writing it would replace the real secret in the file. Leave those lines as they are: edit around them with Edit, or ask the user to change the secret.`
   }
   const found = await scan($, text, useGitleaks)
@@ -151,8 +179,10 @@ async function checkWrite($: EngineInterface, path: string, text: string, useGit
 
 // Whether git ignores the file (so it can't be committed by accident).
 async function ignored($: EngineInterface, path: string) {
-  const dir = path.replace(/\/[^/]*$/, '') || '/'
-  const r = await $.process.run([...GIT_SAFE, 'check-ignore', '-q', '--', path], { cwd: dir, timeoutMs: 5_000 }).catch(() => null)
+  const abs = path.startsWith('/') ? path : `${(await $.session.cwd()).replace(/\/$/, '')}/${path}`
+  let dir = abs.replace(/\/[^/]*$/, '') || '/'
+  for (let i = 0; i < 40 && dir !== '/' && !(await $.fs.exists(dir).catch(() => false)); i++) dir = dir.replace(/\/[^/]*$/, '') || '/'
+  const r = await $.process.run([...GIT_SAFE, 'check-ignore', '-q', '--', abs], { cwd: dir, timeoutMs: 5_000 }).catch(() => null)
   return r !== null && r.exitCode === 0
 }
 
@@ -167,8 +197,9 @@ async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push',
   const DIFF = [...GIT_SAFE, 'diff', '--no-ext-diff', '--no-color', '-U0']
   if (step === 'push') {
     // Every commit not on any remote yet, each one's own patch: a secret added and then
-    // deleted still lands in history.
-    const r = await run([...GIT_SAFE, 'log', '-p', '--no-ext-diff', '--no-color', '-U0', '--format=', 'HEAD', '--not', '--remotes'])
+    // deleted still lands in history. With no remote at all, that's the whole history.
+    // Every local branch, not just HEAD: `git push origin other-branch` pushes that one.
+    const r = await run([...GIT_SAFE, 'log', '-p', '--no-ext-diff', '--no-color', '-U0', '--format=', '--branches', '--not', '--remotes'])
     return r && r.exitCode === 0 ? r.stdout : null
   }
   let r = await run([...DIFF, 'HEAD'])
@@ -236,16 +267,24 @@ export function bare(command: string) {
 
 // The directory a leading `cd x &&` moves to, if any.
 export function cdOf(command: string): string | undefined {
-  return /^\s*cd\s+("[^"]+"|'[^']+'|\S+)\s*&&/.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
+  return /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*(?:&&|;)/.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
 }
 
+// Where git runs: the session's folder, moved by a leading `cd x &&` and then by `git -C y`.
 async function runDir($: EngineInterface, command: string): Promise<string> {
-  const base = await $.session.cwd()
-  const target = cdOf(command)
-  if (target === undefined || target.includes('$')) return base
   const home = (await $.env.get('HOME')) ?? ''
-  if (target === '~' || target.startsWith('~/')) return home ? home + target.slice(1) : base
-  return target.startsWith('/') ? target : `${base.replace(/\/$/, '')}/${target}`
+  const join = (base: string, to: string | undefined) => {
+    if (to === undefined || to.includes('$')) return base
+    if (to === '~' || to.startsWith('~/')) return home ? home + to.slice(1) : base
+    return to.startsWith('/') ? to : `${base.replace(/\/$/, '')}/${to}`
+  }
+  const dir = join(await $.session.cwd(), cdOf(command))
+  return join(dir, gitCOf(command))
+}
+
+// The folder a `git -C dir` names, if any.
+export function gitCOf(command: string): string | undefined {
+  return GIT_C.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
 }
 
 function short(path: string) {

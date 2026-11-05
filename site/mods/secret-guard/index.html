@@ -69,11 +69,11 @@ claude plugin install secret-guard@claude-code-mods"><code><span class="ps" aria
 <ul class="notes">
 <li>A key in what a tool returns (cat .env, env, a file read, an MCP answer) becomes [hidden by secret-guard: GitHub token] before Claude reads it. It never reaches the model or the transcript.</li>
 <li>A Write or Edit that adds a key asks first. A file git ignores, like .env, goes through with a toast.</li>
-<li>A write that would put the label back into a file is refused, so the real key isn&#x27;t overwritten.</li>
-<li>git commit scans every change since the last commit, plus new files when the same command runs git add. git push scans each commit not on a remote yet.</li>
+<li>A write that would bring the label into a file is refused, so the real key isn&#x27;t overwritten.</li>
+<li>git commit scans every change since the last commit, plus new files when the same command runs git add. git push scans each local commit no remote has yet.</li>
 <li>Asks and toasts name the kind of key and the file, never the key.</li>
 <li>gitleaks runs on your machine from a neutral folder, so a repo can&#x27;t switch it off. Nothing is sent anywhere.</li>
-<li>A command you run yourself with ! goes straight to Claude.</li>
+<li>A command you run yourself with ! and a file you attach with @ go straight to Claude. A shell command that writes a file isn&#x27;t checked like a Write.</li>
 </ul>
 </section>
 </div>

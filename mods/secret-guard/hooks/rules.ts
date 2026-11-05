@@ -1,10 +1,12 @@
 // The built-in rules: a small set of high-confidence patterns, so secret-guard works with
-// nothing installed. gitleaks, when present, adds its 150+ rules on top (scan.ts).
+// nothing installed. gitleaks, when present, adds its 150+ rules on top (register.ts).
 // Every pattern is linear (no nested quantifiers), so a 4 MB tool output can't stall it.
 
 export type Finding = { kind: string; secret: string }
 
-type Rule = { kind: string; re: RegExp; group?: number }
+// `code`: drop a value that reads as code (`settings.KEY`, `getenv(`), for the rules that
+// take any value after `=` or `:`.
+type Rule = { kind: string; re: RegExp; group?: number; code?: true }
 
 export const RULES: readonly Rule[] = [
   { kind: 'private key', re: /-----BEGIN[A-Z ]{0,20} PRIVATE KEY(?: BLOCK)?-----[\s\S]{20,8000}?-----END[A-Z ]{0,20} PRIVATE KEY(?: BLOCK)?-----/g },
@@ -24,12 +26,14 @@ export const RULES: readonly Rule[] = [
   { kind: 'SendGrid key', re: /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g },
   { kind: 'JWT', re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g },
   // A connection string's password: postgres://user:PASSWORD@host
-  { kind: 'password in a URL', re: /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:/@]{1,64}:([^\s@/]{6,128})@[\w.-]+/g, group: 1 },
-  // .env style: SOME_SECRET=value, as `cat .env`, `env` and `printenv` print it.
+  { kind: 'password in a URL', re: /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:/@]{1,64}:([^\s@/]{6,128})@[\w.-]+/g, group: 1, code: true },
+  // .env style: SOME_SECRET=value, as `cat .env`, `env` and `printenv` print it. A line
+  // number (`cat -n`, Read's `  12\t`) or a `grep -n` file prefix may come first.
   {
     kind: 'secret in an env variable',
-    re: /^[ \t]*(?:export[ \t]+)?[A-Z0-9_]{0,60}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIALS?)[A-Z0-9_]{0,60}[ \t]*=[ \t]*["']?([^\s"'#]{8,})/gm,
+    re: /^(?:[ \t]*\d{1,9}[\t→:]|[\w./-]{1,200}:(?:\d{1,9}[:-])?)?[ \t]*(?:export[ \t]+)?[A-Z0-9_]{0,60}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIALS?)[A-Z0-9_]{0,60}[ \t]*=[ \t]*["']?([^\s"'#]{8,})/gm,
     group: 1,
+    code: true,
   },
 ]
 
@@ -45,7 +49,7 @@ export function builtin(text: string): Finding[] {
     rule.re.lastIndex = 0
     for (const m of text.matchAll(rule.re)) {
       const secret = m[rule.group ?? 0]
-      if (secret === undefined || PLACEHOLDER.test(secret) || /(.)\1{7,}/.test(secret) || CODE.test(secret)) continue
+      if (secret === undefined || PLACEHOLDER.test(secret) || /(.)\1{7,}/.test(secret) || (rule.code && CODE.test(secret))) continue
       out.push({ kind: rule.kind, secret })
     }
   }
