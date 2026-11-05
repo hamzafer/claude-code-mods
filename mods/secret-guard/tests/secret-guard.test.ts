@@ -21,6 +21,9 @@ type Opts = {
   existing?: string // the file's text before a Write
   gitFails?: boolean // git diff / log exit non-zero
   editRecord?: string // an Edit result's originalFile
+  folder?: Record<string, string> | null // files in /repo before git init; null: the folder doesn't exist yet
+  truncated?: boolean // git's output was cut at 4 MiB
+  timedOut?: boolean // git diff failed, but the folder is a repo
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -59,8 +62,9 @@ function engine(on: any, opts: Opts = {}) {
   on('session.cwd', () => ({ value: '/repo' }))
   const file = (path: string) => (opts.untracked ?? {})[path.replace('/repo/', '')]
   on('fs.stat', (_$: any, e: any) => ({ value: { kind: 'file', size: (file(e.path) ?? '').length, mtimeMs: 0, isLink: false, realPath: e.path } }))
-  on('fs.read', (_$: any, e: any) => ({ value: file(e.path) ?? opts.existing ?? '' }))
-  on('fs.exists', () => ({ value: true }))
+  on('fs.read', (_$: any, e: any) => ({ value: file(e.path) ?? (opts.folder ?? {})[e.path.replace('/repo/', '')] ?? opts.existing ?? '' }))
+  on('fs.exists', (_$: any, e: any) => ({ value: !(opts.folder === null && e.path === '/repo') }))
+  on('fs.list', () => ({ value: Object.entries(opts.folder ?? {}).map(([name, t]) => ({ name, kind: 'file', size: t.length })) }))
   on('process.run', (_$: any, e: any) => {
     const argv = [...e.argv] as string[]
     runs.push(argv)
@@ -73,8 +77,10 @@ function engine(on: any, opts: Opts = {}) {
       return { value: { exitCode: 0, stdout: JSON.stringify(rows), stderr: '' } }
     }
     if (argv.includes('ls-files')) return { value: { exitCode: 0, stdout: Object.keys(opts.untracked ?? {}).map(f => `${f}\0`).join(''), stderr: '' } }
+    if (argv.includes('rev-parse')) return { value: { exitCode: opts.gitFails && !opts.timedOut ? 128 : 0, stdout: '.git\n', stderr: '' } }
     if (argv.includes('check-ignore')) return { value: { exitCode: opts.ignored ? 0 : 1, stdout: '', stderr: '' } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.gitFails) return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
+    if ((argv.includes('diff') || argv.includes('log')) && opts.truncated) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '', isStdoutTruncated: true } }
     if (argv.includes('diff') || argv.includes('log')) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '' } }
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
   })
@@ -134,6 +140,7 @@ describe('secret-guard', () => {
     expect(gitCOf('git commit -am "docs: use git -C sub status"')).toBe(undefined)
     expect(gitCOf('git -C sub status && git commit -m x')).toBe(undefined)
     expect(gitCOf('git -C sub status && git -C api commit -m x')).toBe('api')
+    expect(gitCOf('git -C "a b"/c commit -m x')).toBe('a b/c')
     expect(gitCOf('git commit -m x')).toBe(undefined)
   })
 
@@ -278,6 +285,53 @@ describe('secret-guard', () => {
     const r: any = await $.tool.call({ tool: 'Edit', file_path: '/repo/.env', old_string: 'PORT=1', new_string: 'PORT=2' } as any)
     expect(toasts).toEqual([])
     expect(r.result.originalFile).toContain(GH) // the on-screen diff keeps the real file
+  })
+
+  test('two commits in one command are each checked in their own repo', async ($, on) => {
+    const { cwds } = engine(on, { diff: '+++ b/a.ts\n+fine\n' })
+    await $.tool.call({ tool: 'Bash', command: 'git -C a commit -m x && git -C b commit -m y' } as any)
+    expect(cwds).toContain('/repo/a')
+    expect(cwds).toContain('/repo/b')
+  })
+
+  test('git init then commit checks the folder files instead of asking blind', async ($, on) => {
+    const { asked } = engine(on, { gitFails: true, answer: 'Block it', folder: { 'pay.ts': `k = '${STRIPE}'` } })
+    const r: any = await $.tool.call({ tool: 'Bash', command: 'git init && git add . && git commit -m init' } as any)
+    expect(asked[0]).toMatch(/adds what looks like a Stripe key in pay\.ts/)
+    expect(r.deny).toMatch(/blocked this commit/)
+  })
+
+  test('git init then commit in a clean folder, or one the command makes, goes through', async ($, on) => {
+    const { asked, ran } = engine(on, { gitFails: true, folder: { 'app.ts': 'export {}' } })
+    await $.tool.call({ tool: 'Bash', command: 'git init && git add . && git commit -m init' } as any)
+    expect(asked).toEqual([])
+    expect(ran.length).toBe(1)
+  })
+
+  test('git init elsewhere does not skip the check when git timed out in a real repo', async ($, on) => {
+    const { asked } = engine(on, { gitFails: true, timedOut: true, folder: { 'a.ts': 'export {}' } })
+    await $.tool.call({ tool: 'Bash', command: 'git init tools/x && git commit -am wip' } as any)
+    expect(asked[0]).toMatch(/Couldn't read what this commit adds/)
+  })
+
+  test('a diff too big to read whole asks instead of passing as clean', async ($, on) => {
+    const { asked } = engine(on, { truncated: true, diff: '+++ b/a.ts\n+fine\n', answer: 'Allow once' })
+    await $.tool.call({ tool: 'Bash', command: 'git commit -m big' } as any)
+    expect(asked[0]).toMatch(/too big to check whole/)
+  })
+
+  test('a cut diff with a key in its start says both in one ask', async ($, on) => {
+    const { asked } = engine(on, { truncated: true, diff: `+++ b/a.ts\n+k = '${STRIPE}'\n`, answer: 'Allow once' })
+    await $.tool.call({ tool: 'Bash', command: 'git commit -m big' } as any)
+    expect(asked.length).toBe(1)
+    expect(asked[0]).toMatch(/a Stripe key.*too big to check whole/)
+  })
+
+  test('git init with more files than the scan reads asks instead of passing as clean', async ($, on) => {
+    const many = Object.fromEntries(Array.from({ length: 250 }, (_, i) => [`f${i}.ts`, 'export {}']))
+    const { asked } = engine(on, { gitFails: true, folder: many, answer: 'Allow once' })
+    await $.tool.call({ tool: 'Bash', command: 'git init && git add . && git commit -m init' } as any)
+    expect(asked[0]).toMatch(/too big to check whole/)
   })
 
   test('a clean commit and text that only mentions git go straight through', async ($, on) => {

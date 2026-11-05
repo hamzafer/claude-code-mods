@@ -17,6 +17,7 @@ import { addedLines, builtin, describe, type Finding, mapStrings, MARKER, redact
 const GIT = String.raw`\bgit(?:[ \t]+(?:-[cC][ \t]+[^\s-]\S*|--[\w-]+(?:=\S+)?|-[^\s-cC]\S*))*[ \t]+`
 const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
 const GIT_ADD = new RegExp(`${GIT}add\\b`)
+const GIT_INIT = new RegExp(`${GIT}init\\b`)
 const GIT_PUSH = new RegExp(`${GIT}push\\b`)
 // A commit or push with its global options, matched on the bare command (quotes filled, same
 // length), so the options' place in the real command is known and a `-C` read from there.
@@ -26,6 +27,7 @@ const GIT_SAFE = ['git', '-c', 'core.fsmonitor=false', '--no-pager'] as const
 const SKIP = new Set(['AskUserQuestion', 'TodoWrite', 'ExitPlanMode', 'EnterPlanMode'])
 const WRITES = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit'])
 const GITLEAKS_MAX = 2_000_000 // a diff
+const TRUNCATED = '\n[secret-guard: cut at 4 MiB]'
 const GITLEAKS_OUTPUT_MAX = 512_000 // a tool's output: bigger outputs get the built-in rules only, to stay fast
 
 type Stats = { hidden: Map<string, number>; held: number; blocked: number }
@@ -68,10 +70,17 @@ export const register: Register = (on, options) => {
     const commit = GIT_COMMIT.test(shell)
     const push = GIT_PUSH.test(shell)
     if (!commit && !push) return next(e)
-    for (const step of [commit && 'commit', push && 'push'] as const) {
-      if (!step) continue
-      const cwd = await runDir($, e.command, step)
-      const diff = await gitDiff($, cwd, step, GIT_ADD.test(shell))
+    // Each commit and push call, in its own folder: `git -C a commit && git -C b commit` checks both.
+    const seen = new Set<string>()
+    for (const { step, dir: c } of gitSteps(e.command)) {
+      const cwd = await runDir($, e.command, c)
+      if (seen.has(`${step} ${cwd}`)) continue
+      seen.add(`${step} ${cwd}`)
+      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell))
+      // `git init && git add . && git commit`: no repo yet, so git can't answer. The folder's
+      // files are what the first commit takes; a folder the command makes has none yet.
+      // Only when git says the folder is no repo: a timeout in a big repo still asks.
+      if (diff === null && step === 'commit' && GIT_INIT.test(shell) && (await notARepo($, cwd))) diff = await folderFiles($, cwd)
       if (diff === null) {
         // git couldn't say what goes in (not a repo, a timeout): ask rather than wave it through.
         stats.held++
@@ -80,10 +89,19 @@ export const register: Register = (on, options) => {
         return { deny: `secret-guard: the user blocked this ${step}: secret-guard couldn't read what it adds, so it wasn't checked for keys.` }
       }
       const found = await findInDiff($, diff, useGitleaks)
+      if (found.length === 0 && diff.endsWith(TRUNCATED)) {
+        // Over 4 MiB of changes: the rest wasn't read, so say so instead of passing it as clean.
+        stats.held++
+        if (await allow($, `This ${step} is too big to check whole: secret-guard read part of it and found no keys there.`)) continue
+        stats.blocked++
+        return { deny: `secret-guard: the user blocked this ${step}: it was too big for secret-guard to check whole.` }
+      }
       if (found.length === 0) continue
       const what = `${describe(found.map(f => f.finding))} in ${[...new Set(found.map(f => f.file))].slice(0, 3).join(', ')}`
       stats.held++
-      if (await allow($, `This ${step} adds what looks like ${what}.`)) continue
+      // A cut diff with a key in its start: one ask says both, so Allow once can't skip the cut.
+      const cut = diff.endsWith(TRUNCATED) ? ` It's also too big to check whole: secret-guard read only part of it.` : ''
+      if (await allow($, `This ${step} adds what looks like ${what}.${cut}`)) continue
       stats.blocked++
       return {
         deny: `secret-guard: the user blocked this ${step}: it adds what looks like ${what}. Take the secret out of the code (read it from an environment variable or a git-ignored file), ${step === 'push' ? 'rewrite the commit that added it, ' : 'unstage it, '}then try again. If the key was real, tell the user to rotate it.`,
@@ -213,12 +231,52 @@ async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push',
     // deleted still lands in history. With no remote at all, that's the whole history.
     // Every local branch, not just HEAD: `git push origin other-branch` pushes that one.
     const r = await run([...GIT_SAFE, 'log', '-p', '--no-ext-diff', '--no-color', '-U0', '--format=', '--branches', '--not', '--remotes'])
-    return r && r.exitCode === 0 ? r.stdout : null
+    return r && r.exitCode === 0 ? r.stdout + (r.isStdoutTruncated ? TRUNCATED : '') : null
   }
   let r = await run([...DIFF, 'HEAD'])
   if (!r || r.exitCode !== 0) r = await run([...DIFF, '--cached']) // no commit yet
   if (!r || r.exitCode !== 0) return null
-  return adds ? r.stdout + (await untracked($, cwd)) : r.stdout
+  const out = adds ? r.stdout + (await untracked($, cwd)) : r.stdout
+  return r.isStdoutTruncated && !out.endsWith(TRUNCATED) ? out + TRUNCATED : out
+}
+
+// Whether git says the folder is in no repo (exit 128), as opposed to failing some other way.
+// A folder that doesn't exist yet (`mkdir app && cd app && git init`) counts as no repo.
+async function notARepo($: EngineInterface, cwd: string) {
+  if (!(await $.fs.exists(cwd).catch(() => false))) return true
+  const r = await $.process.run([...GIT_SAFE, 'rev-parse', '--git-dir'], { cwd, timeoutMs: 5_000 }).catch(() => null)
+  return r !== null && r.exitCode === 128
+}
+
+// A folder's files as a diff that adds them whole, for a commit right after `git init`.
+// Skips .git and node_modules; at most 200 files of 1 MB, 5 MB in all, 300 folders, 6
+// levels; past a cap the diff ends in TRUNCATED. Links are never followed. It doesn't read .gitignore, so an ignored key file asks.
+async function folderFiles($: EngineInterface, root: string): Promise<string> {
+  if (!(await $.fs.exists(root).catch(() => false))) return ''
+  let out = ''
+  let left = 200
+  let dirs = 300
+  let cut = false // a cap left something unread: the commit then asks instead of passing as clean
+  const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
+    if (dirs-- <= 0) return void (cut = true)
+    const entries = await $.fs.list(dir).catch(() => [])
+    for (const en of entries) {
+      if (left <= 0 || out.length > 5_000_000) return void (cut = true)
+      const path = `${dir.replace(/\/$/, '')}/${en.name}`
+      const name = rel ? `${rel}/${en.name}` : en.name
+      if (en.kind === 'dir' && en.name !== '.git' && en.name !== 'node_modules') {
+        if (depth < 6) await walk(path, name, depth + 1)
+        else cut = true
+      }
+      if (en.kind === 'file' && en.size > 1_000_000) cut = true
+      if (en.kind !== 'file' || en.size > 1_000_000) continue
+      left--
+      const text = await $.fs.read(path).catch(() => '')
+      if (typeof text === 'string') out += `\n+++ b/${name}\n${text.split('\n').map(l => `+${l}`).join('\n')}`
+    }
+  }
+  await walk(root, '', 0)
+  return cut ? out + TRUNCATED : out
 }
 
 // Untracked files git doesn't ignore, as a diff that adds them whole. At most 200 files of 1 MB.
@@ -226,15 +284,18 @@ async function untracked($: EngineInterface, cwd: string): Promise<string> {
   const r = await $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z'], { cwd, timeoutMs: 30_000 }).catch(() => null)
   if (!r || r.exitCode !== 0) return ''
   let out = ''
-  for (const file of r.stdout.split('\0').filter(Boolean).slice(0, 200)) {
+  const files = r.stdout.split('\0').filter(Boolean)
+  let cut = files.length > 200
+  for (const file of files.slice(0, 200)) {
     const path = `${cwd.replace(/\/$/, '')}/${file}`
     const stat = await $.fs.stat(path).catch(() => undefined)
+    if (stat?.kind === 'file' && stat.size > 1_000_000) cut = true
     if (!stat || stat.kind !== 'file' || stat.size > 1_000_000) continue
     const text = await $.fs.read(path).catch(() => '')
     if (typeof text !== 'string') continue
     out += `\n+++ b/${file}\n${text.split('\n').map(l => `+${l}`).join('\n')}`
   }
-  return out
+  return cut ? out + TRUNCATED : out
 }
 
 async function findInDiff($: EngineInterface, diff: string, useGitleaks: boolean) {
@@ -286,7 +347,7 @@ export function cdOf(command: string): string | undefined {
 }
 
 // Where git runs: the session's folder, moved by a leading `cd x &&` and then by `git -C y`.
-async function runDir($: EngineInterface, command: string, step: 'commit' | 'push'): Promise<string> {
+async function runDir($: EngineInterface, command: string, c: string | undefined): Promise<string> {
   const home = (await $.env.get('HOME')) ?? ''
   const join = (base: string, to: string | undefined) => {
     if (to === undefined || to.includes('$')) return base
@@ -294,19 +355,27 @@ async function runDir($: EngineInterface, command: string, step: 'commit' | 'pus
     return to.startsWith('/') ? to : `${base.replace(/\/$/, '')}/${to}`
   }
   const dir = join(await $.session.cwd(), cdOf(command))
-  return join(dir, gitCOf(command, step))
+  return join(dir, c)
 }
 
 // The folder the commit's or push's own `git -C dir` names, if any. Text in quotes (a commit
 // message that mentions `git -C x`) and other git calls (`git -C x status && git commit`) don't count.
 export function gitCOf(command: string, step: 'commit' | 'push' = 'commit'): string | undefined {
+  return gitSteps(command).find(s => s.step === step)?.dir
+}
+
+// Every commit and push call in the command, each with the folder its own `git -C` names.
+export function gitSteps(command: string): { step: 'commit' | 'push'; dir: string | undefined }[] {
+  const out: { step: 'commit' | 'push'; dir: string | undefined }[] = []
   for (const m of bare(command).matchAll(GIT_STEP)) {
-    if (m[2] !== step || !m.indices?.[1]) continue
+    if (!m.indices?.[1]) continue
     const [from, to] = m.indices[1]
-    const opts = [...command.slice(from, to).matchAll(/(?:^|[ \t])-C[ \t]+("[^"]*"|'[^']*'|\S+)/g)]
-    return opts.at(-1)?.[1]?.replace(/^["']|["']$/g, '')
+    // A shell word: quoted parts and bare parts run together, as in `"a b"/c`.
+    const opts = [...command.slice(from, to).matchAll(/(?:^|[ \t])-C[ \t]+((?:"[^"]*"|'[^']*'|[^\s"'])+)/g)]
+    const dir = opts.at(-1)?.[1]?.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
+    out.push({ step: m[2] as 'commit' | 'push', dir })
   }
-  return undefined
+  return out
 }
 
 function short(path: string) {
