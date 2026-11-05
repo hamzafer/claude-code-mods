@@ -92,7 +92,7 @@ export const register: Register = (on, options) => {
       if (found.length === 0 && diff.endsWith(TRUNCATED)) {
         // Over 4 MiB of changes: the rest wasn't read, so say so instead of passing it as clean.
         stats.held++
-        if (await allow($, `This ${step} is too big to check whole: secret-guard read its first 4 MB and found no keys there.`)) continue
+        if (await allow($, `This ${step} is too big to check whole: secret-guard read part of it and found no keys there.`)) continue
         stats.blocked++
         return { deny: `secret-guard: the user blocked this ${step}: it was too big for secret-guard to check whole.` }
       }
@@ -100,7 +100,7 @@ export const register: Register = (on, options) => {
       const what = `${describe(found.map(f => f.finding))} in ${[...new Set(found.map(f => f.file))].slice(0, 3).join(', ')}`
       stats.held++
       // A cut diff with a key in its start: one ask says both, so Allow once can't skip the cut.
-      const cut = diff.endsWith(TRUNCATED) ? ` It's also too big to check whole: only its first 4 MB was read.` : ''
+      const cut = diff.endsWith(TRUNCATED) ? ` It's also too big to check whole: secret-guard read only part of it.` : ''
       if (await allow($, `This ${step} adds what looks like ${what}.${cut}`)) continue
       stats.blocked++
       return {
@@ -237,7 +237,7 @@ async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push',
   if (!r || r.exitCode !== 0) r = await run([...DIFF, '--cached']) // no commit yet
   if (!r || r.exitCode !== 0) return null
   const out = adds ? r.stdout + (await untracked($, cwd)) : r.stdout
-  return out + (r.isStdoutTruncated ? TRUNCATED : '')
+  return r.isStdoutTruncated && !out.endsWith(TRUNCATED) ? out + TRUNCATED : out
 }
 
 // Whether git says the folder is in no repo (exit 128), as opposed to failing some other way.
@@ -249,21 +249,26 @@ async function notARepo($: EngineInterface, cwd: string) {
 }
 
 // A folder's files as a diff that adds them whole, for a commit right after `git init`.
-// Skips .git, node_modules and dot-folders; at most 200 files, 5 MB in all, 300 folders, 6
-// levels. Links are never followed. It doesn't read .gitignore, so an ignored key file asks.
+// Skips .git and node_modules; at most 200 files of 1 MB, 5 MB in all, 300 folders, 6
+// levels; past a cap the diff ends in TRUNCATED. Links are never followed. It doesn't read .gitignore, so an ignored key file asks.
 async function folderFiles($: EngineInterface, root: string): Promise<string> {
   if (!(await $.fs.exists(root).catch(() => false))) return ''
   let out = ''
   let left = 200
   let dirs = 300
+  let cut = false // a cap left something unread: the commit then asks instead of passing as clean
   const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
-    if (dirs-- <= 0) return
+    if (dirs-- <= 0) return void (cut = true)
     const entries = await $.fs.list(dir).catch(() => [])
     for (const en of entries) {
-      if (left <= 0 || out.length > 5_000_000) return
+      if (left <= 0 || out.length > 5_000_000) return void (cut = true)
       const path = `${dir.replace(/\/$/, '')}/${en.name}`
       const name = rel ? `${rel}/${en.name}` : en.name
-      if (en.kind === 'dir' && depth < 6 && en.name !== 'node_modules' && !en.name.startsWith('.')) await walk(path, name, depth + 1)
+      if (en.kind === 'dir' && en.name !== '.git' && en.name !== 'node_modules') {
+        if (depth < 6) await walk(path, name, depth + 1)
+        else cut = true
+      }
+      if (en.kind === 'file' && en.size > 1_000_000) cut = true
       if (en.kind !== 'file' || en.size > 1_000_000) continue
       left--
       const text = await $.fs.read(path).catch(() => '')
@@ -271,7 +276,7 @@ async function folderFiles($: EngineInterface, root: string): Promise<string> {
     }
   }
   await walk(root, '', 0)
-  return out
+  return cut ? out + TRUNCATED : out
 }
 
 // Untracked files git doesn't ignore, as a diff that adds them whole. At most 200 files of 1 MB.
@@ -279,15 +284,18 @@ async function untracked($: EngineInterface, cwd: string): Promise<string> {
   const r = await $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z'], { cwd, timeoutMs: 30_000 }).catch(() => null)
   if (!r || r.exitCode !== 0) return ''
   let out = ''
-  for (const file of r.stdout.split('\0').filter(Boolean).slice(0, 200)) {
+  const files = r.stdout.split('\0').filter(Boolean)
+  let cut = files.length > 200
+  for (const file of files.slice(0, 200)) {
     const path = `${cwd.replace(/\/$/, '')}/${file}`
     const stat = await $.fs.stat(path).catch(() => undefined)
+    if (stat?.kind === 'file' && stat.size > 1_000_000) cut = true
     if (!stat || stat.kind !== 'file' || stat.size > 1_000_000) continue
     const text = await $.fs.read(path).catch(() => '')
     if (typeof text !== 'string') continue
     out += `\n+++ b/${file}\n${text.split('\n').map(l => `+${l}`).join('\n')}`
   }
-  return out
+  return cut ? out + TRUNCATED : out
 }
 
 async function findInDiff($: EngineInterface, diff: string, useGitleaks: boolean) {

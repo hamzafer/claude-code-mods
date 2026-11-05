@@ -327,6 +327,13 @@ describe('secret-guard', () => {
     expect(asked[0]).toMatch(/a Stripe key.*too big to check whole/)
   })
 
+  test('git init with more files than the scan reads asks instead of passing as clean', async ($, on) => {
+    const many = Object.fromEntries(Array.from({ length: 250 }, (_, i) => [`f${i}.ts`, 'export {}']))
+    const { asked } = engine(on, { gitFails: true, folder: many, answer: 'Allow once' })
+    await $.tool.call({ tool: 'Bash', command: 'git init && git add . && git commit -m init' } as any)
+    expect(asked[0]).toMatch(/too big to check whole/)
+  })
+
   test('a clean commit and text that only mentions git go straight through', async ($, on) => {
     const { ran, asked } = engine(on, { diff: '+++ b/a.ts\n+const a = 1\n' })
     await $.tool.call({ tool: 'Bash', command: 'git commit -m "x"' } as any)
