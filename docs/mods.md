@@ -31,6 +31,7 @@
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 💥 | **blast-radius** | Holds `rm -r`, force pushes and migrations, shows what they'd delete, cancels after 60 s with no answer | |
+| 🔑 | **secret-guard** | Hides API keys and tokens in tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed | `/secret-guard` |
 
 ### 💸 Spend less
 
@@ -73,7 +74,7 @@ To order them, run `npx claude-code-mods@latest` and press `o` in the checklist.
 
 ### 🙋 Guards ask before they block
 
-- blast-radius, rulebook-guard and merge-gate stop a tool call and ask you
+- blast-radius, secret-guard, rulebook-guard and merge-gate stop a tool call and ask you
 - **Saying no** (Cancel, Block it, Hold) refuses the call, and Claude gets the reason
 - **Saying yes** (Proceed, Allow once, Merge anyway) runs it as written
 - In auto mode the session waits for your answer, except blast-radius, which cancels on its own after a timeout (below)
@@ -348,6 +349,23 @@ A Claude Code hook that holds risky commands and shows what they would delete.
 - Set `timeoutSeconds` to change the wait (`0` waits forever). Change it in `/config`, or in `settings.json` under `pluginConfigs["blast-radius"].options`
 - With no screen attached (a plain `claude -p` run, or an SDK host that draws nothing), it cancels at once. Nobody can answer
 - One command is held at a time. A second one waits its turn, then gets its own full countdown
+
+### 🔑 secret-guard
+
+Keeps API keys, tokens and private keys out of Claude's context, your files and your git history.
+
+![secret-guard: cat .env in Claude Code shows each key as hidden by secret-guard, and a commit that adds a Stripe key waits for Block it or Allow once](../images/secret-guard.png)
+
+- **Tool output:** a key in what a tool returns (`cat .env`, `env`, a file read, an MCP answer) is swapped for `[hidden by secret-guard: GitHub token]` before Claude reads it. The key never reaches the model or the transcript. A toast says what was hidden. If the key can't be cut out cleanly (it's in an error, or in a note another hook added), the whole result is withheld and Claude reads a redacted copy
+- **Writes:** a Write or Edit that adds a key asks first (Block it / Allow once). A file git ignores, like `.env`, goes through with a toast
+- **The label stays a label:** a write that would bring `[hidden by secret-guard: …]` into a file is refused, so the real key isn't overwritten. An edit that only keeps a label already there is fine
+- **Commits:** `git commit` scans every change since the last commit, plus new files when the same command runs `git add`, and asks if one adds a key. It follows a leading `cd` and `git -C`
+- **Pushes:** `git push` scans each commit on a local branch that no remote has yet, so a key added and then deleted is still caught
+- Asks and toasts name the kind of key and the file, never the key
+- **Scanner:** 18 built-in rules (AWS, GitHub, GitLab, Anthropic, OpenAI, OpenRouter, Stripe, Slack, Google, npm, Hugging Face, SendGrid, JWTs, private keys, passwords in URLs, `SECRET=`/`TOKEN=`/`API_KEY=` lines). With [gitleaks](https://github.com/gitleaks/gitleaks) installed (`brew install gitleaks`), its 150+ rules run too (on tool output up to 512 KB; bigger outputs get the built-in rules). gitleaks runs on your machine from a neutral folder, so a repo's own `.gitleaks.toml` or `gitleaks:allow` comments can't switch it off. Nothing is sent anywhere, and no key is ever checked against its service
+- `/secret-guard` shows the scanner in use and what it hid or held this session
+- Options in `/config`: `redactOutput` (hide keys in tool output, on) and `useGitleaks` (on)
+- **Limits:** a command you run yourself with `!` and a file you attach with `@` go straight to Claude. A shell command that writes a file (`sed -i`, `echo >`) isn't checked like a Write, and `sh -c "git commit"` or a git alias isn't seen as a commit. A key in a format no rule knows gets through. It's a seatbelt, not a vault: keep keys in a secret manager or a git-ignored `.env`
 
 ### 💾 session-saver
 

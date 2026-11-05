@@ -32,6 +32,18 @@
       ]
     },
     {
+      "name": "secret-guard",
+      "description": "Keeps API keys and tokens out of Claude's context, your files and your commits: hides them in tool output, and asks before a write, commit or push adds one.",
+      "version": "0.1.0",
+      "source": "./mods/secret-guard",
+      "category": "Guard your repo",
+      "tags": [
+        "guard",
+        "toast",
+        "command"
+      ]
+    },
+    {
       "name": "context-bar",
       "description": "Your context window as a stacked bar above the prompt, a color per category, with token counts and the compaction point. /context-bar shows or hides it.",
       "version": "0.1.5",

@@ -56,6 +56,12 @@ Holds an `rm -rf` and shows what it would delete.
 
 ![blast-radius](../images/blast-radius.png)
 
+## 🔑 secret-guard
+
+Hides the keys in `cat .env` from Claude, and holds a commit that adds one.
+
+![secret-guard](../images/secret-guard.png)
+
 ## 📏 rulebook-guard
 
 Catches a `git commit --amend`.
