@@ -18,10 +18,13 @@ const GIT = String.raw`\bgit(?:[ \t]+(?:-[cC][ \t]+[^\s-]\S*|--[\w-]+(?:=\S+)?|-
 const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
 const GIT_ADD = new RegExp(`${GIT}add\\b`)
 const GIT_PUSH = new RegExp(`${GIT}push\\b`)
-const GIT_C = /\bgit(?:[ \t]+(?:-c[ \t]+[^\s-]\S*|--[\w-]+(?:=\S+)?|-[^\s-cC]\S*))*[ \t]+-C[ \t]+("[^"]+"|'[^']+'|[^\s;&|-][^\s;&|]*)/
+// A commit or push with its global options, matched on the bare command (quotes filled, same
+// length), so the options' place in the real command is known and a `-C` read from there.
+const GIT_STEP = /\bgit((?:[ \t]+(?:-[cC][ \t]+[^\s-]\S*|--[\w-]+(?:=\S+)?|-[^\s-cC]\S*))*)[ \t]+(commit|push)\b/dg
 const GIT_SAFE = ['git', '-c', 'core.fsmonitor=false', '--no-pager'] as const
 // Tools whose results are the person's own words or Claude's: nothing to hide from Claude.
 const SKIP = new Set(['AskUserQuestion', 'TodoWrite', 'ExitPlanMode', 'EnterPlanMode'])
+const WRITES = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit'])
 const GITLEAKS_MAX = 2_000_000 // a diff
 const GITLEAKS_OUTPUT_MAX = 512_000 // a tool's output: bigger outputs get the built-in rules only, to stay fast
 
@@ -65,11 +68,17 @@ export const register: Register = (on, options) => {
     const commit = GIT_COMMIT.test(shell)
     const push = GIT_PUSH.test(shell)
     if (!commit && !push) return next(e)
-    const cwd = await runDir($, e.command)
     for (const step of [commit && 'commit', push && 'push'] as const) {
       if (!step) continue
+      const cwd = await runDir($, e.command, step)
       const diff = await gitDiff($, cwd, step, GIT_ADD.test(shell))
-      if (diff === null) continue
+      if (diff === null) {
+        // git couldn't say what goes in (not a repo, a timeout): ask rather than wave it through.
+        stats.held++
+        if (await allow($, `Couldn't read what this ${step} adds (git gave no answer in ${short(cwd)}), so it wasn't checked for keys.`)) continue
+        stats.blocked++
+        return { deny: `secret-guard: the user blocked this ${step}: secret-guard couldn't read what it adds, so it wasn't checked for keys.` }
+      }
       const found = await findInDiff($, diff, useGitleaks)
       if (found.length === 0) continue
       const what = `${describe(found.map(f => f.finding))} in ${[...new Set(found.map(f => f.file))].slice(0, 3).join(', ')}`
@@ -90,12 +99,16 @@ export const register: Register = (on, options) => {
     // The tool's own record is scanned, string by string: the text the model reads is mapped
     // from it (Read adds line numbers, an MCP mapper may escape), so a secret found in that
     // text may not be a substring of the record. The record is what gets rewritten.
+    // Write and Edit records hold the whole file (originalFile, the patch) that Claude never
+    // reads: there only the text Claude reads is scanned.
     const leaves: string[] = []
-    mapStrings(r.result, s => (leaves.push(s), s))
+    if (!WRITES.has(e.tool)) mapStrings(r.result, s => (leaves.push(s), s))
     const context = r.context ?? []
     const found = await scanAll($, [...leaves, ...context], useGitleaks)
-    // What the model reads but the record doesn't spell the same way: withheld whole, redacted.
-    const left = found.length === 0 ? unique(builtin(r.text)) : []
+    // What the model reads but the record doesn't spell the same way (a mapper that adds or
+    // reshapes text): withheld whole, redacted. A kind already found in the record is covered.
+    const kinds = new Set(found.map(f => f.kind))
+    const left = unique(builtin(r.text)).filter(f => !kinds.has(f.kind) && !leaves.some(l => l.includes(f.secret)))
     if (found.length === 0 && left.length === 0) return r
     const all = [...found, ...left]
     for (const f of all) stats.hidden.set(f.kind, (stats.hidden.get(f.kind) ?? 0) + 1)
@@ -258,11 +271,13 @@ async function allow($: EngineInterface, why: string) {
 
 // The command as the shell reads it: heredoc bodies and quoted strings blanked, so text
 // that merely mentions git (a script, a commit message) is not taken for it.
+// Same length as the command: heredoc bodies become spaces, quoted text becomes _ inside its quotes.
 export function bare(command: string) {
+  const fill = (m: string) => m[0] + '_'.repeat(m.length - 2) + m[m.length - 1]
   return command
-    .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, ' ')
-    .replace(/'[^']*'/g, "''")
-    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, m => m.replace(/[^\n]/g, ' '))
+    .replace(/'[^']*'/g, fill)
+    .replace(/"(?:[^"\\]|\\.)*"/g, fill)
 }
 
 // The directory a leading `cd x &&` moves to, if any.
@@ -271,7 +286,7 @@ export function cdOf(command: string): string | undefined {
 }
 
 // Where git runs: the session's folder, moved by a leading `cd x &&` and then by `git -C y`.
-async function runDir($: EngineInterface, command: string): Promise<string> {
+async function runDir($: EngineInterface, command: string, step: 'commit' | 'push'): Promise<string> {
   const home = (await $.env.get('HOME')) ?? ''
   const join = (base: string, to: string | undefined) => {
     if (to === undefined || to.includes('$')) return base
@@ -279,12 +294,19 @@ async function runDir($: EngineInterface, command: string): Promise<string> {
     return to.startsWith('/') ? to : `${base.replace(/\/$/, '')}/${to}`
   }
   const dir = join(await $.session.cwd(), cdOf(command))
-  return join(dir, gitCOf(command))
+  return join(dir, gitCOf(command, step))
 }
 
-// The folder a `git -C dir` names, if any.
-export function gitCOf(command: string): string | undefined {
-  return GIT_C.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
+// The folder the commit's or push's own `git -C dir` names, if any. Text in quotes (a commit
+// message that mentions `git -C x`) and other git calls (`git -C x status && git commit`) don't count.
+export function gitCOf(command: string, step: 'commit' | 'push' = 'commit'): string | undefined {
+  for (const m of bare(command).matchAll(GIT_STEP)) {
+    if (m[2] !== step || !m.indices?.[1]) continue
+    const [from, to] = m.indices[1]
+    const opts = [...command.slice(from, to).matchAll(/(?:^|[ \t])-C[ \t]+("[^"]*"|'[^']*'|\S+)/g)]
+    return opts.at(-1)?.[1]?.replace(/^["']|["']$/g, '')
+  }
+  return undefined
 }
 
 function short(path: string) {

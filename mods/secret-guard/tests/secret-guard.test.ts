@@ -19,6 +19,8 @@ type Opts = {
   untracked?: Record<string, string> // untracked files git doesn't ignore, by name
   context?: string[] // what the model reads after the result
   existing?: string // the file's text before a Write
+  gitFails?: boolean // git diff / log exit non-zero
+  editRecord?: string // an Edit result's originalFile
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -46,6 +48,7 @@ function engine(on: any, opts: Opts = {}) {
       const text = content.split('\n').map((l, i) => `${String(i + 1).padStart(6)}\t${l}`).join('\n')
       return { result: { type: 'text', file: { filePath: e.file_path, content, numLines: 1, startLine: 1, totalLines: 1 } }, text, ...(opts.context ? { context: opts.context } : {}) }
     }
+    if (e.tool === 'Edit') return { result: { filePath: e.file_path, oldString: e.old_string, newString: e.new_string, originalFile: opts.editRecord ?? '', structuredPatch: [], userModified: false, replaceAll: false }, text: 'The file has been updated.' }
     return { result: {}, text: 'ok' }
   })
   on('ui.toast', (_$: any, e: any) => {
@@ -71,6 +74,7 @@ function engine(on: any, opts: Opts = {}) {
     }
     if (argv.includes('ls-files')) return { value: { exitCode: 0, stdout: Object.keys(opts.untracked ?? {}).map(f => `${f}\0`).join(''), stderr: '' } }
     if (argv.includes('check-ignore')) return { value: { exitCode: opts.ignored ? 0 : 1, stdout: '', stderr: '' } }
+    if ((argv.includes('diff') || argv.includes('log')) && opts.gitFails) return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
     if (argv.includes('diff') || argv.includes('log')) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '' } }
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
   })
@@ -122,11 +126,14 @@ describe('secret-guard', () => {
       { file: 'src/a.ts', text: 'const k = 1' },
       { file: 'b.ts', text: 'two' },
     ])
-    expect(bare('echo "git push"')).toBe('echo ""')
+    expect(bare('echo "git push"')).toBe('echo "________"')
     expect(cdOf('cd api && git commit -m x')).toBe('api')
     expect(cdOf('cd api; git commit -m x')).toBe('api')
     expect(gitCOf('git -C ../other commit -m x')).toBe('../other')
-    expect(gitCOf('git -c a=b -C "my repo" push')).toBe('my repo')
+    expect(gitCOf('git -c a=b -C "my repo" push', 'push')).toBe('my repo')
+    expect(gitCOf('git commit -am "docs: use git -C sub status"')).toBe(undefined)
+    expect(gitCOf('git -C sub status && git commit -m x')).toBe(undefined)
+    expect(gitCOf('git -C sub status && git -C api commit -m x')).toBe('api')
     expect(gitCOf('git commit -m x')).toBe(undefined)
   })
 
@@ -256,6 +263,21 @@ describe('secret-guard', () => {
     await $.tool.call({ tool: 'Bash', command: 'git -C ../other commit -m x' } as any)
     expect(runs.some(a => a.includes('diff'))).toBe(true)
     expect(cwds).toContain('/repo/../other')
+  })
+
+  test("a commit git can't read asks instead of going through unchecked", async ($, on) => {
+    const { ran, asked } = engine(on, { gitFails: true, answer: 'Block it' })
+    const r: any = await $.tool.call({ tool: 'Bash', command: 'git commit -m x' } as any)
+    expect(asked[0]).toMatch(/Couldn't read what this commit adds/)
+    expect(r.deny).toMatch(/couldn't read what it adds/)
+    expect(ran).toEqual([])
+  })
+
+  test('an Edit to a file that holds a key says nothing about the parts Claude never reads', async ($, on) => {
+    const { toasts } = engine(on, { ignored: true, editRecord: `PORT=1\nGITHUB_TOKEN=${GH}\n` })
+    const r: any = await $.tool.call({ tool: 'Edit', file_path: '/repo/.env', old_string: 'PORT=1', new_string: 'PORT=2' } as any)
+    expect(toasts).toEqual([])
+    expect(r.result.originalFile).toContain(GH) // the on-screen diff keeps the real file
   })
 
   test('a clean commit and text that only mentions git go straight through', async ($, on) => {
