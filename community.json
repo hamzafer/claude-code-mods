@@ -152,6 +152,15 @@
       "url": "https://github.com/mralexivy/AutoMode",
       "description": "Picks the model and effort for each prompt, shows the route above the prompt, and tells Claude to run an independent review (Opus or Sonnet) on risky changes. On by default in every session: several Haiku calls per prompt, auto compacting, shortening long outputs and ending stuck turns",
       "tags": ["band", "command"]
+    },
+    {
+      "name": "cost-lens",
+      "marketplace": "cost-lens",
+      "repo": "ZachFara/cost-lens",
+      "author": "ZachFara",
+      "url": "https://github.com/ZachFara/cost-lens",
+      "description": "Where your Claude Code tokens and dollars go: a pane with plan limits, cost by day, model, project, branch and PR, what expired caches cost you, and a cache countdown above the prompt",
+      "tags": ["pane", "band", "toast", "command"]
     }
   ]
 }
