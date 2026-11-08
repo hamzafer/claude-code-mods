@@ -152,6 +152,15 @@
       "url": "https://github.com/mralexivy/AutoMode",
       "description": "Picks the model and effort for each prompt, shows the route above the prompt, and tells Claude to run an independent review (Opus or Sonnet) on risky changes. On by default in every session: several Haiku calls per prompt, auto compacting, shortening long outputs and ending stuck turns",
       "tags": ["band", "command"]
+    },
+    {
+      "name": "command-center",
+      "marketplace": "T-AI-Labs",
+      "repo": "T-AI-Labs/claude-code-mods",
+      "author": "T-AI-Labs",
+      "url": "https://github.com/T-AI-Labs/claude-code-mods#command-center",
+      "description": "One row of dropdowns above the prompt for your agents, skills and commands, narrowed by where they come from: Insert puts the pick into the prompt, Run runs the command or skill or starts the agent in the background on what you typed. No network requests and no model calls of its own",
+      "tags": ["band"]
     }
   ]
 }
