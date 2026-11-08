@@ -161,6 +161,15 @@
       "url": "https://github.com/T-AI-Labs/claude-code-mods#command-center",
       "description": "One row of dropdowns above the prompt for your agents, skills and commands, narrowed by where they come from: Insert puts the pick into the prompt, Run runs the command or skill or starts the agent in the background on what you typed. No network requests and no model calls of its own",
       "tags": ["band"]
+    },
+    {
+      "name": "cost-lens",
+      "marketplace": "cost-lens",
+      "repo": "ZachFara/cost-lens",
+      "author": "ZachFara",
+      "url": "https://github.com/ZachFara/cost-lens",
+      "description": "Where your Claude Code tokens and dollars go: a pane with plan limits, cost by day, model, project, branch and PR, what expired caches cost you, and a cache countdown above the prompt. Optional Haiku model tips (off by default); fetches Anthropic's price page once a day",
+      "tags": ["pane", "band", "toast", "command"]
     }
   ]
 }
