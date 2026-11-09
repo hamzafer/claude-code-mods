@@ -91,7 +91,7 @@ Shows every Claude Code subagent, tool call and touched file in a live pane.
 - `/mission code` opens straight to the code map, `/mission who` to the agents
 - Headless Chrome draws the code map as an image, in a throwaway profile. It uses the first of `/Applications/Google Chrome.app` (macOS), `google-chrome-stable`, `google-chrome`, `chromium-browser` or `chromium` in `/usr/bin` (Linux)
 - The Code view runs on macOS and Linux and needs a terminal that shows images (Ghostty, kitty, iTerm2)
-- On Windows and under WSL, whose terminals show no images, the Code view lists the map as lines, and `b` opens the drawn map in your browser, which follows each change. Under WSL the page is written to `$TMPDIR` (or `/tmp`) and handed to the Windows browser through `wslpath -w`, so `wslpath` and `explorer.exe` both need to be on the PATH
+- On Windows and under WSL, whose terminals show no images, the Code view draws the map as a tree of lines, each file under the files that import it, and `b` opens the drawn map in your browser, which follows each change. Under WSL the page is written to `$TMPDIR` (or `/tmp`) and handed to the Windows browser through `wslpath -w`, so `wslpath` and `explorer.exe` both need to be on the PATH
 - A file glows blue while Claude reads it, orange while it edits it, and turns green with a check once changed
 - One Haiku call after each turn writes the line under each changed file
 - The Who view works everywhere

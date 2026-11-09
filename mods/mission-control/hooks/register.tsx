@@ -197,21 +197,26 @@ export const register: Register = on => {
       if (isTextMap()) {
         const t = await read($, turn)
         const list = await read($, files)
-        const ls = textMap(list, { at: Date.now(), turn: t })
+        const map = textMap(list, { at: Date.now(), turn: t, columns })
         const changed = list.filter(f => f.changedTurn === t && t > 0).length
+        // The tree takes what room is left; the loose files keep their line at the bottom.
+        const room = rows - 1 - (map.loose.length ? 2 : 0)
         return (
           <Box flexDirection="column">
             {head}
             <Text dimColor>{`${list.length} files · ${changed} changed · b: the drawn map in your browser`}</Text>
             {draw.error !== '' && <Text color="red">{draw.error}</Text>}
-            {ls.length === 0 && <Text dimColor>Files Claude reads or edits show up here.</Text>}
-            {ls.slice(0, rows - 1).map(l => (
+            {list.length === 0 && <Text dimColor>Files Claude reads or edits show up here.</Text>}
+            {map.rows.slice(0, room).map(r => (
               <Text wrap="truncate-end">
-                <Text color={l.tone === 'read' ? 'blue' : l.tone === 'edit' ? 'yellow' : l.tone === 'changed' ? 'green' : undefined} dimColor={l.tone === 'dim'}>{`${l.mark} `}</Text>
-                <Text bold={l.tone !== 'dim'}>{l.title}</Text>
-                {(l.imports.length > 0 || l.why) && <Text dimColor>{`${l.imports.length ? ` → ${l.imports.join(', ')}` : ''}${l.why ? `  ${l.why}` : ''}`}</Text>}
+                {r.lead !== '' && <Text dimColor>{r.lead}</Text>}
+                {r.mark !== '' && <Text color={r.tone === 'read' ? 'blue' : r.tone === 'edit' ? 'yellow' : r.tone === 'changed' ? 'green' : undefined} dimColor={r.tone === 'dim'}>{`${r.mark} `}</Text>}
+                {r.title !== '' && <Text bold={r.tone !== 'dim'}>{r.title}</Text>}
+                {r.note !== '' && <Text dimColor>{r.note}</Text>}
               </Text>
             ))}
+            {map.loose.length > 0 && <Text> </Text>}
+            {map.loose.length > 0 && <Text wrap="truncate-end" dimColor>{`not linked  ${map.loose.map(title => `· ${title}`).join('  ')}`}</Text>}
           </Box>
         )
       }
@@ -306,7 +311,12 @@ async function touch($: EngineInterface, path: string, act: MapFile['act'], isCh
     return [...list.filter(f => f.path !== path), next].sort((a, b) => b.at - a.at).slice(0, MAX_FILES)
   })
   await renderSoon($)
-  $.clock.after(5500, () => void renderSoon($).catch(() => {})) // again once the glow has faded
+  $.clock.after(5500, () => {
+    void renderSoon($).catch(() => {}) // again once the glow has faded
+    // The text map has no picture to redraw, and the clock rests between turns: nudge the
+    // pane, so "editing now" fades with the glow instead of staying until the next change.
+    if (isTextMap()) void update($, now, () => Date.now()).catch(() => {})
+  })
 }
 
 // One plain line per changed file, from what changed this turn.

@@ -246,25 +246,86 @@ export function svg(files: MapFile[], look: Look): string {
   return o.join('\n')
 }
 
-export type MapLine = { mark: string; tone: 'read' | 'edit' | 'changed' | 'dim'; title: string; imports: string[]; why?: string }
+export type Tone = 'read' | 'edit' | 'changed' | 'dim'
 
-// The map as lines, for a terminal that draws no pictures: newest first, each file's
-// state, the files it imports and the one-line why.
-export function textMap(files: MapFile[], look: { at: number; turn: number }): MapLine[] {
+// One row of the text map: the tree's lines in front, then a file (its mark and name), and
+// its note. A row with no title is a note on its own line, under the file above it.
+export type TreeRow = { lead: string; mark: string; tone: Tone; title: string; note: string }
+
+export type TextMap = { rows: TreeRow[]; loose: string[] }
+
+// `lead` draws the lines in front of the file, `under` the lines its children hang from.
+type TreeNode = { f: MapFile; lead: string; under: string; again: boolean; hasKids: boolean }
+
+// The files as a tree: each file under the files that import it, newest roots first. A file
+// imported from two places, or in a loop, is drawn in full once and named again where it returns.
+function treeOf(files: MapFile[], es: Edge[]): TreeNode[] {
+  const byPath = new Map(files.map(f => [f.path, f]))
+  const imported = new Set(es.map(e => e.to))
+  const seen = new Set<string>()
+  const out: TreeNode[] = []
+  const walk = (f: MapFile, lead: string, under: string) => {
+    const again = seen.has(f.path)
+    seen.add(f.path)
+    const kids = again ? [] : es.filter(e => e.from === f.path && byPath.has(e.to)).map(e => byPath.get(e.to) as MapFile)
+    out.push({ f, lead, under, again, hasKids: kids.length > 0 })
+    kids.forEach((k, i) => {
+      const last = i === kids.length - 1
+      walk(k, `${under}${last ? '└──▶ ' : '├──▶ '}`, `${under}${last ? '     ' : '│    '}`)
+    })
+  }
+  for (const f of files) if (!imported.has(f.path)) walk(f, '', '')
+  for (const f of files) if (!seen.has(f.path)) walk(f, '', '') // a loop nothing else imports
+  return out
+}
+
+// The map as a tree of lines, for a terminal that draws no pictures. A pane `columns` wide
+// keeps each note on its file's line, in one column; a narrow one puts it under the file.
+// As in the drawn map, files only read and linked to nothing wait in `loose`, one line.
+export function textMap(files: MapFile[], look: { at: number; turn: number; columns: number }): TextMap {
   const all = files.map(f => f.path)
   const es = edges(files)
-  return files.map(f => {
-    const isLive = look.at - f.at < 5000
-    const isChanged = f.changedTurn === look.turn && look.turn > 0
-    const isReading = f.act === 'read' || f.act === 'search'
+  const linked = new Set(es.flatMap(e => [e.from, e.to]))
+  const isChanged = (f: MapFile) => f.changedTurn === look.turn && look.turn > 0
+  const isLive = (f: MapFile) => look.at - f.at < 5000
+  const isLoose = (f: MapFile) => !linked.has(f.path) && !isChanged(f) && !isLive(f) && f.act === 'read'
+  const nodes = treeOf(files.filter(f => !isLoose(f)), es).map(n => {
+    const isReading = n.f.act === 'read' || n.f.act === 'search'
+    const live = isLive(n.f) ? (n.f.act === 'search' ? 'searching now' : isReading ? 'reading now' : 'editing now') : ''
     return {
-      mark: isLive ? (isReading ? '●' : '✎') : isChanged ? '✓' : '·',
-      tone: isLive ? (isReading ? 'read' : 'edit') : isChanged ? 'changed' : 'dim',
-      title: titleOf(f.path, all),
-      imports: es.filter(e => e.from === f.path).map(e => titleOf(e.to, all)),
-      why: f.why,
+      ...n,
+      mark: isLive(n.f) ? (isReading ? '●' : '✎') : isChanged(n.f) ? '✓' : '·',
+      tone: (n.again ? 'dim' : isLive(n.f) ? (isReading ? 'read' : 'edit') : isChanged(n.f) ? 'changed' : 'dim') as Tone,
+      title: titleOf(n.f.path, all),
+      note: n.again ? 'shown above' : (n.f.why ?? live),
     }
   })
+  const loose = files.filter(isLoose).map(f => titleOf(f.path, all))
+  return { rows: treeRows(nodes, look.columns), loose }
+}
+
+type Placed = TreeNode & { mark: string; tone: Tone; title: string; note: string }
+
+// Where each note goes: beside its file in a roomy pane, beneath it (two lines at most) in a narrow one.
+function treeRows(nodes: Placed[], columns: number): TreeRow[] {
+  const width = (n: Placed) => n.lead.length + 2 + n.title.length
+  const col = Math.min(Math.max(0, ...nodes.map(width)) + 2, Math.floor(columns * 0.45))
+  const rows: TreeRow[] = []
+  for (const n of nodes) {
+    const row = { lead: n.lead, mark: n.mark, tone: n.tone, title: n.title, note: '' }
+    rows.push(row)
+    if (!n.note) continue
+    if (columns >= 70) {
+      row.note = `${' '.repeat(Math.max(2, col - width(n)))}${n.note}`
+      continue
+    }
+    // Beneath: the line down to its children, if it has any, then the note under the name.
+    const lead = `${n.under}${n.hasKids ? '│' : ' '} `
+    const per = Math.max(10, columns - lead.length - 1)
+    const [first, rest] = wrap(n.note, per)
+    for (const line of [first, fit(rest, per)].filter(Boolean)) rows.push({ lead, mark: '', tone: 'dim', title: '', note: line })
+  }
+  return rows
 }
 
 // The picture as a page that reloads itself, so a browser keeps showing the latest.
