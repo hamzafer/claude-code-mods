@@ -9,7 +9,7 @@ const PANE = { component: 'Pane', requestId: 'mission-control', props: { title: 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFails?: boolean; bands?: string; beneath?: unknown; env?: Record<string, string>; pageFails?: boolean } = {}) {
+function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFails?: boolean; bands?: string; beneath?: unknown; env?: Record<string, string>; pageFails?: boolean; wsl?: boolean; wslPathFails?: boolean } = {}) {
   const runs: string[][] = []
   resetBandOrder()
   const writes: Record<string, string> = {}
@@ -23,14 +23,25 @@ function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFa
   on('turn.complete', () => ({ text: '' }))
   on('agent.spawn', () => ({ model: 'sonnet', agentId: 'ag1' }))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
-  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : posix(e.path).endsWith('/bands.json') ? opts.bands : '' }))
+  on('fs.read', (_$: any, e: any) => ({
+    value: e.path === '/proc/version'
+      ? (opts.wsl ? 'Linux version 6.6.87.2-microsoft-standard-WSL2 (root@f00) #1 SMP' : 'Linux version 6.9.3-arch1-1 (linux@archlinux) #1 SMP')
+      : e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : posix(e.path).endsWith('/bands.json') ? opts.bands : '',
+  }))
   on('fs.write', (_$: any, e: any) => {
     if (opts.pageFails && e.path.endsWith('.html')) throw new Error('EACCES')
     return (writes[posix(e.path)] = e.text), { value: undefined }
   })
   on('fs.exists', (_$: any, e: any) => ({ value: posix(e.path).endsWith('/bands.json') ? opts.bands !== undefined : opts.chromeAt !== undefined ? e.path === opts.chromeAt : !opts.noChrome }))
   on('env.get', (_$: any, e: any) => ({ value: opts.env?.[e.name] ?? '/tmp/' }))
-  on('process.run', (_$: any, e: any) => (runs.push(e.argv), { value: { exitCode: opts.renderFails && e.argv[0] === 'sh' ? 1 : 0, stdout: '', stderr: '' } }))
+  on('process.run', (_$: any, e: any) => {
+    runs.push(e.argv)
+    if (e.argv[0] === 'wslpath') {
+      if (opts.wslPathFails) return { value: { exitCode: 1, stdout: '', stderr: 'wslpath: not found' } }
+      return { value: { exitCode: 0, stdout: `\\\\wsl.localhost\\Ubuntu${String(e.argv[2]).replace(/\//g, '\\')}\n`, stderr: '' } }
+    }
+    return { value: { exitCode: opts.renderFails && e.argv[0] === 'sh' ? 1 : 0, stdout: '', stderr: '' } }
+  })
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [{ id: 'mission-control', title: 'Mission Control', isShown: true, isFocused: true, isPlaced: true }] }))
   on('model.complete', () => ({ value: { isAnswered: true, text: '["tokens now expire after an hour"]', usage: { input_tokens: 1, output_tokens: 1 } } }))
@@ -270,6 +281,56 @@ describe('mission-control', () => {
     await $.tool.call({ tool: 'Read', file_path: 'C:\\repo\\README.md' } as any)
     await clock.advance(800)
     expect(await pane.find({ type: 'Text', text: /Could not update C:\\Temp\\mission-control-map\.html/ })).toBeDefined() // the open pane redraws
+    await pane.unmount()
+  })
+
+  test('on WSL the code view is lines, and b opens the drawn map in the Windows browser', async ($, on) => {
+    const { runs, writes, clock } = engine(on, { wsl: true })
+    const html = () => Object.entries(writes).find(([p]) => p.endsWith('/mission-control-map.html'))?.[1] ?? ''
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/src/auth/session.ts', old_string: 'a', new_string: 'b' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ type: 'Text', text: /2 files · 1 changed/ })).toBeDefined()
+    expect(await pane.find({ type: 'Image' })).toBeUndefined() // no Windows terminal draws pictures
+    await clock.advance(800)
+    expect(runs.some(a => a[0] === 'sh')).toBe(false) // headless Chrome never runs: the browser draws it
+
+    await pane.press({ key: 'open' })
+    expect(html()).toContain('session.ts')
+    // The page is written POSIX, and handed to explorer.exe as Windows sees it.
+    expect(Object.keys(writes)).toContain('/tmp/mission-control-map.html')
+    expect(runs.some(a => a[0] === 'wslpath' && a[2] === '/tmp/mission-control-map.html')).toBe(true)
+    expect(runs.some(a => a[0] === 'explorer.exe' && a[1] === '\\\\wsl.localhost\\Ubuntu\\tmp\\mission-control-map.html')).toBe(true)
+    // Once open, the page follows each change, as it does on Windows.
+    await $.tool.call({ tool: 'Read', file_path: '/repo/README.md' } as any)
+    await clock.advance(800)
+    expect(html()).toContain('README.md')
+    await pane.unmount()
+  })
+
+  test('on WSL a path wslpath cannot turn says so, and opens nothing', async ($, on) => {
+    const { runs } = engine(on, { wsl: true, wslPathFails: true })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    await pane.press({ key: 'open' })
+    expect(runs.some(a => a[0] === 'explorer.exe')).toBe(false)
+    expect(await pane.find({ type: 'Text', text: /Could not turn \/tmp\/mission-control-map\.html into a Windows path/ })).toBeDefined()
+    await pane.unmount()
+  })
+
+  test('a plain Linux host still draws the picture, and has no Browser button', async ($, on) => {
+    const { runs } = engine(on, { wsl: false })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ key: 'open' })).toBeUndefined() // nothing to open: the pane shows the map
+    expect(runs.some(a => a[0] === 'wslpath')).toBe(false)
     await pane.unmount()
   })
 

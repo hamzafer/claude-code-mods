@@ -42,6 +42,11 @@ const changes = new Map<string, string[]>() // path → this turn's edits, for t
 const MAX_CHANGES = 5 // the first edit and the latest few per file are enough for the "why"
 // No Windows terminal draws pictures: there the map is lines in the pane and a page in the browser.
 let isWindows = false
+// WSL runs Linux but draws in a Windows terminal, which shows no pictures either, and its
+// browser is the Windows one. Its paths stay POSIX, so only the drawing side changes.
+let isWsl = false
+// Neither host draws pictures in its terminal: the map is lines in the pane, and a page in the browser.
+const isTextMap = () => isWindows || isWsl
 
 // Under the cap, the oldest tool calls go first; main and the agents always stay.
 export function cap(list: MissionNode[]) {
@@ -68,6 +73,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     isWindows = (await $.env.get('OS')) === 'Windows_NT'
+    isWsl = !isWindows && (await isWslHost($))
     await $.command.register({ name: 'mission', description: 'Open the live map of agents and tool calls; /mission code opens the code map', argumentHint: '[who|code]' }).catch(() => {})
     timer?.cancel()
     timer = $.clock.every(1000, () => {
@@ -174,7 +180,7 @@ export const register: Register = on => {
       <Box flexDirection="row" gap={1}>
         <Button key="who" label="Who" hotkey="w" variant={v === 'who' ? 'primary' : undefined} onPress={() => update($, view, () => 'who')} />
         <Button key="code" label="Code" hotkey="c" variant={v === 'code' ? 'primary' : undefined} onPress={() => void setCode($).catch(() => {})} />
-        {v === 'code' && isWindows && <Button key="open" label="Browser" hotkey="b" onPress={() => void openPage($).catch(() => {})} />}
+        {v === 'code' && isTextMap() && <Button key="open" label="Browser" hotkey="b" onPress={() => void openPage($).catch(() => {})} />}
         <Button key="close" label="Close" hotkey="q" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
       </Box>
     )
@@ -188,7 +194,7 @@ export const register: Register = on => {
           </Box>
         )
       }
-      if (isWindows) {
+      if (isTextMap()) {
         const t = await read($, turn)
         const list = await read($, files)
         const ls = textMap(list, { at: Date.now(), turn: t })
@@ -337,7 +343,7 @@ async function renderSoon($: EngineInterface) {
     draw.dirty = true // drawing now: draw once more when it is done
     return
   }
-  if (isWindows) {
+  if (isTextMap()) {
     if (!draw.isPageOpen) return // the browser page is the picture, kept fresh once opened
   } else {
     if ((await read($, view)) !== 'code') return
@@ -347,7 +353,7 @@ async function renderSoon($: EngineInterface) {
   draw.pending = true
   draw.dirty = false
   $.clock.after(700, () => {
-    void (isWindows ? refreshPage($) : renderMap($))
+    void (isTextMap() ? refreshPage($) : renderMap($))
       .catch(() => {})
       .finally(() => {
         draw.pending = false // only now: two Chromes must never share the profile
@@ -393,7 +399,18 @@ async function renderMap($: EngineInterface) {
   await update($, now, () => Date.now()) // redraw the pane with the message
 }
 
+// True under WSL. Every WSL kernel names Microsoft in /proc/version, which is also there
+// when the environment is stripped (a systemd unit, `env -i`), unlike WSL_DISTRO_NAME.
+async function isWslHost($: EngineInterface) {
+  const v = await $.fs.read('/proc/version').catch(() => '')
+  return typeof v === 'string' && /microsoft|wsl/i.test(v)
+}
+
 async function pagePath($: EngineInterface) {
+  if (isWsl) {
+    const tmp = ((await $.env.get('TMPDIR').catch(() => undefined)) ?? '/tmp').replace(/\/$/, '')
+    return `${tmp}/mission-control-map.html` // a POSIX path: openPage hands the browser the Windows form
+  }
   const tmp = ((await $.env.get('TEMP')) ?? 'C:\\Windows\\Temp').replace(/\\$/, '')
   return `${tmp}\\mission-control-map.html` // right in TEMP, which always exists: the engine makes no folders
 }
@@ -427,5 +444,21 @@ async function openPage($: EngineInterface) {
   }
   draw.isPageOpen = true
   draw.error = ''
-  await $.process.run(['explorer.exe', await pagePath($)]).catch(() => {}) // explorer exits 1 even when it opened the page
+  const path = await pagePath($)
+  // explorer.exe is the Windows one either way, and cannot read a POSIX path: under WSL
+  // wslpath turns it into the \\wsl.localhost form a Windows browser opens.
+  const win = isWsl ? await toWindowsPath($, path) : path
+  if (win === '') {
+    draw.isPageOpen = false
+    draw.error = `Could not turn ${path} into a Windows path: is wslpath on the PATH?`
+    await update($, now, () => Date.now()) // redraw the pane with the message
+    return
+  }
+  await $.process.run(['explorer.exe', win]).catch(() => {}) // explorer exits 1 even when it opened the page
+}
+
+// A POSIX path as Windows sees it, or '' when wslpath cannot say.
+async function toWindowsPath($: EngineInterface, path: string) {
+  const r = await $.process.run(['wslpath', '-w', path], { timeoutMs: 5_000 }).catch(() => undefined)
+  return r?.exitCode === 0 ? r.stdout.trim() : ''
 }
