@@ -130,7 +130,7 @@
     {
       "name": "mission-control",
       "description": "/mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "source": "./mods/mission-control",
       "category": "See what's happening",
       "tags": [
