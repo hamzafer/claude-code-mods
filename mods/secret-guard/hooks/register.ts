@@ -76,7 +76,7 @@ export const register: Register = (on, options) => {
       const cwd = await runDir($, e.command, c)
       if (seen.has(`${step} ${cwd}`)) continue
       seen.add(`${step} ${cwd}`)
-      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell))
+      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell) ? addPaths(e.command) : null)
       // `git init && git add . && git commit`: no repo yet, so git can't answer. The folder's
       // files are what the first commit takes; a folder the command makes has none yet.
       // Only when git says the folder is no repo: a timeout in a big repo still asks.
@@ -222,7 +222,8 @@ async function ignored($: EngineInterface, path: string) {
 // then: so a commit scans every change since HEAD (staged or not), and when the command
 // runs `git add`, the untracked files git doesn't ignore too. It may ask about a change the
 // commit leaves out; it never misses one the commit takes.
-async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push', adds: boolean): Promise<string | null> {
+// adds: the pathspecs the command's `git add` stages ([] = every untracked file), or null when it runs none.
+async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push', adds: string[] | null): Promise<string | null> {
   const at = { cwd, timeoutMs: 30_000 }
   const run = (argv: string[]) => $.process.run(argv, at).catch(() => null)
   const DIFF = [...GIT_SAFE, 'diff', '--no-ext-diff', '--no-color', '-U0']
@@ -236,7 +237,7 @@ async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push',
   let r = await run([...DIFF, 'HEAD'])
   if (!r || r.exitCode !== 0) r = await run([...DIFF, '--cached']) // no commit yet
   if (!r || r.exitCode !== 0) return null
-  const out = adds ? r.stdout + (await untracked($, cwd)) : r.stdout
+  const out = adds ? r.stdout + (await untracked($, cwd, adds)) : r.stdout
   return r.isStdoutTruncated && !out.endsWith(TRUNCATED) ? out + TRUNCATED : out
 }
 
@@ -280,8 +281,11 @@ async function folderFiles($: EngineInterface, root: string): Promise<string> {
 }
 
 // Untracked files git doesn't ignore, as a diff that adds them whole. At most 200 files of 1 MB.
-async function untracked($: EngineInterface, cwd: string): Promise<string> {
-  const r = await $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z'], { cwd, timeoutMs: 30_000 }).catch(() => null)
+// Only those the command's `git add` names: a big build file lying around that the commit
+// leaves out must not make every commit "too big to check".
+async function untracked($: EngineInterface, cwd: string, paths: string[] = []): Promise<string> {
+  const spec = paths.length > 0 ? ['--', ...paths] : []
+  const r = await $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z', ...spec], { cwd, timeoutMs: 30_000 }).catch(() => null)
   if (!r || r.exitCode !== 0) return ''
   let out = ''
   const files = r.stdout.split('\0').filter(Boolean)
@@ -339,6 +343,31 @@ export function bare(command: string) {
     .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, m => m.replace(/[^\n]/g, ' '))
     .replace(/'[^']*'/g, fill)
     .replace(/"(?:[^"\\]|\\.)*"/g, fill)
+}
+
+// The paths every `git add` in the command stages. [] means all untracked files (`-A`, `.`,
+// a path we can't read, such as one with `$` or a glob the shell expands): that errs toward scanning more.
+export function addPaths(command: string): string[] {
+  const shell = bare(command)
+  const out: string[] = []
+  const re = new RegExp(`${GIT}add\\b`, 'g')
+  for (const m of shell.matchAll(re)) {
+    const from = m.index + m[0].length
+    const end = shell.slice(from).search(/&&|\|\||[;|\n]/)
+    const words = [...command.slice(from, end < 0 ? undefined : from + end).matchAll(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g)].map(w => w[0])
+    let opts = true
+    for (const w of words) {
+      if (opts && w === '--') { opts = false; continue }
+      if (opts && w.startsWith('-')) {
+        if (w === '-A' || w === '--all' || w === '--no-ignore-removal') return []
+        continue
+      }
+      const path = w.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
+      if (/[$`*?\[]/.test(w) || path === '.' || path === '') return []
+      out.push(path)
+    }
+  }
+  return out
 }
 
 // The directory a leading `cd x &&` moves to, if any.

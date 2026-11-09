@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bare, cdOf, gitCOf } from '../hooks/register'
+import { addPaths, bare, cdOf, gitCOf } from '../hooks/register'
 import { addedLines, builtin, describe as say, mapStrings, redact } from '../hooks/rules'
 
 // Fake keys, built at run time so no scanner (GitHub push protection included) sees a key in this file.
@@ -76,7 +76,11 @@ function engine(on: any, opts: Opts = {}) {
       const rows = opts.gitleaks.filter(r => text.includes(r.Secret))
       return { value: { exitCode: 0, stdout: JSON.stringify(rows), stderr: '' } }
     }
-    if (argv.includes('ls-files')) return { value: { exitCode: 0, stdout: Object.keys(opts.untracked ?? {}).map(f => `${f}\0`).join(''), stderr: '' } }
+    if (argv.includes('ls-files')) {
+      const spec = argv.includes('--') ? argv.slice(argv.indexOf('--') + 1) : []
+      const names = Object.keys(opts.untracked ?? {}).filter(f => spec.length === 0 || spec.some(p => f === p || f.startsWith(`${p}/`)))
+      return { value: { exitCode: 0, stdout: names.map(f => `${f}\0`).join(''), stderr: '' } }
+    }
     if (argv.includes('rev-parse')) return { value: { exitCode: opts.gitFails && !opts.timedOut ? 128 : 0, stdout: '.git\n', stderr: '' } }
     if (argv.includes('check-ignore')) return { value: { exitCode: opts.ignored ? 0 : 1, stdout: '', stderr: '' } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.gitFails) return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
@@ -248,6 +252,25 @@ describe('secret-guard', () => {
     expect(asked[0]).toMatch(/This commit adds what looks like a Stripe key in new\.ts/)
     expect(r.deny).toMatch(/blocked this commit/)
     expect(ran).toEqual([])
+  })
+
+  test('`git add a.ts && git commit` skips a big untracked file the add leaves out', async ($, on) => {
+    const { asked, runs } = engine(on, { untracked: { 'a.ts': 'fine\n', 'build/meta.json': 'x'.repeat(1_100_000) } })
+    await $.tool.call({ tool: 'Bash', command: 'git add a.ts && git commit -m "a"' } as any)
+    expect(asked).toEqual([])
+    expect(runs.find(a => a.includes('ls-files'))?.slice(-2)).toEqual(['--', 'a.ts'])
+  })
+
+  test('`git add .` still reads a big untracked file, and says the commit is too big to check', async ($, on) => {
+    const { asked } = engine(on, { answer: 'Allow once', untracked: { 'a.ts': 'fine\n', 'build/meta.json': 'x'.repeat(1_100_000) } })
+    await $.tool.call({ tool: 'Bash', command: 'git add . && git commit -m "a"' } as any)
+    expect(asked[0]).toMatch(/too big to check whole/)
+  })
+
+  test('addPaths reads the paths each `git add` names', () => {
+    expect(addPaths('git add a.ts "b c.md" && git commit -m "x . y"')).toEqual(['a.ts', 'b c.md'])
+    expect(addPaths('git add -- src && git -C . add lib/x.ts; git commit')).toEqual(['src', 'lib/x.ts'])
+    for (const all of ['git add -A', 'git add .', 'git add --all && git commit', 'git add *.ts', 'git add $F', 'git add -u']) expect(addPaths(all)).toEqual([])
   })
 
   test('a plain commit leaves untracked files out of the scan', async ($, on) => {
