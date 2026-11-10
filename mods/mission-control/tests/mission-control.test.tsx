@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { edges, fit, importsOf, layout, svg, titleOf, wrap } from '../hooks/map'
+import { edges, fit, importsOf, layout, svg, textMap, titleOf, wrap } from '../hooks/map'
 import { label, lines, summary } from '../hooks/tree'
 import { cap, resetBandOrder } from '../hooks/register'
 
@@ -9,7 +9,7 @@ const PANE = { component: 'Pane', requestId: 'mission-control', props: { title: 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 } }
 
 // Stands for the engine beneath the mod.
-function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFails?: boolean; bands?: string; beneath?: unknown; env?: Record<string, string>; pageFails?: boolean } = {}) {
+function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFails?: boolean; bands?: string; beneath?: unknown; env?: Record<string, string>; pageFails?: boolean; wsl?: boolean; wslPathFails?: boolean } = {}) {
   const runs: string[][] = []
   resetBandOrder()
   const writes: Record<string, string> = {}
@@ -23,14 +23,25 @@ function engine(on: any, opts: { noChrome?: boolean; chromeAt?: string; renderFa
   on('turn.complete', () => ({ text: '' }))
   on('agent.spawn', () => ({ model: 'sonnet', agentId: 'ag1' }))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
-  on('fs.read', (_$: any, e: any) => ({ value: e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : posix(e.path).endsWith('/bands.json') ? opts.bands : '' }))
+  on('fs.read', (_$: any, e: any) => ({
+    value: e.path === '/proc/version'
+      ? (opts.wsl ? 'Linux version 6.6.87.2-microsoft-standard-WSL2 (root@f00) #1 SMP' : 'Linux version 6.9.3-arch1-1 (linux@archlinux) #1 SMP')
+      : e.path.endsWith('login.tsx') ? "import { start } from '../auth/session'\n" : posix(e.path).endsWith('/bands.json') ? opts.bands : '',
+  }))
   on('fs.write', (_$: any, e: any) => {
     if (opts.pageFails && e.path.endsWith('.html')) throw new Error('EACCES')
     return (writes[posix(e.path)] = e.text), { value: undefined }
   })
   on('fs.exists', (_$: any, e: any) => ({ value: posix(e.path).endsWith('/bands.json') ? opts.bands !== undefined : opts.chromeAt !== undefined ? e.path === opts.chromeAt : !opts.noChrome }))
   on('env.get', (_$: any, e: any) => ({ value: opts.env?.[e.name] ?? '/tmp/' }))
-  on('process.run', (_$: any, e: any) => (runs.push(e.argv), { value: { exitCode: opts.renderFails && e.argv[0] === 'sh' ? 1 : 0, stdout: '', stderr: '' } }))
+  on('process.run', (_$: any, e: any) => {
+    runs.push(e.argv)
+    if (e.argv[0] === 'wslpath') {
+      if (opts.wslPathFails) return { value: { exitCode: 1, stdout: '', stderr: 'wslpath: not found' } }
+      return { value: { exitCode: 0, stdout: `\\\\wsl.localhost\\Ubuntu${String(e.argv[2]).replace(/\//g, '\\')}\n`, stderr: '' } }
+    }
+    return { value: { exitCode: opts.renderFails && e.argv[0] === 'sh' ? 1 : 0, stdout: '', stderr: '' } }
+  })
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [{ id: 'mission-control', title: 'Mission Control', isShown: true, isFocused: true, isPlaced: true }] }))
   on('model.complete', () => ({ value: { isAnswered: true, text: '["tokens now expire after an hour"]', usage: { input_tokens: 1, output_tokens: 1 } } }))
@@ -230,7 +241,9 @@ describe('mission-control', () => {
     const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
     expect(await pane.find({ type: 'Text', text: /2 files · 1 changed/ })).toBeDefined()
     expect(await pane.find({ type: 'Text', text: /^login\.tsx$/ })).toBeDefined() // the name, not the whole C:\ path
-    expect(await pane.find({ type: 'Text', text: /→ session\.ts/ })).toBeDefined() // the import across backslash paths
+    // the import across backslash paths: session.ts hangs under login.tsx
+    expect(await pane.find({ type: 'Text', text: /^└──▶ $/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^session\.ts$/ })).toBeDefined()
     expect(await pane.find({ type: 'Image' })).toBeUndefined()
     await clock.advance(800)
     expect(runs).toHaveLength(0) // no Chrome, and no page until it is asked for
@@ -270,6 +283,132 @@ describe('mission-control', () => {
     await $.tool.call({ tool: 'Read', file_path: 'C:\\repo\\README.md' } as any)
     await clock.advance(800)
     expect(await pane.find({ type: 'Text', text: /Could not update C:\\Temp\\mission-control-map\.html/ })).toBeDefined() // the open pane redraws
+    await pane.unmount()
+  })
+
+  test('on WSL the code view is lines, and b opens the drawn map in the Windows browser', async ($, on) => {
+    const { runs, writes, clock } = engine(on, { wsl: true })
+    const html = () => Object.entries(writes).find(([p]) => p.endsWith('/mission-control-map.html'))?.[1] ?? ''
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any)
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/src/auth/session.ts', old_string: 'a', new_string: 'b' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ type: 'Text', text: /2 files · 1 changed/ })).toBeDefined()
+    expect(await pane.find({ type: 'Image' })).toBeUndefined() // no Windows terminal draws pictures
+    await clock.advance(800)
+    expect(runs.some(a => a[0] === 'sh')).toBe(false) // headless Chrome never runs: the browser draws it
+
+    await pane.press({ key: 'open' })
+    expect(html()).toContain('session.ts')
+    // The page is written POSIX, and handed to explorer.exe as Windows sees it.
+    expect(Object.keys(writes)).toContain('/tmp/mission-control-map.html')
+    expect(runs.some(a => a[0] === 'wslpath' && a[2] === '/tmp/mission-control-map.html')).toBe(true)
+    expect(runs.some(a => a[0] === 'explorer.exe' && a[1] === '\\\\wsl.localhost\\Ubuntu\\tmp\\mission-control-map.html')).toBe(true)
+    // Once open, the page follows each change, as it does on Windows.
+    await $.tool.call({ tool: 'Read', file_path: '/repo/README.md' } as any)
+    await clock.advance(800)
+    expect(html()).toContain('README.md')
+    await pane.unmount()
+  })
+
+  test('on WSL a path wslpath cannot turn says so, and opens nothing', async ($, on) => {
+    const { runs } = engine(on, { wsl: true, wslPathFails: true })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    await pane.press({ key: 'open' })
+    expect(runs.some(a => a[0] === 'explorer.exe')).toBe(false)
+    expect(await pane.find({ type: 'Text', text: /Could not turn \/tmp\/mission-control-map\.html into a Windows path/ })).toBeDefined()
+    await pane.unmount()
+  })
+
+  // The tree from the picked mockup: api.ts imports login.ts and rate-limit.ts, login.ts
+  // imports session.ts, session.ts imports db.ts, and map.ts links to nothing.
+  const treeFiles = () => {
+    const f = (name: string, act: 'read' | 'edit', at: number, changedTurn: number, imports: string[], why?: string) => ({ path: `/r/${name}.ts`, act, at, changedTurn, imports: imports.map(i => `/r/${i}`), why })
+    return [
+      f('api', 'edit', 99_000, 0, ['login', 'rate-limit']),
+      f('db', 'read', 98_000, 0, []),
+      f('login', 'edit', 50_000, 2, ['session'], 'Accepts an optional role and passes it on'),
+      f('session', 'edit', 49_000, 2, ['db'], 'Adds a role parameter, defaults to user'),
+      f('rate-limit', 'read', 10_000, 0, []),
+      f('map', 'read', 5_000, 0, []),
+    ]
+  }
+  const shown = (rows: { lead: string; mark: string; title: string; note: string }[]) => rows.map(r => `${r.lead}${r.mark ? `${r.mark} ` : ''}${r.title}${r.note}`)
+
+  test('the text map is a tree: notes beside each file in a wide pane', () => {
+    const map = textMap(treeFiles(), { at: 100_000, turn: 2, columns: 110 })
+    expect(shown(map.rows)).toEqual([
+      `${'✎ api.ts'.padEnd(24)}editing now`,
+      `${'├──▶ ✓ login.ts'.padEnd(24)}Accepts an optional role and passes it on`,
+      `${'│    └──▶ ✓ session.ts'.padEnd(24)}Adds a role parameter, defaults to user`,
+      `${'│         └──▶ ● db.ts'.padEnd(24)}reading now`,
+      '└──▶ · rate-limit.ts',
+    ])
+    expect(map.rows.map(r => r.tone)).toEqual(['edit', 'changed', 'changed', 'read', 'dim'])
+    expect(map.loose).toEqual(['map.ts']) // only read, linked to nothing: the bottom line
+  })
+
+  test('the text map puts notes under each file in a narrow pane, two lines at most', () => {
+    const map = textMap(treeFiles(), { at: 100_000, turn: 2, columns: 44 })
+    expect(shown(map.rows)).toEqual([
+      '✎ api.ts',
+      '│ editing now', // the line down to api.ts's imports runs past its note
+      '├──▶ ✓ login.ts',
+      '│    │ Accepts an optional role and passes',
+      '│    │ it on',
+      '│    └──▶ ✓ session.ts',
+      '│         │ Adds a role parameter, defaults',
+      '│         │ to user',
+      '│         └──▶ ● db.ts',
+      '│                reading now',
+      '└──▶ · rate-limit.ts',
+    ])
+    expect(shown(map.rows).every(l => l.length <= 44)).toBe(true)
+  })
+
+  test('the text map names a file again where a second import or a loop brings it back', () => {
+    const f = (name: string, imports: string[]) => ({ path: `/r/${name}.ts`, act: 'read' as const, at: 0, changedTurn: 0, imports: imports.map(i => `/r/${i}`) })
+    const diamond = textMap([f('a', ['b', 'c']), f('b', ['c']), f('c', [])], { at: 99_999, turn: 1, columns: 110 })
+    expect(shown(diamond.rows).map(l => l.trimEnd())).toEqual(['· a.ts', '├──▶ · b.ts', '│    └──▶ · c.ts', `${'└──▶ · c.ts'.padEnd(18)}shown above`])
+    // A loop nothing else imports still shows, from its newest file, and ends where it began.
+    const loop = textMap([f('x', ['y']), f('y', ['x'])], { at: 99_999, turn: 1, columns: 110 })
+    expect(shown(loop.rows)).toEqual(['· x.ts', '└──▶ · y.ts', '     └──▶ · x.ts  shown above'])
+  })
+
+  test('on WSL the code view draws the tree in the pane, and keeps the Browser button', async ($, on) => {
+    engine(on, { wsl: true })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/README.md' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any) // imports ../auth/session
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/src/auth/session.ts', old_string: 'a', new_string: 'b' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ type: 'Text', text: /^login\.tsx$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^└──▶ $/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^session\.ts$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /editing now$/ })).toBeDefined() // the note beside session.ts
+    // README.md was read just now, so it is live and stays in the tree. It moves to the
+    // "not linked" line once its glow fades, which runs on the wall clock: see the textMap tests.
+    expect(await pane.find({ type: 'Text', text: /^README\.md$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^not linked/ })).toBeUndefined()
+    expect(await pane.find({ key: 'open' })).toBeDefined() // the drawn map is still a key away
+    await pane.unmount()
+  })
+
+  test('a plain Linux host still draws the picture, and has no Browser button', async ($, on) => {
+    const { runs } = engine(on, { wsl: false })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/repo' } as any)
+    await $.turn.start({ text: 'fix the login bug', turnId: 't1' } as any)
+    await $.tool.call({ tool: 'Read', file_path: '/repo/src/pages/login.tsx' } as any)
+    await $.command.run({ command: 'mission', args: 'code' } as any)
+    const pane = await $.ui.mount({ plugin: 'mission-control', surface: 'terminal', ...PANE } as any)
+    expect(await pane.find({ key: 'open' })).toBeUndefined() // nothing to open: the pane shows the map
+    expect(runs.some(a => a[0] === 'wslpath')).toBe(false)
     await pane.unmount()
   })
 
