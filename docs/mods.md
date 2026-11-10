@@ -96,6 +96,10 @@ Shows every Claude Code subagent, tool call and touched file in a live pane.
 - One Haiku call after each turn writes the line under each changed file
 - The Who view works everywhere
 
+On Windows and under WSL, the Code view is a tree of lines:
+
+![mission-control on Windows and WSL: the code map as a tree, each file under the files that import it](../images/mission-control-tree.png)
+
 ### 📊 context-bar
 
 Shows what fills the Claude Code context window, as one stacked bar.
