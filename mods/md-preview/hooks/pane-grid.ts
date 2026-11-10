@@ -1,4 +1,4 @@
-import type { EngineInterface, RenderElement, RenderNode } from 'claude-code'
+import type { RenderElement, RenderNode } from 'claude-code'
 
 // pane-grid reading module. Copy this file to <your mod>/hooks/pane-grid.ts unchanged.
 // Source: https://github.com/hwanyong/pane-grid/blob/main/skills/add-pane-grid-cell/pane-grid.ts
@@ -12,7 +12,6 @@ import type { EngineInterface, RenderElement, RenderNode } from 'claude-code'
 // pane-grid's drawing: fillSlot puts your cell into the `slot:<plugin>` Box pane-grid drew for it, and offerChoice adds
 // your Button to each empty cell's `choices:<cell>` Box. pane-grid's ui.press hook answers that Button by its key.
 
-const GRID_LAYOUT = { plugin: 'pane-grid', key: 'layout' } as const
 const GRID_VERSION = 1
 const SLOT_KEY = 'slot:'
 const CHOICES_KEY = 'choices:'
@@ -46,15 +45,6 @@ export const placementIn = (layout: unknown, plugin: string): GridPlacement | un
   if (version != GRID_VERSION || typeof placed != 'object' || placed == null) return undefined
   const placement = (placed as Record<string, unknown>)[plugin]
   return isPlacement(placement) ? placement : undefined
-}
-
-// The function below is a function declaration, not an arrow function:
-// `claude plugin validate` follows `$` across an import only through function declarations.
-
-// This mod's cell. Called while drawing, the drawing is redrawn when pane-grid changes the layout.
-export async function readPlacement($: EngineInterface, plugin: string): Promise<GridPlacement | undefined> {
-  const read = await $.state.get(GRID_LAYOUT as never) as { value?: unknown }
-  return placementIn(read.value, plugin)
 }
 
 // What offerChoice hands your Button maker: draw `<Button key={choice.key} plain label={choice.label} hotkey={choice.hotkey} onPress={() => {}} />`.

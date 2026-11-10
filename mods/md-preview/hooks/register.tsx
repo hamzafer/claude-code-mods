@@ -16,7 +16,7 @@ import { changedChunks, parse, toHtml, toLines, withMarks } from './md'
 import type { Line } from './md'
 import { fileUrl, page } from './page'
 import type { Side } from './page'
-import { fillSlot, offerChoice, placementIn, readPlacement, TOOLBAR_KEYS } from './pane-grid'
+import { fillSlot, offerChoice, placementIn, TOOLBAR_KEYS } from './pane-grid'
 
 const PANE = 'md-preview'
 const TITLE = 'Markdown'
@@ -106,7 +106,7 @@ type Part = { label?: string; path: string; isBefore?: boolean }
 type Plan = { key: string; title: string; parts: Part[] }
 type Loaded = { label?: string; path: string; text: string; marks: number[] }
 type Resolvable = Parameters<EngineInterface['ui']['resolve']>[0]
-type Cell = Awaited<ReturnType<typeof readPlacement>> // the pane-grid cell md-preview is placed in, if any
+type Cell = ReturnType<typeof placementIn> // the pane-grid cell md-preview is placed in, if any
 
 // owner/repo from `git remote -v`, the first GitHub remote.
 export function githubRepo(remotes: string): string | null {
@@ -123,16 +123,23 @@ async function imageTerminal($: EngineInterface) {
   return /ghostty|iterm|wezterm|kitty/.test(program) || /kitty|ghostty|foot|wezterm/.test(term)
 }
 
+// md-preview's pane-grid cell, from pane-grid's layout; undefined without pane-grid. Read here, not through
+// pane-grid.ts: Claude Code before 2.1.299 follows $ only into functions of this file.
+async function readPlacement($: EngineInterface): Promise<Cell> {
+  const read = (await $.state.get({ plugin: 'pane-grid', key: 'layout' } as never)) as { value?: unknown }
+  return placementIn(read.value, PLUGIN)
+}
+
 // The pane is on screen; placed in a pane-grid cell, the grid pane of that cell is.
 async function paneUp($: EngineInterface) {
-  const cell = await readPlacement($, PLUGIN)
+  const cell = await readPlacement($)
   const id = cell ? cell.requestId : PANE
   return (await $.ui.panes()).some(p => p.id === id && p.isPlaced)
 }
 
 // Opens the pane, unless md-preview is placed in a pane-grid cell: it draws there instead.
 async function openPane($: EngineInterface): Promise<Cell> {
-  const cell = await readPlacement($, PLUGIN)
+  const cell = await readPlacement($)
   if (!cell) await $.ui.open({ id: PANE, title: TITLE, focus: true })
   return cell
 }
@@ -226,7 +233,7 @@ export const register: Register = (on, options) => {
 
   // pane-grid: lists md-preview in empty cells, and draws the pane's content in its cell.
   on('ui.render', { component: 'Pane', requestId: /^grid-/ }, async ($, e, next) => {
-    const cell = await readPlacement($, PLUGIN)
+    const cell = await readPlacement($)
     const below = await next(e)
     const { Box, Button } = $.ui.resolve(e)
     const offered = offerChoice(below, PLUGIN, cell, choice => <Button key={choice.key} plain label={choice.label} hotkey={choice.hotkey} onPress={() => {}} />)
