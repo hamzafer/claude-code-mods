@@ -107,7 +107,8 @@ export const maskText = (s) =>
 // Line input. Sensitive answers echo `*`; prefill puts the default on the line.
 // Ctrl-C or Ctrl-D rejects the pending question with code ABORT.
 export function createPrompt({ input = process.stdin, output = process.stdout } = {}) {
-  const rl = readline.createInterface({ input, output, terminal: true });
+  // No history: Up at a later question would bring back a sensitive answer unmasked.
+  const rl = readline.createInterface({ input, output, terminal: true, historySize: 0 });
   const write = rl._writeToOutput.bind(rl);
   let mask = false, pending = null, closed = false;
   // Redraws write the question (the prompt) and the typed line together; only the typed part is masked.

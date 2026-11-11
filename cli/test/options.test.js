@@ -223,6 +223,22 @@ test('createPrompt keeps a sensitive question readable after a redraw', async ()
   p.close();
 });
 
+test('createPrompt does not recall a sensitive answer with Up', async () => {
+  const input = new PassThrough(), output = new PassThrough();
+  let shown = '';
+  output.on('data', (d) => (shown += d));
+  const p = createPrompt({ input, output });
+  const secret = p.ask('> ', { sensitive: true });
+  input.write('s3cret\r');
+  assert.equal(await secret, 's3cret');
+  const next = p.ask('> ');
+  input.write('\x1b[A');
+  input.write('\r');
+  assert.equal(await next, '');
+  assert.doesNotMatch(shown, /s3cret/);
+  p.close();
+});
+
 test('maskText hides printable characters and keeps escape sequences', () => {
   assert.equal(maskText('ab\x1b[1Dc\x1b[0J\x1b[12G\r\n'), '**\x1b[1D*\x1b[0J\x1b[12G\r\n');
   assert.equal(maskText('é漢'), '**');
