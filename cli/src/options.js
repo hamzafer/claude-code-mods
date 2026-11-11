@@ -107,10 +107,16 @@ export const maskText = (s) =>
 // Line input. Sensitive answers echo `*`; prefill puts the default on the line.
 // Ctrl-C or Ctrl-D rejects the pending question with code ABORT.
 export function createPrompt({ input = process.stdin, output = process.stdout } = {}) {
-  const rl = readline.createInterface({ input, output, terminal: true });
+  // No history: Up at a later question would bring back a sensitive answer unmasked.
+  const rl = readline.createInterface({ input, output, terminal: true, historySize: 0 });
   const write = rl._writeToOutput.bind(rl);
   let mask = false, pending = null, closed = false;
-  rl._writeToOutput = (s) => write(mask ? maskText(s) : s);
+  // Redraws write the question (the prompt) and the typed line together; only the typed part is masked.
+  rl._writeToOutput = (s) => {
+    if (!mask) return write(s);
+    const q = rl.getPrompt();
+    return write(q && s.startsWith(q) ? q + maskText(s.slice(q.length)) : maskText(s));
+  };
   rl.on('SIGINT', () => rl.close());
   rl.on('close', () => {
     closed = true;
@@ -118,12 +124,12 @@ export function createPrompt({ input = process.stdin, output = process.stdout } 
   });
   return {
     ask(question, { sensitive = false, prefill } = {}) {
-      output.write(question);
       return new Promise((resolve, reject) => {
         if (closed) return reject(Object.assign(new Error('Stopped'), { code: 'ABORT' }));
         mask = sensitive;
         pending = reject;
-        rl.question('', (a) => { mask = false; pending = null; resolve(a); });
+        // The question goes in as readline's prompt. Written before it, a terminal redraw wipes it.
+        rl.question(question, (a) => { mask = false; pending = null; resolve(a); });
         if (prefill) rl.write(prefill);
       });
     },

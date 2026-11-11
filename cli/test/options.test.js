@@ -192,6 +192,53 @@ for (const [key, label] of [['\x03', 'ctrl-c'], ['\x04', 'ctrl-d']]) {
   });
 }
 
+// What a terminal still shows after the last "column 1, clear down" redraw.
+const afterLastClear = (s) => s.split('\x1b[1G\x1b[0J').pop();
+
+test('createPrompt keeps the question on screen while it waits', async () => {
+  const input = new PassThrough(), output = new PassThrough();
+  let shown = '';
+  output.on('data', (d) => (shown += d));
+  const p = createPrompt({ input, output });
+  const answer = p.ask('Install it? (y/N) ');
+  await new Promise((r) => setImmediate(r));
+  assert.match(afterLastClear(shown), /Install it\? \(y\/N\) /);
+  input.write('y\r');
+  assert.equal(await answer, 'y');
+  p.close();
+});
+
+test('createPrompt keeps a sensitive question readable after a redraw', async () => {
+  const input = new PassThrough(), output = new PassThrough();
+  let shown = '';
+  output.on('data', (d) => (shown += d));
+  const p = createPrompt({ input, output });
+  const answer = p.ask('Key: ', { sensitive: true });
+  input.write('ab');
+  input.write('\x7f');
+  await new Promise((r) => setImmediate(r));
+  assert.match(afterLastClear(shown), /^Key: \*/);
+  input.write('\r');
+  assert.equal(await answer, 'a');
+  p.close();
+});
+
+test('createPrompt does not recall a sensitive answer with Up', async () => {
+  const input = new PassThrough(), output = new PassThrough();
+  let shown = '';
+  output.on('data', (d) => (shown += d));
+  const p = createPrompt({ input, output });
+  const secret = p.ask('> ', { sensitive: true });
+  input.write('s3cret\r');
+  assert.equal(await secret, 's3cret');
+  const next = p.ask('> ');
+  input.write('\x1b[A');
+  input.write('\r');
+  assert.equal(await next, '');
+  assert.doesNotMatch(shown, /s3cret/);
+  p.close();
+});
+
 test('maskText hides printable characters and keeps escape sequences', () => {
   assert.equal(maskText('ab\x1b[1Dc\x1b[0J\x1b[12G\r\n'), '**\x1b[1D*\x1b[0J\x1b[12G\r\n');
   assert.equal(maskText('é漢'), '**');
