@@ -76,7 +76,8 @@ export const register: Register = (on, options) => {
       const cwd = await runDir($, e.command, c)
       if (seen.has(`${step} ${cwd}`)) continue
       seen.add(`${step} ${cwd}`)
-      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell) ? addPaths(e.command) : null)
+      // A commit with its own `git -C` runs elsewhere than the add: scan every untracked file there.
+      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell) ? (c ? [] : addPaths(e.command)) : null)
       // `git init && git add . && git commit`: no repo yet, so git can't answer. The folder's
       // files are what the first commit takes; a folder the command makes has none yet.
       // Only when git says the folder is no repo: a timeout in a big repo still asks.
@@ -285,7 +286,10 @@ async function folderFiles($: EngineInterface, root: string): Promise<string> {
 // leaves out must not make every commit "too big to check".
 async function untracked($: EngineInterface, cwd: string, paths: string[] = []): Promise<string> {
   const spec = paths.length > 0 ? ['--', ...paths] : []
-  const r = await $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z', ...spec], { cwd, timeoutMs: 30_000 }).catch(() => null)
+  const list = (argv: string[]) => $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z', ...argv], { cwd, timeoutMs: 30_000 }).catch(() => null)
+  let r = await list(spec)
+  // A path git won't take (outside the repo, in a submodule) fails the whole list: scan every untracked file instead.
+  if (spec.length > 0 && (!r || r.exitCode !== 0)) r = await list([])
   if (!r || r.exitCode !== 0) return ''
   let out = ''
   const files = r.stdout.split('\0').filter(Boolean)
@@ -345,25 +349,42 @@ export function bare(command: string) {
     .replace(/"(?:[^"\\]|\\.)*"/g, fill)
 }
 
-// The paths every `git add` in the command stages. [] means all untracked files (`-A`, `.`,
-// a path we can't read, such as one with `$` or a glob the shell expands): that errs toward scanning more.
+// The paths every `git add` in the command stages. [] means all untracked files. It fails
+// closed: once the scan covers only these paths, a path read wrong is a file committed
+// unscanned. So it narrows only when every word after each `add` is a plain relative path
+// or a known-safe option, the `add` has no global options of its own (`git -C sub add`),
+// and no `cd` moves the shell after the start. Anything else (`.`, `-A`, `-u`, globs, `$x`,
+// `\ ` escapes, `{a,b}`, `~`, `:(magic)`, `--pathspec-from-file`, line breaks, redirections)
+// scans every untracked file, as before.
+const ADD_SAFE_OPTS = new Set(['-v', '--verbose', '-f', '--force', '-N', '--intent-to-add'])
 export function addPaths(command: string): string[] {
   const shell = bare(command)
+  // A `cd` (or pushd/popd) after the start moves the add away from where the commit runs.
+  const cds = [...shell.matchAll(/(^|[;&|(\n])\s*(cd|pushd|popd)\b/g)]
+  // Only a leading `cd x &&` is allowed: the commit follows that one too.
+  if (cds.length > 1 || (cds.length === 1 && (cds[0][1] !== '' || cdOf(command) === undefined))) return []
+  if (/\\\n/.test(command)) return []
   const out: string[] = []
   const re = new RegExp(`${GIT}add\\b`, 'g')
   for (const m of shell.matchAll(re)) {
+    if (!/^git[ \t]+add$/.test(m[0])) return []
+    // Nothing before `git` in its step: `GIT_DIR=x git add`, `sudo git add`, `xargs git add` move or hide the paths.
+    if (/\S/.test(shell.slice(0, m.index).split(/&&|\|\||[;|&\n(]/).pop()!)) return []
     const from = m.index + m[0].length
-    const end = shell.slice(from).search(/&&|\|\||[;|\n]/)
+    const end = shell.slice(from).search(/&&|\|\||[;|&\n]/)
     const words = [...command.slice(from, end < 0 ? undefined : from + end).matchAll(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g)].map(w => w[0])
+    if (words.length === 0) return []
     let opts = true
     for (const w of words) {
       if (opts && w === '--') { opts = false; continue }
       if (opts && w.startsWith('-')) {
-        if (w === '-A' || w === '--all' || w === '--no-ignore-removal') return []
+        if (!ADD_SAFE_OPTS.has(w)) return []
         continue
       }
+      // Quotes may wrap a plain path ("b c.md"); anything the shell or git would read further may not.
+      if (/[\\$`*?[\]{}~:<>()!#&=]/.test(w)) return []
       const path = w.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
-      if (/[$`*?\[]/.test(w) || path === '.' || path === '') return []
+      if (path === '' || path === '.' || path.startsWith('/') || path.startsWith('-') || /["']/.test(path)) return []
       out.push(path)
     }
   }
