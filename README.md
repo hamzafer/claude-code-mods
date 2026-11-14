@@ -85,6 +85,7 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 - 📱 [**reels**](docs/mods.md#-reels-and-snake): Shorts while Claude works
 - 🐍 [**snake**](docs/mods.md#-reels-and-snake): Snake while Claude works
 - 🎵 [**now-playing**](docs/mods.md#-now-playing): Spotify and its lyrics (needs macOS)
+- 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights while Claude works, the signal when it needs you (Desktop app)
 
 <a id="-community-mods"></a>
 
