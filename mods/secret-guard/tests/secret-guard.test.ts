@@ -323,6 +323,9 @@ describe('secret-guard', () => {
     expect(addPaths(`git add a.txt && git commit -m ${msg} && git add config.json && git commit -m x`)).toEqual(['a.txt', 'config.json'])
     expect(addPaths(`git add a.txt && git commit -m ${msg.replace('\nEOF\n)', '\n)')}`)).toEqual([]) // never closed: unsure
     expect(addPaths(`git add a.ts && git commit -m "${'x'.repeat(20_001)}"`)).toEqual([]) // too long to read: every new file
+    // a quote of one kind inside the other quotes nothing: the step after it still counts
+    expect(addPaths(`git add a.txt && git commit -m "it's" && git add config.json && git commit -m 'x'`)).toEqual(['a.txt', 'config.json'])
+    expect(addPaths(`git add a.txt && git commit -m 'say "hi"' && git add config.json && git commit -m "x"`)).toEqual(['a.txt', 'config.json'])
     // a `<<` in quoted text is no heredoc, but would read as one: every new file
     expect(addPaths("git add a.txt && git commit -m 'x <<EOF' && git add config.json && git commit -m '\ny\nEOF\n'")).toEqual([])
     expect(addPaths('git add a.txt && git commit -m "a <<EOF" && git add config.json && git commit -m "\ny\nEOF\n"')).toEqual([])
