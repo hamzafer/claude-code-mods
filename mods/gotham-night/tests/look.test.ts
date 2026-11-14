@@ -147,8 +147,8 @@ test('a lit scene opens with the strike and the blackout; a sweeping one has nei
   await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
   const lit = await svg()
   expect(lit).toContain('class="hit"')
-  // Desktop draws the lit scene still if the bolt also flashes the whole scene
-  expect(lit.split('class="hit"').length).toBe(2)
+  // Desktop stops the whole scene for good once lightning flashes all of it
+  for (const scene of [sweeping, lit]) expect(scene).not.toContain('<rect width="1600" height="1000" fill="#dfe8ff"')
   expect(lit).toContain('class="grid"')
   expect(lit.length < 131072).toBe(true)
 })
