@@ -34,7 +34,7 @@
     {
       "name": "secret-guard",
       "description": "Keeps API keys and tokens out of Claude's context, your files and your commits: hides them in tool output, and asks before a write, commit or push adds one.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./mods/secret-guard",
       "category": "Guard your repo",
       "tags": [
