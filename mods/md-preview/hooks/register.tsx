@@ -9,15 +9,18 @@
 //   A file Claude edits is drawn ahead, in the background, so /md opens on a page that
 //   is already drawn; drawings are kept by what they show, so n/p back to a file is instant.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, StateWrite } from 'claude-code'
 
 import type { MdFile, MdFrame, MdPair } from '../types'
 import { changedChunks, parse, toHtml, toLines, withMarks } from './md'
 import type { Line } from './md'
 import { fileUrl, page } from './page'
 import type { Side } from './page'
+import { fillSlot, offerChoice, placementIn, TOOLBAR_KEYS } from './pane-grid'
 
 const PANE = 'md-preview'
+const TITLE = 'Markdown'
+const PLUGIN = 'md-preview' // the name in .claude-plugin/plugin.json, as pane-grid knows it
 // Chrome or a Chromium, first found; macOS first, then the usual Linux names.
 export const CHROMES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -102,6 +105,8 @@ const folder = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/'
 type Part = { label?: string; path: string; isBefore?: boolean }
 type Plan = { key: string; title: string; parts: Part[] }
 type Loaded = { label?: string; path: string; text: string; marks: number[] }
+type Resolvable = Parameters<EngineInterface['ui']['resolve']>[0]
+type Cell = ReturnType<typeof placementIn> // the pane-grid cell md-preview is placed in, if any
 
 // owner/repo from `git remote -v`, the first GitHub remote.
 export function githubRepo(remotes: string): string | null {
@@ -118,8 +123,37 @@ async function imageTerminal($: EngineInterface) {
   return /ghostty|iterm|wezterm|kitty/.test(program) || /kitty|ghostty|foot|wezterm/.test(term)
 }
 
+// md-preview's pane-grid cell, from pane-grid's layout; undefined without pane-grid. Read here, not through
+// pane-grid.ts: Claude Code before 2.1.299 follows $ only into functions of this file.
+async function readPlacement($: EngineInterface): Promise<Cell> {
+  const read = (await $.state.get({ plugin: 'pane-grid', key: 'layout' } as never)) as { value?: unknown }
+  return placementIn(read.value, PLUGIN)
+}
+
+// The pane is on screen; placed in a pane-grid cell, the grid pane of that cell is.
 async function paneUp($: EngineInterface) {
-  return (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
+  const cell = await readPlacement($)
+  const id = cell ? cell.requestId : PANE
+  return (await $.ui.panes()).some(p => p.id === id && p.isPlaced)
+}
+
+// Opens the pane, unless md-preview is placed in a pane-grid cell whose grid pane is on
+// screen: it draws there instead. A cell in a closed grid pane would show nothing.
+async function openPane($: EngineInterface): Promise<Cell> {
+  const cell = await readPlacement($)
+  if (cell && (await $.ui.panes()).some(p => p.id === cell.requestId && p.isPlaced)) return cell
+  await $.ui.open({ id: PANE, title: TITLE, focus: true })
+  return undefined
+}
+
+// Closes the pane when a cell appears, and opens it again only when the cell is removed,
+// so a pane the person closed stays closed.
+async function placeOwnPane($: EngineInterface, layout: unknown, previous: unknown) {
+  const isPlaced = placementIn(layout, PLUGIN) !== undefined
+  const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
+  if (isPlaced && isOpen) return $.ui.close({ id: PANE })
+  if (isPlaced || isOpen || placementIn(previous, PLUGIN) === undefined) return
+  await $.ui.open({ id: PANE, title: TITLE })
 }
 
 function absolute(arg: string) {
@@ -197,104 +231,133 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'md' }, async ($, e) => command($, e.args))
   on('command.run', { command: 'mdview' }, async ($, e) => command($, e.args))
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const list = await read($, files)
-    const path = await read($, shown)
-    const two = await read($, pair)
-    const isCompare = await read($, compare)
-    const v = await read($, view)
-    const msg = await read($, note)
-    const columns = Math.max(20, e.props.bodyColumns)
-    draw.columns = columns
-    const p = await plan($)
-    const i = list.findIndex(f => f.path === path)
-    const isPage = e.surface === 'terminal' && v === 'page' && session.canImage && !session.noChrome
-    const f = await read($, frame)
-    const file = list.find(x => x.path === path)
-    const where = two ? `${base(two.a)} | ${base(two.b)}` : path ? base(path) : ''
-    const info = two
-      ? '  side by side'
-      : `  ${i + 1}/${list.length}${isCompare ? (file?.before !== undefined ? ' · before | after' : ' · new file, no earlier version') : ''}${file?.marks.length ? ' · green bar: changed in the last edit' : ''}`
-    const head = (
-      <Box flexDirection="column">
-        <Box flexDirection="row" gap={1}>
-          <Button key="prev" label="Prev" hotkey="p" onPress={() => step($, -1)} />
-          <Button key="next" label="Next" hotkey="n" onPress={() => step($, 1)} />
-          <Button key="before" label={isCompare ? 'Single' : 'Before'} hotkey="b" onPress={() => toggleCompare($)} />
-          <Button key="again" label="Render" hotkey="r" onPress={() => again($)} />
-          <Button key="view" label={v === 'page' ? 'Text' : 'Page'} hotkey="t" onPress={() => toggleView($)} />
-          <Button key="open" label="Browser" hotkey="o" onPress={() => void openInBrowser($).then(t => $.ui.toast(`md-preview: ${t}`)).catch(() => {})} />
-          <Button key="close" label="Close" hotkey="q" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
-        </Box>
-        {p && (
-          <Text wrap="truncate-end">
-            <Text bold>{where}</Text>
-            <Text dimColor>{`${info}${isPage && f?.key === p.key ? ` · ${f.via}` : ''}`}</Text>
-          </Text>
-        )}
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => drawPane($, e, e.props.bodyColumns, undefined))
+
+  // pane-grid: lists md-preview in empty cells, and draws the pane's content in its cell.
+  // plugin: 'pane-grid' - from Claude Code 2.1.325 a matcher without `plugin` matches only panes this mod opened, and pane-grid opens every grid pane.
+  on('ui.render', { component: 'Pane', requestId: /^grid-/, plugin: 'pane-grid' as never }, async ($, e, next) => {
+    const cell = await readPlacement($)
+    const below = await next(e)
+    const { Box, Button } = $.ui.resolve(e)
+    const offered = offerChoice(below, PLUGIN, cell, choice => <Button key={choice.key} plain label={choice.label} hotkey={choice.hotkey} onPress={() => {}} />)
+    if (!cell || cell.requestId !== e.requestId) return offered
+    const drawn = (
+      <Box key={`cell:${PLUGIN}`} flexDirection="column">
+        {await drawPane($, e, cell.columns > 0 ? cell.columns : e.props.bodyColumns, cell)}
       </Box>
     )
-    if (!p) {
-      return (
-        <Box flexDirection="column">
-          {head}
-          <Text dimColor>{`No Markdown edits yet. /${session.command} <path> opens a file.`}</Text>
-        </Box>
-      )
-    }
+    return fillSlot(offered, PLUGIN, drawn) ?? <Box flexDirection="column">{offered}{drawn}</Box>
+  })
 
-    if (isPage) {
-      const key = `${p.key}@${columns}`
-      const isCurrent = f !== null && f.key === p.key && f.columns === columns
-      if (!isCurrent && draw.failed !== key) {
-        if (draw.pending) draw.dirty = true // draw again once this one is done
-        else void renderSoon($).catch(() => {})
-      }
-      // The last drawing of the same view stays up while a newer one draws, scaled to the width.
-      const same = f !== null && sameView(f.key, p.key)
-      if (f && same) {
-        const { Image } = $.ui.resolve(e)
-        return (
-          <Box flexDirection="column">
-            {head}
-            {f.parts.map((part, k) => (
-              <Image key={`part-${k}`} source={{ file: part.file, format: 'png', generation: f.n }} columns={columns} rows={Math.max(1, Math.min(255, Math.round((part.rows * columns) / f.columns)))} alt={k === 0 ? `${where}, rendered` : ' '} />
-            ))}
-          </Box>
-        )
-      }
-    }
+  on('state.set', { plugin: 'pane-grid' as never, key: 'layout' as never }, async ($, e, next) => {
+    const write = e as StateWrite
+    const r = await next(e)
+    await placeOwnPane($, write.value, write.previous).catch(() => {}) // the write already landed
+    return r
+  })
+}
 
-    // The text view: while the page draws, and where it cannot.
-    const sides = await load($, p)
-    const many = sides.length > 1
-    const lines: Line[] = []
-    for (const s of sides) {
-      if (many) lines.push({ prefix: '', segs: [{ text: `── ${s.label ?? base(s.path)} ──`, bold: true, color: 'yellow' }] }, { prefix: '', segs: [] })
-      lines.push(...toLines(parse(withMarks(s.text, s.marks)), columns - 2))
-      if (many) lines.push({ prefix: '', segs: [] })
-    }
-    const status = isPage ? msg || 'Rendering…' : msg
+// The pane's content, `width` columns wide: in the pane, or in a pane-grid cell.
+// In a cell its hotkeys act for the whole grid pane: drawn only while the cell is the active one,
+// without the letters of pane-grid's toolbar, and q does not close a pane that is not open.
+async function drawPane($: EngineInterface, e: Resolvable, width: number, cell: Cell) {
+  const { Box, Text, Button } = $.ui.resolve(e)
+  const hotkey = (k: string) => (!cell || (cell.isActive && !(TOOLBAR_KEYS as readonly string[]).includes(k)) ? k : undefined)
+  const list = await read($, files)
+  const path = await read($, shown)
+  const two = await read($, pair)
+  const isCompare = await read($, compare)
+  const v = await read($, view)
+  const msg = await read($, note)
+  const columns = Math.max(20, width)
+  draw.columns = columns
+  const p = await plan($)
+  const i = list.findIndex(f => f.path === path)
+  const isPage = e.surface === 'terminal' && v === 'page' && session.canImage && !session.noChrome
+  const f = await read($, frame)
+  const file = list.find(x => x.path === path)
+  const where = two ? `${base(two.a)} | ${base(two.b)}` : path ? base(path) : ''
+  const info = two
+    ? '  side by side'
+    : `  ${i + 1}/${list.length}${isCompare ? (file?.before !== undefined ? ' · before | after' : ' · new file, no earlier version') : ''}${file?.marks.length ? ' · green bar: changed in the last edit' : ''}`
+  const head = (
+    <Box flexDirection="column">
+      <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
+        <Button key="prev" label="Prev" hotkey={hotkey('p')} onPress={() => step($, -1)} />
+        <Button key="next" label="Next" hotkey={hotkey('n')} onPress={() => step($, 1)} />
+        <Button key="before" label={isCompare ? 'Single' : 'Before'} hotkey={hotkey('b')} onPress={() => toggleCompare($)} />
+        <Button key="again" label="Render" hotkey={hotkey('r')} onPress={() => again($)} />
+        <Button key="view" label={v === 'page' ? 'Text' : 'Page'} hotkey={hotkey('t')} onPress={() => toggleView($)} />
+        <Button key="open" label="Browser" hotkey={hotkey('o')} onPress={() => void openInBrowser($).then(t => $.ui.toast(`md-preview: ${t}`)).catch(() => {})} />
+        {!cell && <Button key="close" label="Close" hotkey="q" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />}
+      </Box>
+      {p && (
+        <Text wrap="truncate-end">
+          <Text bold>{where}</Text>
+          <Text dimColor>{`${info}${isPage && f?.key === p.key ? ` · ${f.via}` : ''}`}</Text>
+        </Text>
+      )}
+    </Box>
+  )
+  if (!p) {
     return (
       <Box flexDirection="column">
         {head}
-        {status && <Text dimColor>{status}</Text>}
-        {sides.length === 0 && <Text color="red">{`Cannot read ${where}`}</Text>}
-        {lines.slice(0, 3000).map((l, k) => (
-          <Text key={`l${k}`} wrap="wrap">
-            <Text color="green">{l.mark ? '▌' : ' '}</Text>
-            <Text dimColor>{l.prefix}</Text>
-            {l.segs.length === 0 ? <Text> </Text> : l.segs.map((s, j) => (
-              <Text key={`s${j}`} bold={s.bold} italic={s.italic} dimColor={s.dim} color={s.color} underline={s.underline} strikethrough={s.strike}>
-                {s.text.length > 4000 ? `${s.text.slice(0, 4000)}…` : s.text /* a Text child holds at most 10,000 characters */}
-              </Text>
-            ))}
-          </Text>
-        ))}
+        <Text dimColor>{`No Markdown edits yet. /${session.command} <path> opens a file.`}</Text>
       </Box>
     )
-  })
+  }
+
+  if (isPage) {
+    const key = `${p.key}@${columns}`
+    const isCurrent = f !== null && f.key === p.key && f.columns === columns
+    if (!isCurrent && draw.failed !== key) {
+      if (draw.pending) draw.dirty = true // draw again once this one is done
+      else void renderSoon($).catch(() => {})
+    }
+    // The last drawing of the same view stays up while a newer one draws, scaled to the width.
+    const same = f !== null && sameView(f.key, p.key)
+    if (f && same) {
+      const { Image } = $.ui.resolve(e)
+      return (
+        <Box flexDirection="column">
+          {head}
+          {f.parts.map((part, k) => (
+            <Image key={`part-${k}`} source={{ file: part.file, format: 'png', generation: f.n }} columns={columns} rows={Math.max(1, Math.min(255, Math.round((part.rows * columns) / f.columns)))} alt={k === 0 ? `${where}, rendered` : ' '} />
+          ))}
+        </Box>
+      )
+    }
+  }
+
+  // The text view: while the page draws, and where it cannot.
+  const sides = await load($, p)
+  const many = sides.length > 1
+  const lines: Line[] = []
+  for (const s of sides) {
+    if (many) lines.push({ prefix: '', segs: [{ text: `── ${s.label ?? base(s.path)} ──`, bold: true, color: 'yellow' }] }, { prefix: '', segs: [] })
+    lines.push(...toLines(parse(withMarks(s.text, s.marks)), columns - 2))
+    if (many) lines.push({ prefix: '', segs: [] })
+  }
+  const status = isPage ? msg || 'Rendering…' : msg
+  return (
+    <Box flexDirection="column">
+      {head}
+      {status && <Text dimColor>{status}</Text>}
+      {sides.length === 0 && <Text color="red">{`Cannot read ${where}`}</Text>}
+      {lines.slice(0, 3000).map((l, k) => (
+        <Text key={`l${k}`} wrap="wrap">
+          <Text color="green">{l.mark ? '▌' : ' '}</Text>
+          <Text dimColor>{l.prefix}</Text>
+          {l.segs.length === 0 ? <Text> </Text> : l.segs.map((s, j) => (
+            <Text key={`s${j}`} bold={s.bold} italic={s.italic} dimColor={s.dim} color={s.color} underline={s.underline} strikethrough={s.strike}>
+              {s.text.length > 4000 ? `${s.text.slice(0, 4000)}…` : s.text /* a Text child holds at most 10,000 characters */}
+            </Text>
+          ))}
+        </Text>
+      ))}
+    </Box>
+  )
 }
 
 // Two keys name the same view when only the versions differ.
@@ -353,8 +416,9 @@ async function command($: EngineInterface, args: string) {
     await update($, pair, () => ({ a, b }))
     await update($, files, list => list.map(f => (f.path === a || f.path === b ? { ...f, at: Date.now() } : f)))
     await fromCache($).catch(() => false) // already drawn: the pane opens on the page
-    await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
+    const cell = await openPane($)
     void renderSoon($).catch(() => {})
+    if (cell) return { text: `${base(a)} | ${base(b)} side by side, in the pane-grid cell ${cell.cell} of ${cell.tab}.` }
     return { text: `${base(a)} | ${base(b)} side by side. o: open in the browser · q: close` }
   }
   let target: string | null = null
@@ -373,8 +437,9 @@ async function command($: EngineInterface, args: string) {
   await update($, shown, () => target)
   await update($, pair, () => null)
   await fromCache($).catch(() => false) // drawn ahead: the pane opens on the page
-  await $.ui.open({ id: PANE, title: 'Markdown', focus: true })
+  const cell = await openPane($)
   void renderSoon($).catch(() => {})
+  if (cell) return { text: `${base(target)}, in the pane-grid cell ${cell.cell} of ${cell.tab}.` }
   return { text: `${base(target)}. n/p: next/previous · b: before | after · o: browser · r: render again · t: page/text · q: close` }
 }
 
