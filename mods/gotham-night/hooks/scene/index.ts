@@ -172,7 +172,6 @@ ${lit ? `<g class="grid">${CITY.windows}</g>` : CITY.windows}
 ${bats.svg}
 <g class="rain"><rect x="-100" y="-120" width="1800" height="1240" fill="url(#rain)"/></g>
 <g class="rain2"><rect x="-100" y="-200" width="1800" height="1400" fill="url(#rain2)"/></g>
-${sky.veil}
 </svg>`
 }
 

@@ -1,5 +1,10 @@
 // The storm: forked lightning far behind the skyline, and the one bolt that hits the
 // tower when the signal is about to light. Pure: the same seed draws the same bolts.
+//
+// Desktop limit: lightning never flashes the whole scene. A full-size rect on top whose
+// opacity is animated stops every animation in the desktop app for good, from the moment
+// it first flashes, while Chrome plays it fine. It did so as a one-off when the scene
+// opened and as a loop 12 seconds in. A strike lights the sky with its own glow instead.
 
 import { SPIRE } from './layout.js'
 import { seeded, type Random } from './random.js'
@@ -72,8 +77,6 @@ export type Storm = {
   defs: string
   // Behind the far towers, so each strike cuts the skyline out of the sky.
   sky: string
-  // Over everything: the strike lighting the rain.
-  veil: string
   // Lit scenes only: the bolt that hits the spire as the scene opens.
   hit: string
 }
@@ -86,26 +89,20 @@ export function storm(seed: number, lit: boolean): Storm {
     '<radialGradient id="skyflash"><stop offset="0" stop-color="#c9d8ff" stop-opacity="0.5"/>' +
     '<stop offset="1" stop-color="#c9d8ff" stop-opacity="0"/></radialGradient>'
   let sky = ''
-  let veil = ''
   for (const s of distant(lit)) {
     css += flicker(s.name, s.every) + `.${s.name}{animation:${s.name} ${s.every}s linear -${s.lead}s infinite}`
     const cx = (s.from[0] + s.to[0]) / 2
     sky +=
       `<g class="strike ${s.name}"><ellipse cx="${cx}" cy="300" rx="560" ry="420" fill="url(#skyflash)"/>` +
       `${bolt(r, s.from, s.to)}</g>`
-    veil += `<g class="strike ${s.name}"><rect width="1600" height="1000" fill="#dfe8ff" opacity="0.09"/></g>`
   }
-  if (!lit) return { css, animated: ANIMATED, defs, sky, veil, hit: '' }
+  if (!lit) return { css, animated: ANIMATED, defs, sky, hit: '' }
 
-  // Desktop limit: the bolt has no flash over the whole scene. A full-size rect on top
-  // that played once as the scene opened left the desktop app drawing the lit scene
-  // still, every time, while Chrome played it fine. The distant strikes' veils, which
-  // loop, are fine there.
   css +=
     '.hit{animation:hit .6s linear 1}' +
     '@keyframes hit{0%{opacity:1}10%{opacity:.15}20%{opacity:1}45%{opacity:.6}100%{opacity:0}}'
   const hit =
     `<g class="hit">${bolt(r, [SPIRE.x + 95, -20], [SPIRE.x, SPIRE.y], 1.6)}` +
     `<circle cx="${SPIRE.x}" cy="${SPIRE.y}" r="110" fill="url(#skyflash)"/></g>`
-  return { css, animated: ANIMATED, defs, sky, veil, hit }
+  return { css, animated: ANIMATED, defs, sky, hit }
 }
