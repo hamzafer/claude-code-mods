@@ -122,7 +122,7 @@ Shows how full the Claude Code context window is, and how long the prompt cache 
 - Send a prompt before it hits zero and the cached prefix is reused, billed at the cache-read rate
 - The countdown is an estimate from timing, not read from the API. A model switch or /compact starts a fresh cache
 - Shows after the first request, hides again after /clear, and is the first part dropped on a narrow terminal
-- Plain while more than a minute is left, yellow under a minute, `cache cold` in dim red at zero (the cache has probably expired)
+- Plain while more than a minute is left, yellow under a minute, `cache cold since 14:05` in dim red at zero (the cache has probably expired). The time is when it went cold, in your local 24-hour time. On a tight line it drops to `cache cold`
 - Reads the cache lifetime from the last response's usage in the session transcript, after each turn. 1-hour cache writes mean `1h`. 5-minute writes mean `5m`. A pure cache hit keeps the last value. Before the first reading it uses the last session's value, or `5m`
 - Set `cacheTtl` to `5m` or `1h` to override (default `auto`). Change it in `/config`, or in `settings.json` under `pluginConfigs["token-weather"].options`
 - With cache-clock set up, this countdown hides, since cache-clock shows Claude Code's exact figures

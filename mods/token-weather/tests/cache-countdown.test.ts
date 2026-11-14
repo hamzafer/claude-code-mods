@@ -12,9 +12,9 @@ const BAND = {
 let stopReason: string | null = 'end_turn'
 
 // Stands for the engine: a context reading, one model request per step, and its own band.
-async function start($: Engine, on: On) {
+async function start($: Engine, on: On, now = 1_000_000) {
   stopReason = 'end_turn'
-  const clock = mock.clock(on, { now: 1_000_000 })
+  const clock = mock.clock(on, { now })
   on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
   on('session.usage', () => ({
     value: { startedAt: 0, rateLimits: [], context: { tokens: 20_000, window: 200_000, percent: 10 } },
@@ -66,7 +66,7 @@ describe('token-weather cache countdown', () => {
     expect(warn?.props.color).toBe('yellow')
 
     await clock.advance(59_000)
-    const cold = await ui.find({ type: 'Text', text: '  ❄ cache cold' })
+    const cold = await ui.find({ type: 'Text', text: /^  ❄ cache cold since \d\d:\d\d$/ })
     expect(cold).toBeDefined()
     expect(cold?.props.color).toBe('red')
     expect(cold?.props.dimColor).toBe(true)
@@ -156,8 +156,45 @@ describe('token-weather cache countdown', () => {
     await clock.advance(118_000 - 1)
     expect(await ui.find({ type: 'Text', text: /cold/ })).toBeUndefined()
     await clock.advance(1)
-    expect(await ui.find({ type: 'Text', text: '  ❄ cache cold' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^  ❄ cache cold since \d\d:\d\d$/ })).toBeDefined()
     await ui.unmount()
+  })
+
+  test('says since when the cache went cold, as a local 24-hour time', async ($, on) => {
+    // The last request finishes at 14:00:30 local time, so a 5m cache goes cold at 14:05.
+    const clock = await start($, on, new Date(2026, 0, 2, 14, 0, 30).getTime())
+    await request($, 0)
+    const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+    await clock.advance(5 * 60_000 - 1)
+    expect(await ui.find({ type: 'Text', text: /^  ❄ cache 0:01$/ })).toBeDefined()
+    await clock.advance(1)
+    const cold = await ui.find({ type: 'Text', text: /^  ❄ cache cold since 14:05$/ })
+    expect(cold).toBeDefined()
+    expect(cold?.props.color).toBe('red')
+    await clock.advance(60 * 60_000) // the time stays put: it is when it went cold, not how long ago
+    expect(await ui.find({ type: 'Text', text: /^  ❄ cache cold since 14:05$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a tight line keeps the cold part without its time', async ($, on) => {
+    const clock = await start($, on, new Date(2026, 0, 2, 9, 0, 0).getTime())
+    await request($, 0)
+    await clock.advance(5 * 60_000)
+    // The forecast and sparkline take 49 columns; the full cold part needs 26 more, the short one 14.
+    const mount = (bodyColumns: number) =>
+      $.ui.mount({ surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } } as any)
+
+    const roomy = await mount(75)
+    expect(await roomy.find({ type: 'Text', text: /^  ❄ cache cold since 09:05$/ })).toBeDefined()
+    await roomy.unmount()
+
+    const tight = await mount(74)
+    expect(await tight.find({ type: 'Text', text: /^  ❄ cache cold$/ })).toBeDefined()
+    await tight.unmount()
+
+    const none = await mount(62)
+    expect(await none.find({ type: 'Text', text: /cache/ })).toBeUndefined()
+    await none.unmount()
   })
 
   test('drops the cache part first on a narrow line', async ($, on) => {
