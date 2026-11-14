@@ -20,10 +20,11 @@ type Engine = Parameters<typeof read>[0]
 
 // Every change goes through transition(); an event that changes nothing writes nothing,
 // so tool calls while Claude works don't redraw the scene.
+// The transition runs again inside update(), so a write that landed in between wins.
 async function send(engine: Engine, event: SignalEvent) {
   const before = await read(engine, signal)
-  const after = transition(before, event)
-  if (after !== before) await update(engine, signal, () => after)
+  if (transition(before, event) === before) return
+  await update(engine, signal, state => transition(state, event))
 }
 
 export const register: Register = on => {
@@ -52,7 +53,8 @@ export const register: Register = on => {
     const verdict = await next(e)
     const askId = e.tool_use_id
     const asksYou = e.approver === 'person' && verdict.decision === 'ask'
-    if (askId !== undefined && e.agentId === undefined && asksYou) {
+    const fromClaude = e.agentId === undefined && next.origin.plugin === 'engine'
+    if (askId !== undefined && fromClaude && asksYou) {
       await send($, { type: 'askRaised', askId })
       $.clock.after(ASK_DELAY_MS, () => {
         send($, { type: 'askUnanswered', askId, seed: seed() }).catch(() => {})
