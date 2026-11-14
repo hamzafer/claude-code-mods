@@ -170,6 +170,15 @@
       "url": "https://github.com/ZachFara/cost-lens",
       "description": "Where your Claude Code tokens and dollars go: a pane with plan limits, cost by day, model, project, branch and PR, what expired caches cost you, and a cache countdown above the prompt. Optional Haiku model tips (off by default); fetches Anthropic's price page once a day",
       "tags": ["pane", "band", "toast", "command"]
+    },
+    {
+      "name": "usage-bar",
+      "marketplace": "claude-usage-bar",
+      "repo": "araujo-eduardo/claude-usage-bar",
+      "author": "araujo-eduardo",
+      "url": "https://github.com/araujo-eduardo/claude-usage-bar",
+      "description": "A 7-day token history pane with per-model totals, plus the 5-hour and weekly plan limits with reset times, context fill and session cost in the status line, and a toast past 90% of the 5-hour window. English and pt-BR. No network requests and no model calls",
+      "tags": ["statusline", "pane", "toast", "command"]
     }
   ]
 }
