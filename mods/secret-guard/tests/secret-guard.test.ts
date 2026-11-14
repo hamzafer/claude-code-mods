@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bare, cdOf, gitCOf } from '../hooks/register'
+import { addPaths, bare, cdOf, gitCOf } from '../hooks/register'
 import { addedLines, builtin, describe as say, mapStrings, redact } from '../hooks/rules'
 
 // Fake keys, built at run time so no scanner (GitHub push protection included) sees a key in this file.
@@ -17,6 +17,7 @@ type Opts = {
   ignored?: boolean // git check-ignore answer
   gitleaks?: { Secret: string; RuleID: string }[] | null // null: not installed
   untracked?: Record<string, string> // untracked files git doesn't ignore, by name
+  badPathspec?: boolean // git ls-files exits 128 when given paths (one is outside the repo)
   context?: string[] // what the model reads after the result
   existing?: string // the file's text before a Write
   gitFails?: boolean // git diff / log exit non-zero
@@ -76,7 +77,12 @@ function engine(on: any, opts: Opts = {}) {
       const rows = opts.gitleaks.filter(r => text.includes(r.Secret))
       return { value: { exitCode: 0, stdout: JSON.stringify(rows), stderr: '' } }
     }
-    if (argv.includes('ls-files')) return { value: { exitCode: 0, stdout: Object.keys(opts.untracked ?? {}).map(f => `${f}\0`).join(''), stderr: '' } }
+    if (argv.includes('ls-files')) {
+      const spec = argv.includes('--') ? argv.slice(argv.indexOf('--') + 1) : []
+      if (opts.badPathspec && spec.length > 0) return { value: { exitCode: 128, stdout: '', stderr: 'fatal: outside repository' } }
+      const names = Object.keys(opts.untracked ?? {}).filter(f => spec.length === 0 || spec.some(p => f === p || f.startsWith(`${p}/`)))
+      return { value: { exitCode: 0, stdout: names.map(f => `${f}\0`).join(''), stderr: '' } }
+    }
     if (argv.includes('rev-parse')) return { value: { exitCode: opts.gitFails && !opts.timedOut ? 128 : 0, stdout: '.git\n', stderr: '' } }
     if (argv.includes('check-ignore')) return { value: { exitCode: opts.ignored ? 0 : 1, stdout: '', stderr: '' } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.gitFails) return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
@@ -248,6 +254,85 @@ describe('secret-guard', () => {
     expect(asked[0]).toMatch(/This commit adds what looks like a Stripe key in new\.ts/)
     expect(r.deny).toMatch(/blocked this commit/)
     expect(ran).toEqual([])
+  })
+
+  test('`git add a.ts && git commit` skips a big untracked file the add leaves out', async ($, on) => {
+    const { asked, runs } = engine(on, { untracked: { 'a.ts': 'fine\n', 'build/meta.json': 'x'.repeat(1_100_000) } })
+    await $.tool.call({ tool: 'Bash', command: 'git add a.ts && git commit -m "a"' } as any)
+    expect(asked).toEqual([])
+    expect(runs.find(a => a.includes('ls-files'))?.slice(-2)).toEqual(['--', 'a.ts'])
+  })
+
+  test('`git add .` still reads a big untracked file, and says the commit is too big to check', async ($, on) => {
+    const { asked } = engine(on, { answer: 'Allow once', untracked: { 'a.ts': 'fine\n', 'build/meta.json': 'x'.repeat(1_100_000) } })
+    await $.tool.call({ tool: 'Bash', command: 'git add . && git commit -m "a"' } as any)
+    expect(asked[0]).toMatch(/too big to check whole/)
+  })
+
+  test('addPaths reads the paths each `git add` names', () => {
+    expect(addPaths('git add a.ts "b c.md" && git commit -m "x . y"')).toEqual(['a.ts', 'b c.md'])
+    expect(addPaths('git add -- src && git add -v lib/x.ts; git commit')).toEqual(['src', 'lib/x.ts'])
+    expect(addPaths('cd app && git add a.ts && git commit')).toEqual(['a.ts'])
+    for (const all of ['git add -A', 'git add .', 'git add --all && git commit', 'git add *.ts', 'git add $F', 'git add -u']) expect(addPaths(all)).toEqual([])
+  })
+
+  test('addPaths scans every untracked file when it cannot read a path for sure', () => {
+    for (const all of [
+      'git add config\\ prod.env && git commit', // escaped space
+      'git add a.ts --pathspec-from-file=l.txt && git commit',
+      'git add a.ts --pathspec-from-file l.txt && git commit',
+      'git add --pathspec-file-nul --pathspec-from-file=l.txt && git commit',
+      'git -C sub add x.env && git commit', // the add's own -C
+      'git --git-dir=../x/.git add a && git commit',
+      'git add .env{,.local} && git commit', // brace expansion
+      'git add ~/x && git commit',
+      'git add a.ts \\\n  b.env && git commit', // line continuation
+      'git add ":(glob)**/*.env" && git commit', // pathspec magic
+      'git add /abs/x.env && git commit',
+      'git add a.ts && cd sub && git add b.env && git commit', // a cd after the start
+      '(cd sub && git add b.env) && git commit',
+      'GIT_DIR=../o/.git git add a && git commit',
+      'ls | xargs git add && git commit',
+      'git add a.ts 2>/dev/null && git commit',
+      'git add -p a.ts && git commit',
+      'git add && git commit',
+      '{ cd sub; git add x.env; } && git commit -m x', // a cd the parse misses
+      'command cd sub && git add x.env && git commit -m x',
+      'builtin cd sub && git add x.env && git commit -m x',
+      'git stage x.env && git add a.ts && git commit -m x', // a hidden add beside a plain one
+      'git update-index --add x.env && git add a.ts && git commit -m x',
+      'bash -c "git add x.env" && git add a.ts && git commit -m x',
+      "sh -c 'git add x.env' && git add a.ts && git commit -m x",
+      'eval "git add x.env" && git add a.ts && git commit -m x',
+      'bash <<EOF\ngit add x.env\nEOF\ngit add a.ts && git commit -m x',
+      '"git" add x.env && git add a.ts && git commit -m x',
+      'git"" add x.env && git add a.ts && git commit -m x',
+      'git ad\\d x.env && git add a.ts && git commit -m x',
+      'G=git; $G add x.env && git add a.ts && git commit -m x',
+      'git -c alias.s=add s x.env && git add a.ts && git commit -m x',
+      "git add 'safe'.env && git commit", // one path glued from quoted and bare parts
+      'git add a.ts && git commit -m "$(cat <<EOF\n$(git add x.env)\nEOF\n)"', // unquoted heredoc runs
+      "git add a.ts && git commit -m \"$(cat <<'EOF'\nmsg\nEOF\ngit add x.env\nEOF\n)\"", // the heredoc ends at the first EOF
+      'cd - && git add x.env && git commit -m x',
+    ]) expect(addPaths(all)).toEqual([])
+  })
+
+  test('addPaths still narrows a commit message written as a quoted heredoc', () => {
+    expect(addPaths("git add a.ts b.md && git commit -m \"$(cat <<'EOF'\nAdd a; run `x` with $HOME\nEOF\n)\" && git push")).toEqual(['a.ts', 'b.md'])
+    expect(addPaths("cd app && git add 'b c.md' && git commit -m 'fix (x) & y' && git status")).toEqual(['b c.md'])
+  })
+
+  test('a commit with its own `git -C` scans every untracked file there', async ($, on) => {
+    const { runs } = engine(on, { untracked: { 'a.ts': 'fine\n' } })
+    await $.tool.call({ tool: 'Bash', command: 'git add a.ts && git -C sub commit -m "a"' } as any)
+    expect(runs.find(a => a.includes('ls-files'))?.includes('--')).toBe(false)
+  })
+
+  test('a path git refuses (outside the repo) falls back to every untracked file, not none', async ($, on) => {
+    const { asked } = engine(on, { answer: 'Block it', badPathspec: true, untracked: { 'x.env': `k = '${STRIPE}'` } })
+    const r = await $.tool.call({ tool: 'Bash', command: 'git add ../other/y.ts x.env && git commit -m "a"' } as any)
+    expect(asked[0]).toMatch(/Stripe/)
+    expect((r as any).deny).toBeTruthy()
   })
 
   test('a plain commit leaves untracked files out of the scan', async ($, on) => {

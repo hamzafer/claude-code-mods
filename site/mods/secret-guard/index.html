@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="../../style.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "secret-guard", "description": "Hides API keys and tokens in Claude Code's tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed; nothing leaves your machine.", "url": "https://hamzafer.github.io/claude-code-mods/mods/secret-guard/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/secret-guard", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.1", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/secret-guard.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "secret-guard", "description": "Hides API keys and tokens in Claude Code's tool output before Claude reads them, and asks before a write, commit or push adds one. Uses gitleaks when installed; nothing leaves your machine.", "url": "https://hamzafer.github.io/claude-code-mods/mods/secret-guard/", "codeRepository": "https://github.com/hamzafer/claude-code-mods/tree/main/mods/secret-guard", "programmingLanguage": "TypeScript", "runtimePlatform": "Claude Code", "version": "0.1.2", "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "hamzafer", "url": "https://github.com/hamzafer"}, "image": "https://hamzafer.github.io/claude-code-mods/images/secret-guard.png", "isPartOf": {"@type": "CollectionPage", "name": "Claude Code mods", "url": "https://hamzafer.github.io/claude-code-mods/"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Claude Code mods", "item": "https://hamzafer.github.io/claude-code-mods/"}, {"@type": "ListItem", "position": 2, "name": "secret-guard", "item": "https://hamzafer.github.io/claude-code-mods/mods/secret-guard/"}]}</script>
 </head>
 <body class="mod c-guard">
@@ -43,7 +43,7 @@
 <header class="mod-head">
   <h1>secret-guard</h1>
   <p class="lede">Keeps API keys and tokens out of Claude's context, your files and your commits.</p>
-  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> Guard your repo</span> <span>Version 0.1.1</span></p>
+  <p class="meta"><span class="cat-chip"><span class="sq" aria-hidden="true">■</span> Guard your repo</span> <span>Version 0.1.2</span></p>
 </header>
 <figure class="shot"><div class="shot-frame"><img style="--w:994px" src="../../images/secret-guard.png" width="1989" height="850" alt="secret-guard in Claude Code: cat .env shows each key as hidden by secret-guard, and a commit that adds a Stripe key waits for Block it or Allow once" decoding="async" fetchpriority="high"></div><figcaption>The keys in cat .env never reach Claude, and a commit that adds one waits for you.</figcaption></figure>
 <div class="mod-body">
@@ -70,7 +70,7 @@ claude plugin install secret-guard@claude-code-mods"><code><span class="ps" aria
 <li>A key in what a tool returns (cat .env, env, a file read, an MCP answer) becomes [hidden by secret-guard: GitHub token] before Claude reads it. It never reaches the model or the transcript.</li>
 <li>A Write or Edit that adds a key asks first. A file git ignores, like .env, goes through with a toast.</li>
 <li>A write that would bring the label into a file is refused, so the real key isn&#x27;t overwritten.</li>
-<li>git commit scans every change since the last commit, plus new files when the same command runs git add. git push scans each local commit no remote has yet.</li>
+<li>git commit scans every change since the last commit, plus the new files the same command's git add stages (every new file when its paths can't be read for sure). git push scans each local commit no remote has yet.</li>
 <li>Asks and toasts name the kind of key and the file, never the key.</li>
 <li>gitleaks runs on your machine from a neutral folder, so a repo can&#x27;t switch it off. Nothing is sent anywhere.</li>
 <li>A command you run yourself with ! and a file you attach with @ go straight to Claude. A shell command that writes a file isn&#x27;t checked like a Write.</li>

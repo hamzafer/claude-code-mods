@@ -76,7 +76,8 @@ export const register: Register = (on, options) => {
       const cwd = await runDir($, e.command, c)
       if (seen.has(`${step} ${cwd}`)) continue
       seen.add(`${step} ${cwd}`)
-      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell))
+      // A commit with its own `git -C` runs elsewhere than the add: scan every untracked file there.
+      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell) ? (c ? [] : addPaths(e.command)) : null)
       // `git init && git add . && git commit`: no repo yet, so git can't answer. The folder's
       // files are what the first commit takes; a folder the command makes has none yet.
       // Only when git says the folder is no repo: a timeout in a big repo still asks.
@@ -222,7 +223,8 @@ async function ignored($: EngineInterface, path: string) {
 // then: so a commit scans every change since HEAD (staged or not), and when the command
 // runs `git add`, the untracked files git doesn't ignore too. It may ask about a change the
 // commit leaves out; it never misses one the commit takes.
-async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push', adds: boolean): Promise<string | null> {
+// adds: the pathspecs the command's `git add` stages ([] = every untracked file), or null when it runs none.
+async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push', adds: string[] | null): Promise<string | null> {
   const at = { cwd, timeoutMs: 30_000 }
   const run = (argv: string[]) => $.process.run(argv, at).catch(() => null)
   const DIFF = [...GIT_SAFE, 'diff', '--no-ext-diff', '--no-color', '-U0']
@@ -236,7 +238,7 @@ async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push',
   let r = await run([...DIFF, 'HEAD'])
   if (!r || r.exitCode !== 0) r = await run([...DIFF, '--cached']) // no commit yet
   if (!r || r.exitCode !== 0) return null
-  const out = adds ? r.stdout + (await untracked($, cwd)) : r.stdout
+  const out = adds ? r.stdout + (await untracked($, cwd, adds)) : r.stdout
   return r.isStdoutTruncated && !out.endsWith(TRUNCATED) ? out + TRUNCATED : out
 }
 
@@ -280,8 +282,14 @@ async function folderFiles($: EngineInterface, root: string): Promise<string> {
 }
 
 // Untracked files git doesn't ignore, as a diff that adds them whole. At most 200 files of 1 MB.
-async function untracked($: EngineInterface, cwd: string): Promise<string> {
-  const r = await $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z'], { cwd, timeoutMs: 30_000 }).catch(() => null)
+// Only those the command's `git add` names: a big build file lying around that the commit
+// leaves out must not make every commit "too big to check".
+async function untracked($: EngineInterface, cwd: string, paths: string[] = []): Promise<string> {
+  const spec = paths.length > 0 ? ['--', ...paths] : []
+  const list = (argv: string[]) => $.process.run([...GIT_SAFE, 'ls-files', '--others', '--exclude-standard', '-z', ...argv], { cwd, timeoutMs: 30_000 }).catch(() => null)
+  let r = await list(spec)
+  // A path git won't take (outside the repo, in a submodule) fails the whole list: scan every untracked file instead.
+  if (spec.length > 0 && (!r || r.exitCode !== 0)) r = await list([])
   if (!r || r.exitCode !== 0) return ''
   let out = ''
   const files = r.stdout.split('\0').filter(Boolean)
@@ -339,6 +347,78 @@ export function bare(command: string) {
     .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, m => m.replace(/[^\n]/g, ' '))
     .replace(/'[^']*'/g, fill)
     .replace(/"(?:[^"\\]|\\.)*"/g, fill)
+}
+
+// The paths every `git add` in the command stages. [] means all untracked files. It fails
+// closed: once the scan covers only these paths, a path read wrong is a file committed
+// unscanned. So it narrows only when every word after each `add` is a plain relative path
+// or a known-safe option, the `add` has no global options of its own (`git -C sub add`),
+// and no `cd` moves the shell after the start. Anything else (`.`, `-A`, `-u`, globs, `$x`,
+// `\ ` escapes, `{a,b}`, `~`, `:(magic)`, `--pathspec-from-file`, line breaks, redirections)
+// scans every untracked file, as before.
+const ADD_SAFE_OPTS = new Set(['-v', '--verbose', '-f', '--force', '-N', '--intent-to-add'])
+export function addPaths(command: string): string[] {
+  if (!plainShape(command)) return []
+  const shell = bare(command)
+  // A `cd` (or pushd/popd) after the start moves the add away from where the commit runs.
+  const cds = [...shell.matchAll(/(^|[;&|(\n])\s*(cd|pushd|popd)\b/g)]
+  // Only a leading `cd x &&` is allowed: the commit follows that one too.
+  if (cds.length > 1 || (cds.length === 1 && (cds[0][1] !== '' || cdOf(command) === undefined))) return []
+  if (/\\\n/.test(command)) return []
+  const out: string[] = []
+  const re = new RegExp(`${GIT}add\\b`, 'g')
+  for (const m of shell.matchAll(re)) {
+    if (!/^git[ \t]+add$/.test(m[0])) return []
+    // Nothing before `git` in its step: `GIT_DIR=x git add`, `sudo git add`, `xargs git add` move or hide the paths.
+    if (/\S/.test(shell.slice(0, m.index).split(/&&|\|\||[;|&\n(]/).pop()!)) return []
+    const from = m.index + m[0].length
+    const end = shell.slice(from).search(/&&|\|\||[;|&\n]/)
+    const words = [...command.slice(from, end < 0 ? undefined : from + end).matchAll(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g)].map(w => w[0])
+    if (words.length === 0) return []
+    let opts = true
+    for (const w of words) {
+      if (opts && w === '--') { opts = false; continue }
+      if (opts && w.startsWith('-')) {
+        if (!ADD_SAFE_OPTS.has(w)) return []
+        continue
+      }
+      // Quotes may wrap a whole plain path ("b c.md"); anything the shell or git would read further may not.
+      if (/[\\$`*?[\]{}~:<>()!#&=]/.test(w)) return []
+      // A word glued from quoted and bare parts ('safe'.env) is one path the split above may cut.
+      if (!/^(?:"[^"]*"|'[^']*'|[^"']*)$/.test(w)) return []
+      const path = w.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
+      if (path === '' || path === '.' || path.startsWith('/') || path.startsWith('-') || /["']/.test(path)) return []
+      out.push(path)
+    }
+  }
+  return out
+}
+
+// Whether the whole command is a shape addPaths can read for sure: an optional leading
+// `cd dir`, then only `git add`, `git commit`, `git push` and `git status`, joined by `&&`,
+// `;` or line breaks. A commit message may be quoted, or a `"$(cat <<'EOF' … EOF)"` heredoc
+// (its delimiter quoted, so nothing in it runs). Anything else may stage or move a file the
+// parse never sees: `git stage`, `bash -c "git add x"`, `eval`, `{ cd x; }`, `command cd`,
+// `git -c alias.s=add s x`, `"git" add`.
+const PLAIN_GIT = new Set(['add', 'commit', 'push', 'status'])
+function plainShape(command: string): boolean {
+  let isQuoteSafe = true
+  const s = command
+    // The heredoc ends at the first delimiter line, so no body line may be one.
+    .replace(/"\$\(cat <<'(\w+)'\n(?:(?!\1\n)[^\n]*\n)*?\1\n\s*\)"/g, '""')
+    .replace(/"[^"]*"|'[^']*'/g, q => {
+      if (q[0] === '"' && /[$`\\!]/.test(q)) isQuoteSafe = false // still read by the shell
+      return q[0] + q[0]
+    })
+  if (!isQuoteSafe) return false
+  const steps = s.split(/&&|;|\n/)
+  if (/[`$\\<>|(){}*?[\]~!#&"']/.test(steps.join(' ').replace(/''|""/g, ''))) return false
+  return steps.every((step, i) => {
+    const words = step.trim().split(/[ \t]+/).filter(Boolean)
+    if (words.length === 0) return true
+    if (i === 0 && words[0] === 'cd') return words.length === 2 && !words[1].startsWith('-') // `cd -` goes to $OLDPWD
+    return words[0] === 'git' && PLAIN_GIT.has(words[1])
+  })
 }
 
 // The directory a leading `cd x &&` moves to, if any.
