@@ -232,7 +232,8 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => drawPane($, e, e.props.bodyColumns, undefined))
 
   // pane-grid: lists md-preview in empty cells, and draws the pane's content in its cell.
-  on('ui.render', { component: 'Pane', requestId: /^grid-/ }, async ($, e, next) => {
+  // plugin: 'pane-grid' - from Claude Code 2.1.325 a matcher without `plugin` matches only panes this mod opened, and pane-grid opens every grid pane.
+  on('ui.render', { component: 'Pane', requestId: /^grid-/, plugin: 'pane-grid' as never }, async ($, e, next) => {
     const cell = await readPlacement($)
     const below = await next(e)
     const { Box, Button } = $.ui.resolve(e)
