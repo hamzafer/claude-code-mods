@@ -1,5 +1,8 @@
 # claude-code-mods
 
+## Core Taste Principles
+@TASTE.md
+
 ## Agent skills
 
 ### Issue tracker
