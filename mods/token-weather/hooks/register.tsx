@@ -121,13 +121,16 @@ export const register: Register = (on, options) => {
     if (since !== null && !(await read($, cacheClockOn))) {
       const clockNow = await $.clock.now()
       if (armedFor !== since) restart($, since, clockNow, ttlMs) // its timer was lost (a reload): pick it up
-      cache = cachePart(since + ttlMs - clockNow)
+      cache = cachePart(since + ttlMs - clockNow, since + ttlMs)
     }
     const lineWidth =
       2 + // paddingX
       `${f.icon} ${f.word} ${now.percent}% of context ${short(now.tokens)} / ${short(now.window)}`.length +
       (isWide ? `  last turns ${sparkline(history)}${history.length > 1 ? trend(history) : ''}`.length : 0)
-    const showCache = isWide && cache !== null && lineWidth + cache.text.length <= e.props.bodyColumns
+    // The cold part drops its time before it drops out of the line.
+    const cacheText = !isWide || cache === null
+      ? null
+      : [cache.text, cache.shortText].find(t => lineWidth + t.length <= e.props.bodyColumns) ?? null
 
     const mine = (
       <Box flexDirection="row" paddingX={1}>
@@ -137,7 +140,7 @@ export const register: Register = (on, options) => {
         {isWide && <Text dimColor>{'  last turns '}</Text>}
         {isWide && <Text color={f.color}>{sparkline(history)}</Text>}
         {isWide && history.length > 1 && <Text dimColor>{trend(history)}</Text>}
-        {showCache && cache && <Text color={cache.color} dimColor={cache.isCold}>{cache.text}</Text>}
+        {cacheText !== null && cache && <Text color={cache.color} dimColor={cache.isCold}>{cacheText}</Text>}
       </Box>
     )
     bandOrder ??= readBandOrder($).catch(() => [])
@@ -259,14 +262,19 @@ async function takeReading($: EngineInterface) {
   await update($, readings, history => [...history, { tokens, window: context.window, percent }].slice(-HISTORY))
 }
 
-// What the cache part says with `leftMs` until the cache expires.
-function cachePart(leftMs: number) {
+// What the cache part says with `leftMs` until the cache expires at `expiresAt`
+// (engine clock ms). Once cold it says since when, as a local 24-hour time: the timer
+// stops at cold, so a relative time would freeze. `shortText` is for a tight line.
+function cachePart(leftMs: number, expiresAt: number) {
   if (leftMs <= 0) {
-    return { text: '  ❄ cache cold', color: 'red', isCold: true }
+    const at = new Date(expiresAt)
+    const hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+    return { text: `  ❄ cache cold since ${hhmm}`, shortText: '  ❄ cache cold', color: 'red', isCold: true }
   }
   const seconds = Math.ceil(leftMs / 1000)
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-  return { text: `  ❄ cache ${clock}`, color: seconds * 1000 < WARN_BELOW_MS ? 'yellow' : undefined, isCold: false }
+  const text = `  ❄ cache ${clock}`
+  return { text, shortText: text, color: seconds * 1000 < WARN_BELOW_MS ? 'yellow' : undefined, isCold: false }
 }
 
 function sparkline(history: TokenWeatherReading[]) {
