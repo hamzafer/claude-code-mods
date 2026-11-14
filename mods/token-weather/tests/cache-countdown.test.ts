@@ -166,13 +166,13 @@ describe('token-weather cache countdown', () => {
     await request($, 0)
     const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
     await clock.advance(5 * 60_000 - 1)
-    expect(await ui.find({ type: 'Text', text: '  ❄ cache 0:01' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^  ❄ cache 0:01$/ })).toBeDefined()
     await clock.advance(1)
-    const cold = await ui.find({ type: 'Text', text: '  ❄ cache cold since 14:05' })
+    const cold = await ui.find({ type: 'Text', text: /^  ❄ cache cold since 14:05$/ })
     expect(cold).toBeDefined()
     expect(cold?.props.color).toBe('red')
     await clock.advance(60 * 60_000) // the time stays put: it is when it went cold, not how long ago
-    expect(await ui.find({ type: 'Text', text: '  ❄ cache cold since 14:05' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^  ❄ cache cold since 14:05$/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -185,11 +185,11 @@ describe('token-weather cache countdown', () => {
       $.ui.mount({ surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } } as any)
 
     const roomy = await mount(75)
-    expect(await roomy.find({ type: 'Text', text: '  ❄ cache cold since 09:05' })).toBeDefined()
+    expect(await roomy.find({ type: 'Text', text: /^  ❄ cache cold since 09:05$/ })).toBeDefined()
     await roomy.unmount()
 
     const tight = await mount(74)
-    expect(await tight.find({ type: 'Text', text: '  ❄ cache cold' })).toBeDefined()
+    expect(await tight.find({ type: 'Text', text: /^  ❄ cache cold$/ })).toBeDefined()
     await tight.unmount()
 
     const none = await mount(62)
