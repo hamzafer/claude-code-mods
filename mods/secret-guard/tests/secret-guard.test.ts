@@ -296,7 +296,28 @@ describe('secret-guard', () => {
       'git add a.ts 2>/dev/null && git commit',
       'git add -p a.ts && git commit',
       'git add && git commit',
+      '{ cd sub; git add x.env; } && git commit -m x', // a cd the parse misses
+      'command cd sub && git add x.env && git commit -m x',
+      'builtin cd sub && git add x.env && git commit -m x',
+      'git stage x.env && git add a.ts && git commit -m x', // a hidden add beside a plain one
+      'git update-index --add x.env && git add a.ts && git commit -m x',
+      'bash -c "git add x.env" && git add a.ts && git commit -m x',
+      "sh -c 'git add x.env' && git add a.ts && git commit -m x",
+      'eval "git add x.env" && git add a.ts && git commit -m x',
+      'bash <<EOF\ngit add x.env\nEOF\ngit add a.ts && git commit -m x',
+      '"git" add x.env && git add a.ts && git commit -m x',
+      'git"" add x.env && git add a.ts && git commit -m x',
+      'git ad\\d x.env && git add a.ts && git commit -m x',
+      'G=git; $G add x.env && git add a.ts && git commit -m x',
+      'git -c alias.s=add s x.env && git add a.ts && git commit -m x',
+      "git add 'safe'.env && git commit", // one path glued from quoted and bare parts
+      'git add a.ts && git commit -m "$(cat <<EOF\n$(git add x.env)\nEOF\n)"', // unquoted heredoc runs
     ]) expect(addPaths(all)).toEqual([])
+  })
+
+  test('addPaths still narrows a commit message written as a quoted heredoc', () => {
+    expect(addPaths("git add a.ts b.md && git commit -m \"$(cat <<'EOF'\nAdd a; run `x` with $HOME\nEOF\n)\" && git push")).toEqual(['a.ts', 'b.md'])
+    expect(addPaths("cd app && git add 'b c.md' && git commit -m 'fix (x) & y' && git status")).toEqual(['b c.md'])
   })
 
   test('a commit with its own `git -C` scans every untracked file there', async ($, on) => {

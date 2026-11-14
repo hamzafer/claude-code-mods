@@ -358,6 +358,7 @@ export function bare(command: string) {
 // scans every untracked file, as before.
 const ADD_SAFE_OPTS = new Set(['-v', '--verbose', '-f', '--force', '-N', '--intent-to-add'])
 export function addPaths(command: string): string[] {
+  if (!plainShape(command)) return []
   const shell = bare(command)
   // A `cd` (or pushd/popd) after the start moves the add away from where the commit runs.
   const cds = [...shell.matchAll(/(^|[;&|(\n])\s*(cd|pushd|popd)\b/g)]
@@ -381,14 +382,42 @@ export function addPaths(command: string): string[] {
         if (!ADD_SAFE_OPTS.has(w)) return []
         continue
       }
-      // Quotes may wrap a plain path ("b c.md"); anything the shell or git would read further may not.
+      // Quotes may wrap a whole plain path ("b c.md"); anything the shell or git would read further may not.
       if (/[\\$`*?[\]{}~:<>()!#&=]/.test(w)) return []
+      // A word glued from quoted and bare parts ('safe'.env) is one path the split above may cut.
+      if (!/^(?:"[^"]*"|'[^']*'|[^"']*)$/.test(w)) return []
       const path = w.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
       if (path === '' || path === '.' || path.startsWith('/') || path.startsWith('-') || /["']/.test(path)) return []
       out.push(path)
     }
   }
   return out
+}
+
+// Whether the whole command is a shape addPaths can read for sure: an optional leading
+// `cd dir`, then only `git add`, `git commit`, `git push` and `git status`, joined by `&&`,
+// `;` or line breaks. A commit message may be quoted, or a `"$(cat <<'EOF' … EOF)"` heredoc
+// (its delimiter quoted, so nothing in it runs). Anything else may stage or move a file the
+// parse never sees: `git stage`, `bash -c "git add x"`, `eval`, `{ cd x; }`, `command cd`,
+// `git -c alias.s=add s x`, `"git" add`.
+const PLAIN_GIT = new Set(['add', 'commit', 'push', 'status'])
+function plainShape(command: string): boolean {
+  let isQuoteSafe = true
+  const s = command
+    .replace(/"\$\(cat <<'(\w+)'\n[\s\S]*?\n\1\n\s*\)"/g, '""')
+    .replace(/"[^"]*"|'[^']*'/g, q => {
+      if (q[0] === '"' && /[$`\\!]/.test(q)) isQuoteSafe = false // still read by the shell
+      return q[0] + q[0]
+    })
+  if (!isQuoteSafe) return false
+  const steps = s.split(/&&|;|\n/)
+  if (/[`$\\<>|(){}*?[\]~!#&"']/.test(steps.join(' ').replace(/''|""/g, ''))) return false
+  return steps.every((step, i) => {
+    const words = step.trim().split(/[ \t]+/).filter(Boolean)
+    if (words.length === 0) return true
+    if (i === 0 && words[0] === 'cd') return words.length === 2
+    return words[0] === 'git' && PLAIN_GIT.has(words[1])
+  })
 }
 
 // The directory a leading `cd x &&` moves to, if any.
