@@ -51,10 +51,23 @@ jobs:
           failed=""
           for mod in $mods; do
             echo "::group::$mod"
-            if ! claude plugin validate "mods/$mod"; then
+            # A mod that needs a newer Claude Code than the pinned minimum names it in
+            # mods/<name>/.claude-code-version and is checked with that version.
+            cc="claude"
+            if [ -f "mods/$mod/.claude-code-version" ]; then
+              v=$(tr -d '[:space:]' < "mods/$mod/.claude-code-version")
+              if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                failed="$failed $mod(.claude-code-version)"
+                echo "::endgroup::"
+                continue
+              fi
+              cc="npx -y @anthropic-ai/claude-code@$v"
+              echo "$mod needs Claude Code $v"
+            fi
+            if ! $cc plugin validate "mods/$mod"; then
               failed="$failed $mod(validate)"
             fi
-            if [ -d "mods/$mod/tests" ] && ! claude plugin test "mods/$mod"; then
+            if [ -d "mods/$mod/tests" ] && ! $cc plugin test "mods/$mod"; then
               failed="$failed $mod(test)"
             fi
             echo "::endgroup::"

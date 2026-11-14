@@ -1,8 +1,8 @@
 <p align="center"><img src="images/claude-wave.gif" alt="" width="40"></p>
 
-<h1 align="center">Claude Code mods</h1>
+<h1 align="center">Claude Code mods and themes</h1>
 
-<p align="center"><b>Make Claude Code show what it's doing.</b><br>Plugins for Claude Code, built on function hooks: live lines above the prompt, guards, panes and games. Install only the ones you want.</p>
+<p align="center"><b>Make Claude Code show what it's doing, and look the way you want.</b><br>Plugins for Claude Code, built on function hooks: live lines above the prompt, guards, panes, games and Desktop themes. Install only the ones you want.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/claude-code-mods"><img src="https://img.shields.io/npm/v/claude-code-mods.svg" alt="npm"></a>
@@ -85,6 +85,12 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 - 📱 [**reels**](docs/mods.md#-reels-and-snake): Shorts while Claude works
 - 🐍 [**snake**](docs/mods.md#-reels-and-snake): Snake while Claude works
 - 🎵 [**now-playing**](docs/mods.md#-now-playing): Spotify and its lyrics (needs macOS)
+
+### Themes (Desktop app)
+
+<a href="docs/mods.md#-gotham-night"><img src="images/gotham-night.gif" width="560" alt="gotham-night: Why do we fall, Bruce? Searchlights sweep a rainy city, then the signal lights and bats scatter"></a>
+
+- 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights while Claude works, the signal and a burst of bats when it needs you
 
 <a id="-community-mods"></a>
 

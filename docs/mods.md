@@ -58,6 +58,14 @@ These are built around my own tools and rules. Fork them and change the rules to
 | 🐍 | **snake** | Snake while Claude works | `/snake` |
 | 🎵 | **now-playing** | What Spotify is playing, with a progress bar, the lyric being sung, and ⏮ ⏸ ⏭ buttons. Needs macOS and the Spotify app | `/music` |
 
+### 🎨 Themes (Desktop app)
+
+Themes change how the Desktop app's Code tab looks. They apply as soon as they're installed.
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
+| 🦇 | **gotham-night** | A Gotham look for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
+
 ## 🧭 How they behave
 
 ### 📏 Lines above the prompt
@@ -489,6 +497,22 @@ YouTube Shorts or a game of Snake in a Claude Code pane while it works.
 - Reels needs Playwright once, and `/reels` prints the install command
 - `/reels login` opens a YouTube window to accept cookies or sign in. Close it, then run `/reels`
 - In the reels pane, `j` is next, `k` previous, `m` mute and `x` stop
+
+### 🦇 gotham-night
+
+A Gotham-style look for the Claude Code Desktop app that shows whether Claude is working or waiting on you.
+
+![gotham-night: a rainy night city behind the Claude Code chat, the signal lit on the clouds and bats flying out of it](../images/gotham-night.png)
+
+- **Needs** the Desktop app, with Claude Code 2.1.324 or newer in its Code tab. The terminal draws no theme, so there it does nothing
+- **Nothing to run.** Start a local session in the Code tab and send a message: the city comes up behind the chat
+- **While Claude works:** two searchlights sweep a rainy city of gothic towers, with flickering windows, a blinking beacon and fog
+- **When Claude needs you:** its turn ended, it asks you a question, or a permission prompt is still unanswered after 1.5 s. A red flare rises, the signal lights on the clouds and a burst of bats scatters. The 1.5 s wait keeps Auto mode quiet, since it settles most asks on its own
+- **Every burst is new:** it comes from the signal, the rooftops, either side or the sky, with its own paths, sizes and timing
+- **Colors:** night-black with a signal-yellow accent, dark mode only
+- Your system's reduced-motion setting stills the scene and hides the bats
+- **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
+- **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the signal stays lit until that tool finishes. Background subagents and other plugins' tool calls never change the signal
 
 ## 🛠️ Build your own
 

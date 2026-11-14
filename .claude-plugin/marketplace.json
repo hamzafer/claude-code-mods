@@ -336,6 +336,17 @@
       "needs": [
         "OpenRouter key"
       ]
+    },
+    {
+      "name": "gotham-night",
+      "description": "A Gotham look for the Claude Code Desktop app: searchlights sweep while Claude works, and when it needs you the signal lights with a burst of bats. Desktop app only.",
+      "version": "0.1.0",
+      "source": "./mods/gotham-night",
+      "category": "For fun",
+      "tags": [],
+      "needs": [
+        "Claude Code Desktop app"
+      ]
     }
   ]
 }
