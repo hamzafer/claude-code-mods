@@ -357,13 +357,18 @@ export function bare(command: string) {
 // `\ ` escapes, `{a,b}`, `~`, `:(magic)`, `--pathspec-from-file`, line breaks, redirections)
 // scans every untracked file, as before.
 const ADD_SAFE_OPTS = new Set(['-v', '--verbose', '-f', '--force', '-N', '--intent-to-add'])
-export function addPaths(command: string): string[] {
-  if (!plainShape(command)) return []
+export function addPaths(raw: string): string[] {
+  // Past this a narrow scan saves little, and the reading below grows with every step.
+  if (raw.length > 20_000) return []
+  // Read the command plainShape checked, its heredoc message already blanked, so no
+  // later pass can end that heredoc anywhere else and lose a step.
+  const command = plainShape(raw)
+  if (command === undefined) return []
   const shell = bare(command)
   // A `cd` (or pushd/popd) after the start moves the add away from where the commit runs.
   const cds = [...shell.matchAll(/(^|[;&|(\n])\s*(cd|pushd|popd)\b/g)]
   // Only a leading `cd x &&` is allowed: the commit follows that one too.
-  if (cds.length > 1 || (cds.length === 1 && (cds[0][1] !== '' || cdOf(command) === undefined))) return []
+  if (cds.length > 1 || (cds.length === 1 && (cds[0]?.[1] !== '' || cdOf(command) === undefined))) return []
   if (/\\\n/.test(command)) return []
   const out: string[] = []
   const re = new RegExp(`${GIT}add\\b`, 'g')
@@ -401,24 +406,27 @@ export function addPaths(command: string): string[] {
 // parse never sees: `git stage`, `bash -c "git add x"`, `eval`, `{ cd x; }`, `command cd`,
 // `git -c alias.s=add s x`, `"git" add`.
 const PLAIN_GIT = new Set(['add', 'commit', 'push', 'status'])
-function plainShape(command: string): boolean {
+// Returns the command with that heredoc message blanked to `""`, or undefined.
+function plainShape(command: string): string | undefined {
   let isQuoteSafe = true
-  const s = command
-    // The heredoc ends at the first delimiter line, so no body line may be one.
-    .replace(/"\$\(cat <<'(\w+)'\n(?:(?!\1\n)[^\n]*\n)*?\1\n\s*\)"/g, '""')
+  // The heredoc ends at the first delimiter line, so no body line may be one.
+  const plain = command.replace(/"\$\(cat <<'(\w+)'\n(?:(?!\1\n)[^\n]*\n)*?\1\n\s*\)"/g, '""')
+  const s = plain
     .replace(/"[^"]*"|'[^']*'/g, q => {
-      if (q[0] === '"' && /[$`\\!]/.test(q)) isQuoteSafe = false // still read by the shell
-      return q[0] + q[0]
+      const mark = q.charAt(0)
+      if (mark === '"' && /[$`\\!]/.test(q)) isQuoteSafe = false // still read by the shell
+      return mark + mark
     })
-  if (!isQuoteSafe) return false
+  if (!isQuoteSafe) return undefined
   const steps = s.split(/&&|;|\n/)
-  if (/[`$\\<>|(){}*?[\]~!#&"']/.test(steps.join(' ').replace(/''|""/g, ''))) return false
-  return steps.every((step, i) => {
+  if (/[`$\\<>|(){}*?[\]~!#&"']/.test(steps.join(' ').replace(/''|""/g, ''))) return undefined
+  const isPlain = steps.every((step, i) => {
     const words = step.trim().split(/[ \t]+/).filter(Boolean)
     if (words.length === 0) return true
-    if (i === 0 && words[0] === 'cd') return words.length === 2 && !words[1].startsWith('-') // `cd -` goes to $OLDPWD
-    return words[0] === 'git' && PLAIN_GIT.has(words[1])
+    if (i === 0 && words[0] === 'cd') return words.length === 2 && !words[1]?.startsWith('-') // `cd -` goes to $OLDPWD
+    return words[0] === 'git' && PLAIN_GIT.has(words[1] ?? '')
   })
+  return isPlain ? plain : undefined
 }
 
 // The directory a leading `cd x &&` moves to, if any.
