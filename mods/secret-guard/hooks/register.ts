@@ -363,7 +363,8 @@ export function addPaths(raw: string): string[] {
   // Read the command plainShape checked, its heredoc message already blanked, so no
   // later pass can end that heredoc anywhere else and lose a step.
   const command = plainShape(raw)
-  if (command === undefined) return []
+  // A `<<` left anywhere, quoted text too, is one bare() would read as a heredoc and hide steps behind.
+  if (command === undefined || command.includes('<<')) return []
   const shell = bare(command)
   // A `cd` (or pushd/popd) after the start moves the add away from where the commit runs.
   const cds = [...shell.matchAll(/(^|[;&|(\n])\s*(cd|pushd|popd)\b/g)]
