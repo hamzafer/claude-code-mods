@@ -4,7 +4,7 @@
 import { SPIRE } from './layout.js'
 import { seeded, type Random } from './random.js'
 
-export type City = { far: string; mid: string; near: string; windows: string; landmarks: string }
+export type City = { far: string; mid: string; near: string; windows: string; landmarks: string; gargoyles: string }
 
 // A crouched, winged stone figure for a rooftop corner, standing on 0,0.
 const GARGOYLE =
@@ -78,7 +78,10 @@ const LANDMARKS = `
   <polygon points="286,330 305,250 324,330"/>
   <rect x="${SPIRE.x - 1.5}" y="${SPIRE.y}" width="3" height="90"/>
 </g>
-<circle class="beacon" cx="${SPIRE.x}" cy="${SPIRE.y}" r="4" fill="#ff2a1a"/>
+<circle class="beacon" cx="${SPIRE.x}" cy="${SPIRE.y}" r="4" fill="#ff2a1a"/>`
+
+// They crouch on near-row roofs, so they are drawn in front of what passes behind.
+const GARGOYLES = `
 <path d="${GARGOYLE}" fill="#040607" transform="translate(1080 812) scale(1.1)"/>
 <path d="${GARGOYLE}" fill="#040607" transform="translate(150 842) scale(-0.9 0.9)"/>`
 
@@ -94,5 +97,5 @@ export function city(seed: number): City {
     `<g fill="${AMBER}" opacity="0.8">${lit.amber.join('')}</g>` +
     `<g fill="${TEAL}" opacity="0.8">${lit.teal.join('')}</g>` +
     lit.flickering.join('')
-  return { far, mid, near, windows, landmarks: LANDMARKS }
+  return { far, mid, near, windows, landmarks: LANDMARKS, gargoyles: GARGOYLES }
 }

@@ -43,7 +43,7 @@ function bolt(r: Random, from: Point, to: Point, weight = 1): string {
 }
 
 // One distant strike: where it falls and how often. `lead` is how far into its
-// cycle the scene starts, so two strikes never fire together.
+// cycle the scene starts, so the two strikes are out of step and rarely meet.
 type Distant = { name: string; from: Point; to: Point; every: number; lead: number }
 
 function distant(lit: boolean): Distant[] {
@@ -64,6 +64,8 @@ function flicker(name: string, every: number): string {
 
 export type Storm = {
   css: string
+  // The gradient the strikes glow with.
+  defs: string
   // Behind the far towers, so each strike cuts the skyline out of the sky.
   sky: string
   // Over everything: the strike lighting the rain.
@@ -75,7 +77,11 @@ export type Storm = {
 
 export function storm(seed: number, lit: boolean): Storm {
   const r = seeded(seed)
-  let css = '.strike,.hit{opacity:0}'
+  // Hidden unless striking, so with reduced motion there is no lightning at all.
+  let css = '.strike,.hit{opacity:0}@media (prefers-reduced-motion:reduce){.strike,.hit{animation:none!important}}'
+  const defs =
+    '<radialGradient id="skyflash"><stop offset="0" stop-color="#c9d8ff" stop-opacity="0.5"/>' +
+    '<stop offset="1" stop-color="#c9d8ff" stop-opacity="0"/></radialGradient>'
   let sky = ''
   let veil = ''
   for (const s of distant(lit)) {
@@ -86,7 +92,7 @@ export function storm(seed: number, lit: boolean): Storm {
       `${bolt(r, s.from, s.to)}</g>`
     veil += `<g class="strike ${s.name}"><rect width="1600" height="1000" fill="#dfe8ff" opacity="0.09"/></g>`
   }
-  if (!lit) return { css, sky, veil, hit: '', hitVeil: '' }
+  if (!lit) return { css, defs, sky, veil, hit: '', hitVeil: '' }
 
   css +=
     '.hit{animation:hit .6s linear 1}' +
@@ -95,5 +101,5 @@ export function storm(seed: number, lit: boolean): Storm {
     `<g class="hit">${bolt(r, [SPIRE.x + 95, -20], [SPIRE.x, SPIRE.y], 1.6)}` +
     `<circle cx="${SPIRE.x}" cy="${SPIRE.y}" r="110" fill="url(#skyflash)"/></g>`
   const hitVeil = `<g class="hit"><rect width="1600" height="1000" fill="#dfe8ff" opacity="0.2"/></g>`
-  return { css, sky, veil, hit, hitVeil }
+  return { css, defs, sky, veil, hit, hitVeil }
 }

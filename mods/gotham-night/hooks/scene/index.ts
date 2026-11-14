@@ -69,10 +69,7 @@ function build(lit: boolean, bats: Flock): string {
     <stop offset="0.55" stop-color="#ffe7a8" stop-opacity="0.5"/>
     <stop offset="1" stop-color="#ffe7a8" stop-opacity="0"/>
   </radialGradient>
-  <radialGradient id="skyflash">
-    <stop offset="0" stop-color="#c9d8ff" stop-opacity="0.5"/>
-    <stop offset="1" stop-color="#c9d8ff" stop-opacity="0"/>
-  </radialGradient>
+  ${sky.defs}
   <radialGradient id="moon">
     <stop offset="0" stop-color="#e8dcc0" stop-opacity="0.85"/>
     <stop offset="0.5" stop-color="#c9b48a" stop-opacity="0.4"/>
@@ -132,7 +129,7 @@ function build(lit: boolean, bats: Flock): string {
   ${moving.css}
   ${bats.css}
   @media (prefers-reduced-motion: reduce) {
-    .beam, .beam2, .fogA, .fogB, .rain, .rain2, .win, .strike, .hit, .signal, .lock, .ignite, .grid, .flare, .beacon, .train, .airship { animation: none; }
+    .beam, .beam2, .fogA, .fogB, .rain, .rain2, .win, .signal, .lock, .ignite, .grid, .flare, .beacon { animation: none; }
     .bat { display: none; }
   }
 </style>
@@ -152,8 +149,8 @@ ${lit ? '<g class="ignite"><rect class="flare" width="1600" height="1000" fill="
   <ellipse cx="1480" cy="270" rx="320" ry="52"/>
 </g>
 ${moving.airship}
-${beams}
 ${sky.sky}
+${beams}
 ${CITY.far}
 <rect y="560" width="1600" height="440" fill="url(#fogband)"/>
 ${CITY.mid}
@@ -161,6 +158,7 @@ ${CITY.landmarks}
 ${sky.hit}
 ${moving.viaduct}
 ${moving.train}
+${CITY.gargoyles}
 ${CITY.near}
 ${lit ? `<g class="grid">${CITY.windows}</g>` : CITY.windows}
 <g class="fogB" fill="url(#fogpuff2)" opacity="0.5">

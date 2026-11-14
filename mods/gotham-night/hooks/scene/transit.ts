@@ -53,7 +53,8 @@ export function transit(lead: { train: number; airship: number }): Transit {
       `.train{animation:train 53s linear -${lead.train}s infinite;will-change:transform}` +
       `@keyframes train{0%{transform:translateX(0px)}17%,100%{transform:translateX(${TRAIN_TRAVEL}px)}}` +
       `.airship{animation:airship 160s linear -${lead.airship}s infinite;will-change:transform}` +
-      '@keyframes airship{0%{transform:translateX(0px)}100%{transform:translateX(-1900px)}}',
+      '@keyframes airship{0%{transform:translateX(0px)}100%{transform:translateX(-1900px)}}' +
+      '@media (prefers-reduced-motion:reduce){.train,.airship{animation:none!important}}',
     viaduct: viaduct(),
     train: train(),
     airship: AIRSHIP,
