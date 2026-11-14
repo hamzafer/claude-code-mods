@@ -19,6 +19,10 @@ const EMBLEM =
 const CITY = city(11)
 const NO_BATS: Flock = { css: '', svg: '' }
 
+// The scene's own animated classes. Each part adds its own to the one reduced-motion
+// rule at the end of the stylesheet, so a part's new class can't be left moving.
+const STILLED = ['.beam', '.beam2', '.fogA', '.fogB', '.rain', '.rain2', '.win', '.signal', '.lock', '.ignite', '.grid', '.flare', '.beacon']
+
 // Seconds into a lit scene when the signal ignites: the blackout comes first.
 const IGNITE = 1.25
 
@@ -129,7 +133,7 @@ function build(lit: boolean, bats: Flock): string {
   ${moving.css}
   ${bats.css}
   @media (prefers-reduced-motion: reduce) {
-    .beam, .beam2, .fogA, .fogB, .rain, .rain2, .win, .signal, .lock, .ignite, .grid, .flare, .beacon { animation: none; }
+    ${[...STILLED, ...sky.animated, ...moving.animated].join(', ')} { animation: none; }
     .bat { display: none; }
   }
 </style>
@@ -169,7 +173,6 @@ ${bats.svg}
 <g class="rain"><rect x="-100" y="-120" width="1800" height="1240" fill="url(#rain)"/></g>
 <g class="rain2"><rect x="-100" y="-200" width="1800" height="1400" fill="url(#rain2)"/></g>
 ${sky.veil}
-${sky.hitVeil}
 </svg>`
 }
 

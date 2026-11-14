@@ -6,6 +6,8 @@ import { seeded, type Random } from './random.js'
 
 type Point = [number, number]
 
+const ANIMATED = ['.strike', '.hit']
+
 // How long a strike is visible, whatever its cycle.
 const STRIKE_S = 0.55
 
@@ -64,21 +66,22 @@ function flicker(name: string, every: number): string {
 
 export type Storm = {
   css: string
+  // The classes this part animates, for the scene's one reduced-motion rule.
+  animated: string[]
   // The gradient the strikes glow with.
   defs: string
   // Behind the far towers, so each strike cuts the skyline out of the sky.
   sky: string
   // Over everything: the strike lighting the rain.
   veil: string
-  // Lit scenes only: the bolt that hits the spire as the scene opens, and its flash.
+  // Lit scenes only: the bolt that hits the spire as the scene opens.
   hit: string
-  hitVeil: string
 }
 
 export function storm(seed: number, lit: boolean): Storm {
   const r = seeded(seed)
   // Hidden unless striking, so with reduced motion there is no lightning at all.
-  let css = '.strike,.hit{opacity:0}@media (prefers-reduced-motion:reduce){.strike,.hit{animation:none!important}}'
+  let css = '.strike,.hit{opacity:0}'
   const defs =
     '<radialGradient id="skyflash"><stop offset="0" stop-color="#c9d8ff" stop-opacity="0.5"/>' +
     '<stop offset="1" stop-color="#c9d8ff" stop-opacity="0"/></radialGradient>'
@@ -92,14 +95,17 @@ export function storm(seed: number, lit: boolean): Storm {
       `${bolt(r, s.from, s.to)}</g>`
     veil += `<g class="strike ${s.name}"><rect width="1600" height="1000" fill="#dfe8ff" opacity="0.09"/></g>`
   }
-  if (!lit) return { css, defs, sky, veil, hit: '', hitVeil: '' }
+  if (!lit) return { css, animated: ANIMATED, defs, sky, veil, hit: '' }
 
+  // Desktop limit: the bolt has no flash over the whole scene. A full-size rect on top
+  // that played once as the scene opened left the desktop app drawing the lit scene
+  // still, every time, while Chrome played it fine. The distant strikes' veils, which
+  // loop, are fine there.
   css +=
     '.hit{animation:hit .6s linear 1}' +
     '@keyframes hit{0%{opacity:1}10%{opacity:.15}20%{opacity:1}45%{opacity:.6}100%{opacity:0}}'
   const hit =
     `<g class="hit">${bolt(r, [SPIRE.x + 95, -20], [SPIRE.x, SPIRE.y], 1.6)}` +
     `<circle cx="${SPIRE.x}" cy="${SPIRE.y}" r="110" fill="url(#skyflash)"/></g>`
-  const hitVeil = `<g class="hit"><rect width="1600" height="1000" fill="#dfe8ff" opacity="0.2"/></g>`
-  return { css, defs, sky, veil, hit, hitVeil }
+  return { css, animated: ANIMATED, defs, sky, veil, hit }
 }

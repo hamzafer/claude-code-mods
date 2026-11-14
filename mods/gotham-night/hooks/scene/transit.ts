@@ -43,7 +43,8 @@ const AIRSHIP =
   `<rect x="-22" y="19" width="40" height="9" rx="3"/></g>` +
   `<circle class="beacon" cx="-2" cy="30" r="2.6" fill="#ff2a1a"/></g></g>`
 
-export type Transit = { css: string; viaduct: string; train: string; airship: string }
+// `animated` lists the classes this part animates, for the scene's one reduced-motion rule.
+export type Transit = { css: string; animated: string[]; viaduct: string; train: string; airship: string }
 
 // Each lead is how far into its cycle that traveller starts, in seconds, so a scene can
 // open with the train a while away and the airship clear of what matters in the sky.
@@ -53,8 +54,8 @@ export function transit(lead: { train: number; airship: number }): Transit {
       `.train{animation:train 53s linear -${lead.train}s infinite;will-change:transform}` +
       `@keyframes train{0%{transform:translateX(0px)}17%,100%{transform:translateX(${TRAIN_TRAVEL}px)}}` +
       `.airship{animation:airship 160s linear -${lead.airship}s infinite;will-change:transform}` +
-      '@keyframes airship{0%{transform:translateX(0px)}100%{transform:translateX(-1900px)}}' +
-      '@media (prefers-reduced-motion:reduce){.train,.airship{animation:none!important}}',
+      '@keyframes airship{0%{transform:translateX(0px)}100%{transform:translateX(-1900px)}}',
+    animated: ['.train', '.airship'],
     viaduct: viaduct(),
     train: train(),
     airship: AIRSHIP,
