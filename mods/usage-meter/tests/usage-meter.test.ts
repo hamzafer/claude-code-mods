@@ -220,4 +220,31 @@ describe('usage-meter', () => {
     await ui.unmount()
     resetBandOrder()
   })
+
+  test('sorts the rows Claude Code stacks by the band order file', async ($, on) => {
+    resetBandOrder()
+    const files: Record<string, string> = { '/home/me/.claude/claude-code-mods/bands.json': '{"order":["where-am-i","usage-meter"]}' }
+    on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+    on('fs.exists', (_$: any, e: any) => ({ value: e.path in files }))
+    on('fs.read', (_$: any, e: any) => ({ value: files[e.path] ?? '' }))
+    let stacked: string[] = []
+    on('ui.render', { component: 'AbovePromptList' }, ($: any, e: any) => {
+      stacked = e.props.rows.map((r: any) => r.plugin)
+      return $.ui.resolve(e).Box({ children: e.props.rows.map((r: any) => r.tree) })
+    })
+    const row = (plugin: string) => ({ plugin, tree: { type: 'Text', props: {}, children: [plugin] } })
+    const rows = [row('other'), row('usage-meter'), row('where-am-i')]
+    const props = { rows, hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10, bodyColumns: 120 }
+    // AbovePromptList came in Claude Code 2.1.323; before it, stackBands sorts (the test above).
+    const ui = await $.ui.mount({ plugin: 'usage-meter', surface: 'terminal', component: 'AbovePromptList', props } as any).catch((err: unknown) => {
+      if (/is not a component/.test(String(err))) return undefined
+      throw err
+    })
+    if (!ui) return
+    await ui.drawn()
+    // a row not in the order keeps its place on top; the listed ones follow the file
+    expect(stacked).toEqual(['other', 'where-am-i', 'usage-meter'])
+    await ui.unmount()
+    resetBandOrder()
+  })
 })

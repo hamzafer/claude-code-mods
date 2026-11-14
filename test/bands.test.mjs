@@ -49,3 +49,20 @@ test('every band mod stacks its band under its own plugin name', () => {
     }
   }
 })
+
+// Claude Code 2.1.323+ stacks each plugin's row itself; every band mod sorts the rows the same way.
+const listHook = mod => /^  \/\/ Claude Code 2\.1\.323\+[^\n]*\n  on\('ui\.render', \{ component: 'AbovePromptList' \}[\s\S]*?^  \}\)$/m.exec(readFileSync(join(root, 'mods', mod, 'hooks/register.tsx'), 'utf8'))?.[0]
+
+test('every band mod sorts the rows Claude Code stacks, the same way', () => {
+  const first = listHook(bandMods[0])
+  assert.ok(first, `mods/${bandMods[0]}/hooks/register.tsx has no AbovePromptList hook`)
+  for (const mod of bandMods) assert.equal(listHook(mod), first, `mods/${mod}/hooks/register.tsx: the AbovePromptList hook differs from mods/${bandMods[0]}`)
+})
+
+test('orderRows sorts rows by the order file and leaves the rest on top', async () => {
+  const { orderRows } = await import('../shared/bands.ts')
+  const rows = ['other', 'usage-meter', 'where-am-i', 'glance'].map(plugin => ({ plugin }))
+  assert.deepEqual(orderRows(rows, ['where-am-i', 'usage-meter'])?.map(r => r.plugin), ['other', 'glance', 'where-am-i', 'usage-meter'])
+  assert.equal(orderRows(rows, []), undefined) // no order: nothing moves
+  assert.equal(orderRows(rows.slice(0, 3), ['usage-meter', 'where-am-i']), undefined) // already in order
+})

@@ -11,7 +11,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Attachment, Lane } from '../types'
 import { attachment, browsers, describeAttachment, otherHolders, parsePs } from './attach'
-import { bandsFile, parseOrder, stackBands } from './bands'
+import { bandsFile, orderRows, parseOrder, stackBands } from './bands'
 
 const BROWSER_TOOL = /^mcp__.*playwright.*__browser_/
 const IDLE_MS = 90_000 // a driver this quiet lets go
@@ -135,6 +135,13 @@ export const register: Register = on => {
       </Text>
     )
     return stackBands(rest, 'browser-lanes', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
+  })
+
+  // Claude Code 2.1.323+: the engine stacks each plugin's row; the band order sorts them here.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    bandOrder ??= readBandOrder($).catch(() => [])
+    const rows = orderRows(e.props.rows, await bandOrder)
+    return next(rows ? { ...e, props: { ...e.props, rows } } : e)
   })
 }
 

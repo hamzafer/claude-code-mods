@@ -4,7 +4,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { NextSteps } from '../types'
-import { bandsFile, parseOrder, stackBands } from './bands'
+import { bandsFile, orderRows, parseOrder, stackBands } from './bands'
 
 const MODEL = 'haiku'
 const MAX_ITEMS = 3
@@ -104,6 +104,13 @@ export const register: Register = (on, options) => {
       )
 
     return stackBands(rest, 'next-steps', <Box paddingX={1}>{lines}</Box>, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
+  })
+
+  // Claude Code 2.1.323+: the engine stacks each plugin's row; the band order sorts them here.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    bandOrder ??= readBandOrder($).catch(() => [])
+    const rows = orderRows(e.props.rows, await bandOrder)
+    return next(rows ? { ...e, props: { ...e.props, rows } } : e)
   })
 }
 

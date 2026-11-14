@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Reading, Slice } from '../types'
-import { bandsFile, parseOrder, stackBands } from './bands'
+import { bandsFile, orderRows, parseOrder, stackBands } from './bands'
 
 const MIN_WIDTH = 20 // narrower than this, the bar is not drawn
 const SPLIT = '   '
@@ -114,6 +114,13 @@ export const register: Register = on => {
       </Box>
     )
     return stackBands(rest, 'context-bar', mine, 'below', await (bandOrder ??= readBandOrder($).catch(() => []))) // below what other mods draw, unless the band order says otherwise
+  })
+
+  // Claude Code 2.1.323+: the engine stacks each plugin's row; the band order sorts them here.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    bandOrder ??= readBandOrder($).catch(() => [])
+    const rows = orderRows(e.props.rows, await bandOrder)
+    return next(rows ? { ...e, props: { ...e.props, rows } } : e)
   })
 }
 
