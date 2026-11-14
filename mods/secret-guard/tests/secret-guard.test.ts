@@ -331,6 +331,13 @@ describe('secret-guard', () => {
     expect(addPaths('git add a.txt && git commit -m "a <<EOF" && git add config.json && git commit -m "\ny\nEOF\n"')).toEqual([])
   })
 
+  test('an escaped quote outside quotes opens none: the commit is still checked', async ($, on) => {
+    const { asked } = engine(on, { answer: 'Block it', untracked: { 'x.env': `k = '${STRIPE}'` } })
+    const r = await $.tool.call({ tool: 'Bash', command: `echo \\" && git add x.env && git commit -m x && echo '"'` } as any)
+    expect(asked[0]).toMatch(/Stripe/)
+    expect((r as any).deny).toBeTruthy()
+  })
+
   test('addPaths still narrows a commit message written as a quoted heredoc', () => {
     expect(addPaths("git add a.ts b.md && git commit -m \"$(cat <<'EOF'\nAdd a; run `x` with $HOME\nEOF\n)\" && git push")).toEqual(['a.ts', 'b.md'])
     expect(addPaths("cd app && git add 'b c.md' && git commit -m 'fix (x) & y' && git status")).toEqual(['b c.md'])

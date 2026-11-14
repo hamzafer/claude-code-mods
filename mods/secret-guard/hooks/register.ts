@@ -345,8 +345,9 @@ export function bare(command: string) {
   const fill = (m: string) => m[0] + '_'.repeat(m.length - 2) + m[m.length - 1]
   return command
     .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, m => m.replace(/[^\n]/g, ' '))
-    // One pass from the left, as the shell reads them: a ' inside "…" quotes nothing.
-    .replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, fill)
+    // One pass from the left, as the shell reads them: a ' inside "…" quotes nothing,
+    // and an escaped character (\") opens no quote.
+    .replace(/\\[\s\S]|"(?:[^"\\]|\\.)*"|'[^']*'/g, m => (m[0] === '\\' ? m : fill(m)))
 }
 
 // The paths every `git add` in the command stages. [] means all untracked files. It fails
