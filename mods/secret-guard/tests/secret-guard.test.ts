@@ -312,6 +312,8 @@ describe('secret-guard', () => {
       'git -c alias.s=add s x.env && git add a.ts && git commit -m x',
       "git add 'safe'.env && git commit", // one path glued from quoted and bare parts
       'git add a.ts && git commit -m "$(cat <<EOF\n$(git add x.env)\nEOF\n)"', // unquoted heredoc runs
+      "git add a.ts && git commit -m \"$(cat <<'EOF'\nmsg\nEOF\ngit add x.env\nEOF\n)\"", // the heredoc ends at the first EOF
+      'cd - && git add x.env && git commit -m x',
     ]) expect(addPaths(all)).toEqual([])
   })
 

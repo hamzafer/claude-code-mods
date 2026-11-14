@@ -404,7 +404,8 @@ const PLAIN_GIT = new Set(['add', 'commit', 'push', 'status'])
 function plainShape(command: string): boolean {
   let isQuoteSafe = true
   const s = command
-    .replace(/"\$\(cat <<'(\w+)'\n[\s\S]*?\n\1\n\s*\)"/g, '""')
+    // The heredoc ends at the first delimiter line, so no body line may be one.
+    .replace(/"\$\(cat <<'(\w+)'\n(?:(?!\1\n)[^\n]*\n)*?\1\n\s*\)"/g, '""')
     .replace(/"[^"]*"|'[^']*'/g, q => {
       if (q[0] === '"' && /[$`\\!]/.test(q)) isQuoteSafe = false // still read by the shell
       return q[0] + q[0]
@@ -415,7 +416,7 @@ function plainShape(command: string): boolean {
   return steps.every((step, i) => {
     const words = step.trim().split(/[ \t]+/).filter(Boolean)
     if (words.length === 0) return true
-    if (i === 0 && words[0] === 'cd') return words.length === 2
+    if (i === 0 && words[0] === 'cd') return words.length === 2 && !words[1].startsWith('-') // `cd -` goes to $OLDPWD
     return words[0] === 'git' && PLAIN_GIT.has(words[1])
   })
 }
