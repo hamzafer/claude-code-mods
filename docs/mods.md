@@ -64,7 +64,7 @@ Themes change how the Desktop app's Code tab looks. They apply as soon as they'r
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
-| 🦇 | **gotham-night** | A Gotham look for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
+| 🦇 | **gotham-night** | A Gotham theme for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
 
 ## 🧭 How they behave
 
@@ -500,7 +500,7 @@ YouTube Shorts or a game of Snake in a Claude Code pane while it works.
 
 ### 🦇 gotham-night
 
-A Gotham-style look for the Claude Code Desktop app that shows whether Claude is working or waiting on you.
+A Gotham theme for the Claude Code Desktop app that shows whether Claude is working or waiting on you.
 
 ![gotham-night: a rainy night city behind the Claude Code chat, the signal lit on the clouds and bats flying out of it](../images/gotham-night.png)
 

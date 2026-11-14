@@ -1,7 +1,7 @@
 {
   "name": "gotham-night",
-  "version": "0.1.0",
-  "description": "A Gotham-style look for the Claude Code Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you.",
+  "version": "0.1.1",
+  "description": "A Gotham theme for the Claude Code Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you.",
   "author": {
     "name": "Hamza Zafar",
     "url": "https://github.com/hamzafer"

@@ -33,7 +33,7 @@ cd cli && node --test
 - 📋 Add a short line to the README, and a row and notes to `docs/mods.md`
 - 🌐 Add a site page at `site/mods/<name>/index.html`, with the version in its chip and its JSON-LD
 - 🗂️ Add a row and a JSON-LD entry to `site/index.html`, and bump the "All N mods" and "See all N mods" counts across the site pages
-- 🗺️ Add the page to `site/sitemap.xml`
+- 🗺️ Add the page to `site/sitemap.xml`, and a line to `site/llms.txt`
 - 📸 Add a screenshot to `images/` (and `site/images/` for the site page)
 - 📏 A band mod (tagged `band`) copies `shared/bands.ts` to `mods/<name>/hooks/bands.ts`. The repo tests check this
 - 🆕 A mod that needs a newer Claude Code than CI's pinned minimum puts that version in `mods/<name>/.claude-code-version` (one line, like `2.1.325`), and CI checks it with that version
