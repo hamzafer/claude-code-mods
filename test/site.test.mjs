@@ -31,6 +31,7 @@ const pages = htmlFiles('site')
 
 const index = read('site/index.html')
 const sitemap = read('site/sitemap.xml')
+const llms = read('site/llms.txt') // the plain-text map for AI search tools
 
 test('the marketplace lists mods from mods/', () => {
   assert.ok(count > 0, 'no marketplace entry has a ./mods/<name> source')
@@ -78,6 +79,10 @@ for (const mod of mods) {
     assert.ok(index.includes(`href="mods/${name}/"`), `site/index.html has no row linking to href="mods/${name}/"`)
     const items = ldWith(index, 'mainEntity')?.mainEntity?.itemListElement ?? []
     assert.ok(items.some(i => i.url === url), `site/index.html JSON-LD itemListElement has no entry with "url": "${url}"`)
+  })
+
+  test(`${name}: site/llms.txt links its page`, () => {
+    assert.ok(llms.includes(`(${url})`), `site/llms.txt has no link to ${url}: add a line for ${name}`)
   })
 
   test(`${name}: site/sitemap.xml lists its page`, () => {

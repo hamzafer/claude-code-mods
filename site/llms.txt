@@ -1,0 +1,54 @@
+# Claude Code mods and themes
+
+> Small plugins for Claude Code built on its function hooks: live lines above the prompt, guards for risky commands, panes, games, and themes for the Claude Code Desktop app. Open source, MIT licensed. Install only the ones you want.
+
+Install: `npx claude-code-mods@latest` (tick the mods you want), or `claude plugin marketplace add hamzafer/claude-code-mods` then `claude plugin install <mod>@claude-code-mods`.
+
+- [All mods and themes](https://hamzafer.github.io/claude-code-mods/)
+- [Source on GitHub](https://github.com/hamzafer/claude-code-mods)
+- [Notes per mod](https://github.com/hamzafer/claude-code-mods/blob/main/docs/mods.md)
+
+## Themes
+
+- [gotham-night](https://hamzafer.github.io/claude-code-mods/mods/gotham-night/): A Gotham theme for the Claude Code Desktop app: searchlights sweep while Claude works, and when it needs you the signal lights with a burst of bats. Desktop app only.
+
+## See what's happening
+
+- [agent-radar](https://hamzafer.github.io/claude-code-mods/mods/agent-radar/): One live line above the prompt per running subagent or background shell: its model, time, tool count and what it's doing. /radar shows every agent and its messages.
+- [context-bar](https://hamzafer.github.io/claude-code-mods/mods/context-bar/): Your context window as a stacked bar above the prompt, a color per category, with token counts and the compaction point. /context-bar shows or hides it.
+- [browser-lanes](https://hamzafer.github.io/claude-code-mods/mods/browser-lanes/): Shows if this session has a Playwright browser and who holds it. /browser clean closes leftover browsers. A subagent that wants the browser waits until the one using it is done.
+- [md-preview](https://hamzafer.github.io/claude-code-mods/mods/md-preview/): Shows the Markdown files Claude edits, rendered like GitHub, in a pane next to the chat. Before and after side by side. /md opens it.
+- [heatmap](https://hamzafer.github.io/claude-code-mods/mods/heatmap/): A GitHub-style grid of your Claude Code time in a /heatmap pane, with streaks, peaks and top projects.
+- [mission-control](https://hamzafer.github.io/claude-code-mods/mods/mission-control/): /mission opens a live map of the main agent, its subagents and every tool call, plus a code map of the files they touch.
+- [next-steps](https://hamzafer.github.io/claude-code-mods/mods/next-steps/): After each turn, 2 or 3 likely next prompts above the prompt. Press 1, 2 or 3 in an empty prompt to draft one, 0 to dismiss.
+- [prayer-times](https://hamzafer.github.io/claude-code-mods/mods/prayer-times/): The current prayer and how long is left, the next prayer, and zawal, above the prompt. Computed on your computer from your location; nothing is sent anywhere.
+- [replay-theater](https://hamzafer.github.io/claude-code-mods/mods/replay-theater/): Step through the last turn's file edits, one diff at a time.
+- [review-watch](https://hamzafer.github.io/claude-code-mods/mods/review-watch/): A live line above the prompt for each running code review: Codex or a review subagent, its model, what it reviews, time, and Codex's latest output. A toast with the findings when it ends.
+- [token-weather](https://hamzafer.github.io/claude-code-mods/mods/token-weather/): A live forecast of the context window, with a prompt-cache countdown, drawn above the prompt.
+- [cache-clock](https://hamzafer.github.io/claude-code-mods/mods/cache-clock/): A prompt-cache line under your status line, from Claude Code's own cache figures: time left while warm, hit rate and misses, and how many tokens the next message re-caches once cold. /cache-clock setup adds it.
+- [usage-meter](https://hamzafer.github.io/claude-code-mods/mods/usage-meter/): Your plan's 5-hour and 7-day usage as small bars above the prompt, with the reset countdown and the session's cost.
+- [where-am-i](https://hamzafer.github.io/claude-code-mods/mods/where-am-i/): A live recap above the prompt: goal, doing now, waiting on you, next. /where for a longer one.
+- [openai-balance](https://hamzafer.github.io/claude-code-mods/mods/openai-balance/): Your OpenAI API credit above the prompt: an estimated balance with a gauge, today's spend, where the money mostly went, and the last call. /openai-balance shows the breakdown.
+- [openrouter-balance](https://hamzafer.github.io/claude-code-mods/mods/openrouter-balance/): Your OpenRouter credit above the prompt: the balance with a gauge, today's spend and where the money mostly went. /openrouter-balance shows the breakdown.
+
+## Guard your repo
+
+- [blast-radius](https://hamzafer.github.io/claude-code-mods/mods/blast-radius/): Holds risky Bash commands and shows what they would change before they run.
+- [secret-guard](https://hamzafer.github.io/claude-code-mods/mods/secret-guard/): Keeps API keys and tokens out of Claude's context, your files and your commits: hides them in tool output, and asks before a write, commit or push adds one.
+
+## Spend less
+
+- [switchboard](https://hamzafer.github.io/claude-code-mods/mods/switchboard/): Picks the model for each subagent that names none, with OpenAI's Decisions API or Jev, from its short label only. One line per spawn above the prompt; /route shows each pick and what each subagent cost.
+
+## My setup (fork and adapt)
+
+- [glance](https://hamzafer.github.io/claude-code-mods/mods/glance/): One line above the prompt with what needs you: next meeting, PRs, Linear issues and Slack DMs. /glance lists them all.
+- [merge-gate](https://hamzafer.github.io/claude-code-mods/mods/merge-gate/): Holds `gh pr merge` until CI passes and one Codex review (OpenAI's luna model) has run. A PR line above the prompt, and /gate shows the PR's status.
+- [rulebook-guard](https://hamzafer.github.io/claude-code-mods/mods/rulebook-guard/): Writing and git rules: replaces em dashes in prose, and asks before git commit --amend, an unformatted push, or personal info in notes and commits.
+- [session-saver](https://hamzafer.github.io/claude-code-mods/mods/session-saver/): Names untitled sessions through unpause. /park saves where you left off, and a resumed session shows it.
+
+## For fun
+
+- [now-playing](https://hamzafer.github.io/claude-code-mods/mods/now-playing/): What Spotify is playing, one line above the prompt: track, progress and the lyric being sung, with ⏮ ⏸ ⏭ buttons. /music controls it too. macOS.
+- [reels](https://hamzafer.github.io/claude-code-mods/mods/reels/): YouTube Shorts in a terminal pane: plays while Claude works, pauses when Claude is done.
+- [snake](https://hamzafer.github.io/claude-code-mods/mods/snake/): Snake in a pane while Claude works, paused when it's done. Opt-in, so nothing opens until /snake.
