@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { RadarAgent } from '../types'
-import { bandsFile, parseOrder, stackBands } from './bands'
+import { bandsFile, orderRows, parseOrder, stackBands } from './bands'
 import { OPEN_SH, TAILS_SH, baseName, blocks, clean, outputPathOf, parseOpen, program, shellLabel, tailLines } from './watch'
 
 const PANE = 'agent-radar'
@@ -131,6 +131,13 @@ export const register: Register = on => {
       </Box>
     )
     return stackBands(rest, 'agent-radar', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
+  })
+
+  // Claude Code 2.1.323+: the engine stacks each plugin's row; the band order sorts them here.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    bandOrder ??= readBandOrder($).catch(() => [])
+    const rows = orderRows(e.props.rows, await bandOrder)
+    return next(rows ? { ...e, props: { ...e.props, rows } } : e)
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

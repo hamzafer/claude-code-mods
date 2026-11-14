@@ -9,7 +9,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { MapFile, MissionNode } from '../types'
 import { importsOf, page, svg, textMap } from './map'
 import { label, lines, summary } from './tree'
-import { bandsFile, parseOrder, stackBands } from './bands'
+import { bandsFile, orderRows, parseOrder, stackBands } from './bands'
 
 const PANE = 'mission-control'
 // The first of these that exists draws the code map: Chrome on macOS, then Linux builds.
@@ -280,6 +280,13 @@ export const register: Register = on => {
       </Text>
     )
     return stackBands(rest, 'mission-control', mine, 'above', await (bandOrder ??= readBandOrder($).catch(() => []))) // above what other mods draw, unless the band order says otherwise
+  })
+
+  // Claude Code 2.1.323+: the engine stacks each plugin's row; the band order sorts them here.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    bandOrder ??= readBandOrder($).catch(() => [])
+    const rows = orderRows(e.props.rows, await bandOrder)
+    return next(rows ? { ...e, props: { ...e.props, rows } } : e)
   })
 }
 

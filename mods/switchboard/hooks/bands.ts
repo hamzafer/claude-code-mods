@@ -41,6 +41,19 @@ export function stackBands(rest: RenderElement | null | undefined, name: string,
   return { type: 'Box', props: { key: COLUMN, flexDirection: 'column' }, children: order.length ? sorted(items, order) : items }
 }
 
+/**
+ * Claude Code 2.1.323 and later stack one row per plugin themselves and hand the rows
+ * to `AbovePromptList` hooks, so `stackBands` no longer sees other mods' bands there.
+ * This sorts those rows by `order`, the same way: rows not in the order keep their
+ * place on top, the listed ones follow in file order. Undefined when nothing moves.
+ */
+export function orderRows<R extends { readonly plugin: string }>(rows: readonly R[], order: string[]): R[] | undefined {
+  if (order.length === 0) return undefined
+  const rank = (r: R) => order.indexOf(r.plugin)
+  const out = rows.map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i).map(x => x.r)
+  return out.some((r, i) => r !== rows[i]) ? out : undefined
+}
+
 // Another band mod's column gives up its items; anything else is one item.
 function unpack(rest: RenderElement | null | undefined): RenderNode[] {
   if (!rest) return []
