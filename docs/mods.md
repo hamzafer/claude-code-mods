@@ -506,8 +506,8 @@ A Gotham theme for the Claude Code Desktop app that shows whether Claude is work
 
 - **Needs** the Desktop app, with Claude Code 2.1.324 or newer in its Code tab. The terminal draws no theme, so there it does nothing
 - **Nothing to run.** Start a local session in the Code tab and send a message: the city comes up behind the chat
-- **While Claude works:** two searchlights sweep a rainy city of gothic towers, with flickering windows, a blinking beacon and fog
-- **When Claude needs you:** its turn ended, it asks you a question, or a permission prompt is still unanswered after 1.5 s. A red flare rises, the signal lights on the clouds and a burst of bats scatters. The 1.5 s wait keeps Auto mode quiet, since it settles most asks on its own
+- **While Claude works:** two searchlights sweep a rainy city of gothic towers under a full moon, with flickering windows, a blinking beacon and fog. Forked lightning strikes behind the skyline, an elevated train crosses the rooftops and an airship drifts under the clouds
+- **When Claude needs you:** its turn ended, it asks you a question, or a permission prompt is still unanswered after 1.5 s. Lightning hits the tower and the whole city goes dark. Then the signal ignites on the clouds, a red flare rises, the windows flicker back on and a burst of bats scatters. The 1.5 s wait keeps Auto mode quiet, since it settles most asks on its own
 - **Every burst is new:** it comes from the signal, the rooftops, either side or the sky, with its own paths, sizes and timing
 - **Colors:** night-black with a signal-yellow accent, dark mode only
 - Your system's reduced-motion setting stills the scene and hides the bats

@@ -5,3 +5,6 @@ export const SIGNAL = { x: 1390, y: 300 }
 
 // The searchlight that throws it, down in the city.
 export const LAMP = { x: 1320, y: 1000 }
+
+// The tip of the landmark tower's spire: its beacon sits here, and lightning finds it.
+export const SPIRE = { x: 305, y: 170 }

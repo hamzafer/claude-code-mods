@@ -1,6 +1,7 @@
 // The city: three rows of buildings, lit windows, a landmark tower and two gargoyles.
 // Pure: the same seed draws the same city.
 
+import { SPIRE } from './layout.js'
 import { seeded, type Random } from './random.js'
 
 export type City = { far: string; mid: string; near: string; windows: string; landmarks: string }
@@ -75,9 +76,9 @@ const LANDMARKS = `
   <rect x="268" y="380" width="74" height="60"/>
   <rect x="286" y="330" width="38" height="60"/>
   <polygon points="286,330 305,250 324,330"/>
-  <rect x="303.5" y="170" width="3" height="90"/>
+  <rect x="${SPIRE.x - 1.5}" y="${SPIRE.y}" width="3" height="90"/>
 </g>
-<circle class="beacon" cx="305" cy="170" r="4" fill="#ff2a1a"/>
+<circle class="beacon" cx="${SPIRE.x}" cy="${SPIRE.y}" r="4" fill="#ff2a1a"/>
 <path d="${GARGOYLE}" fill="#040607" transform="translate(1080 812) scale(1.1)"/>
 <path d="${GARGOYLE}" fill="#040607" transform="translate(150 842) scale(-0.9 0.9)"/>`
 
