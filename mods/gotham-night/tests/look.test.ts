@@ -129,3 +129,24 @@ test('each time the signal lights, the bat burst is new; lighting it again keeps
   await done('t2')
   expect(await svg()).not.toBe(first)
 })
+
+test('a lit scene opens with the strike and the blackout; a sweeping one has neither', async ($, on) => {
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  const ui = await $.ui.mount(BACKDROP)
+  const svg = async () => ((await ui.find({ type: 'Svg' })) as any).props.source as string
+
+  const sweeping = await svg()
+  expect(sweeping).not.toContain('class="hit"')
+  expect(sweeping).not.toContain('class="grid"')
+  // The storm and the train belong to the city, lit or not
+  expect(sweeping).toContain('class="strike sa"')
+  expect(sweeping).toContain('class="train"')
+
+  await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
+  await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
+  const lit = await svg()
+  expect(lit).toContain('class="hit"')
+  expect(lit).toContain('class="grid"')
+  expect(lit.length < 131072).toBe(true)
+})

@@ -49,7 +49,8 @@ function bat(r: Random, cls: string, size: number): string {
   return `<g class="bat ${cls}"><g style="${wobble}"><g transform="scale(${size.toFixed(2)})"><use class="flap" href="#bat" style="${flap}"/></g></g></g>`
 }
 
-export function flock(seed: number): Flock {
+// `after` holds the burst back, in seconds, until the signal has lit.
+export function flock(seed: number, after = 0): Flock {
   const r = seeded(seed)
   // Class names carry the seed, so a new burst is new CSS and plays from the start.
   const k = `b${(seed % 46656).toString(36)}`
@@ -86,7 +87,7 @@ export function flock(seed: number): Flock {
       [ex, ey],
     ]
     css += keyframes(`${k}${i}`, path, n => (n / 3) * 100) + '}'
-    css += `.${k}${i}{animation:${k}${i} ${duration.toFixed(1)}s ease-in ${r.pick(0.5, 2.3).toFixed(2)}s 1}`
+    css += `.${k}${i}{animation:${k}${i} ${duration.toFixed(1)}s ease-in ${(after + r.pick(0.5, 2.3)).toFixed(2)}s 1}`
     svg += bat(r, `${k}${i}`, size)
   }
 
