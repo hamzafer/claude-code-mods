@@ -453,6 +453,7 @@ Renders the Markdown files Claude Code edits, like GitHub does.
   3. A text view, without Chrome or a terminal that shows images
 - Set `githubRenderer` to off to never send anything to GitHub: every page then uses the built-in renderer. Change it in `/config`, or in `settings.json` under `pluginConfigs["md-preview"].options`
 - `/mdview` does the same, in case a built-in ever takes `/md`
+- **[pane-grid](https://github.com/hwanyong/pane-grid):** with it installed, md-preview shows up in empty grid cells. `/grid place md-preview` draws it in a cell and closes its own pane; `/grid place -` brings the pane back. In a cell its keys work only while the cell is active, `b` and `o` are left to pane-grid's toolbar, and there is no `q`. Without pane-grid nothing changes
 - The rendered view needs Google Chrome or Chromium and a terminal that shows images (Ghostty, kitty, iTerm2, WezTerm). It does not work through tmux. Built and tested on macOS. Headless Chrome draws the page in a throwaway profile
 - Pages, pictures and that profile go to a temp folder made with `mktemp` for each session (`$TMPDIR/md-preview.XXXXXXXX`), readable only by you, so two sessions or two users never share one
 - Scripts in the Markdown never run. The page allows only its own script, and the built-in renderer drops script tags, event handlers and `javascript:` links, also when they are written with HTML entities

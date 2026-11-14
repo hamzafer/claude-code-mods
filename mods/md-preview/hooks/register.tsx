@@ -137,11 +137,13 @@ async function paneUp($: EngineInterface) {
   return (await $.ui.panes()).some(p => p.id === id && p.isPlaced)
 }
 
-// Opens the pane, unless md-preview is placed in a pane-grid cell: it draws there instead.
+// Opens the pane, unless md-preview is placed in a pane-grid cell whose grid pane is on
+// screen: it draws there instead. A cell in a closed grid pane would show nothing.
 async function openPane($: EngineInterface): Promise<Cell> {
   const cell = await readPlacement($)
-  if (!cell) await $.ui.open({ id: PANE, title: TITLE, focus: true })
-  return cell
+  if (cell && (await $.ui.panes()).some(p => p.id === cell.requestId && p.isPlaced)) return cell
+  await $.ui.open({ id: PANE, title: TITLE, focus: true })
+  return undefined
 }
 
 // Closes the pane when a cell appears, and opens it again only when the cell is removed,
