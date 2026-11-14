@@ -17,7 +17,14 @@ const seed = () => Math.floor(Math.random() * 2 ** 31)
 const signal = atom({ plugin: 'gotham-night', key: 'signal' } as const, INITIAL)
 
 type Engine = Parameters<typeof read>[0]
-const send = (engine: Engine, event: SignalEvent) => update(engine, signal, state => transition(state, event))
+
+// Every change goes through transition(); an event that changes nothing writes nothing,
+// so tool calls while Claude works don't redraw the scene.
+async function send(engine: Engine, event: SignalEvent) {
+  const before = await read(engine, signal)
+  const after = transition(before, event)
+  if (after !== before) await update(engine, signal, () => after)
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -27,13 +34,15 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // Only the main loop's turns and tools count: a background subagent finishing, or
+  // another plugin calling a tool, says nothing about whether Claude needs you.
   on('turn.start', async ($, e, next) => {
-    await send($, { type: 'turnStarted' })
+    if (e.agentId === undefined) await send($, { type: 'turnStarted' })
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
-    await send($, { type: 'turnEnded', seed: seed() })
+    if (e.agentId === undefined) await send($, { type: 'turnEnded', seed: seed() })
     return next(e)
   })
 
@@ -42,16 +51,21 @@ export const register: Register = on => {
   on('tool.check', async ($, e, next) => {
     const verdict = await next(e)
     const askId = e.tool_use_id
-    if (askId !== undefined && e.approver === 'person' && verdict.decision === 'ask') {
+    const asksYou = e.approver === 'person' && verdict.decision === 'ask'
+    if (askId !== undefined && e.agentId === undefined && asksYou) {
       await send($, { type: 'askRaised', askId })
-      $.clock.after(ASK_DELAY_MS, () => void send($, { type: 'askUnanswered', askId, seed: seed() }))
+      $.clock.after(ASK_DELAY_MS, () => {
+        send($, { type: 'askUnanswered', askId, seed: seed() }).catch(() => {})
+      })
     }
     return verdict
   })
 
-  // A question to you lights the signal until you answer; any other tool running
-  // (after its prompt, if it had one) means Claude is working again.
+  // A question to you lights the signal until you answer. Any other tool finishing means
+  // Claude is working again. There is no event for the moment you approve a permission
+  // prompt, so a lit signal stays until that tool has finished.
   on('tool.call', async ($, e, next) => {
+    if (e.agentId !== undefined || next.origin.plugin !== 'engine') return next(e)
     const question = e.tool === 'AskUserQuestion'
     if (question) await send($, { type: 'questionOpened', seed: seed() })
     const result = await next(e)

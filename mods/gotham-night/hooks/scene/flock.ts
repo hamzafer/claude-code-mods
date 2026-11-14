@@ -2,9 +2,11 @@
 // Every bat has its own path, speed, size, wobble and wingbeat, so it never looks synced.
 // Pure: the same seed draws the same flock; a new seed is a new burst.
 //
-// Desktop limit: only plain translate/opacity keyframes and keyword easing here. An
-// earlier swarm built with scale keyframes, cubic-bezier easing and fill-mode `both`
-// froze the whole scene in the desktop app, while Chrome played it fine.
+// Desktop limit: an earlier swarm froze the whole scene in the desktop app while Chrome
+// played it fine. It moved each bat with scale() inside its path keyframes, cubic-bezier
+// easing and fill-mode `both`; which of those did it was never isolated. This flock moves
+// bats with translate/opacity keyframes and keyword easing only, and plays in Desktop.
+// (The wingbeat's scaleY on its own element, and `both` on the signal, are fine there.)
 
 import { SIGNAL } from './layout.js'
 import { seeded, type Random } from './random.js'

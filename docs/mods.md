@@ -57,6 +57,13 @@ These are built around my own tools and rules. Fork them and change the rules to
 | 📱 | **reels** | YouTube Shorts while Claude works, pauses when it's done | `/reels` |
 | 🐍 | **snake** | Snake while Claude works | `/snake` |
 | 🎵 | **now-playing** | What Spotify is playing, with a progress bar, the lyric being sung, and ⏮ ⏸ ⏭ buttons. Needs macOS and the Spotify app | `/music` |
+
+### 🎨 Themes (Desktop app)
+
+Themes change how the Desktop app's Code tab looks. They apply as soon as they're installed.
+
+| | Mod | What it does | Command |
+| --- | --- | --- | --- |
 | 🦇 | **gotham-night** | A Gotham look for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
 
 ## 🧭 How they behave
@@ -505,6 +512,7 @@ A Gotham-style look for the Claude Code Desktop app that shows whether Claude is
 - **Colors:** night-black with a signal-yellow accent, dark mode only
 - Your system's reduced-motion setting stills the scene and hides the bats
 - **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
+- **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the signal stays lit until that tool finishes. Background subagents and other plugins' tool calls never change the signal
 
 ## 🛠️ Build your own
 
