@@ -147,6 +147,23 @@ test('a lit scene opens with the strike and the blackout; a sweeping one has nei
   await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
   const lit = await svg()
   expect(lit).toContain('class="hit"')
+  // Desktop draws the lit scene still if the bolt also flashes the whole scene
+  expect(lit.split('class="hit"').length).toBe(2)
   expect(lit).toContain('class="grid"')
   expect(lit.length < 131072).toBe(true)
+})
+
+test('each scene has one reduced-motion rule, naming every part', async ($, on) => {
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  const ui = await $.ui.mount(BACKDROP)
+  const svg = async () => ((await ui.find({ type: 'Svg' })) as any).props.source as string
+  const sweeping = await svg()
+  await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
+  await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
+  for (const scene of [sweeping, await svg()]) {
+    expect(scene.split('@media').length).toBe(2)
+    const rule = scene.slice(scene.indexOf('@media'))
+    for (const cls of ['.beam', '.rain2', '.strike', '.hit', '.train', '.airship', '.grid']) expect(rule).toContain(cls)
+  }
 })
