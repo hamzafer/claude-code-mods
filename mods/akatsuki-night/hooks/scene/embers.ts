@@ -18,11 +18,14 @@ export function embers(seed: number): Embers {
     const sway = Math.round(r.pick(20, 60))
     const drift = Math.round(r.pick(120, 260))
     const rise = Math.round(r.pick(420, 700))
+    // Numbers are worked out first and written with their own sign: a sway larger than
+    // the drift so far swings right, and "--18px" would drop the whole stop.
+    const at = (x: number, y: number) => `transform:translate(${Math.round(x)}px,${Math.round(y)}px)`
     css +=
-      `@keyframes rise${p}{0%{transform:translate(0px,0px);opacity:0}12%{opacity:1}` +
-      `40%{transform:translate(-${Math.round(drift * 0.35) - sway}px,-${Math.round(rise * 0.4)}px)}` +
-      `70%{transform:translate(-${Math.round(drift * 0.7) + sway}px,-${Math.round(rise * 0.7)}px);opacity:.8}` +
-      `100%{transform:translate(-${drift}px,-${rise}px);opacity:0}}` +
+      `@keyframes rise${p}{0%{${at(0, 0)};opacity:0}12%{opacity:1}` +
+      `40%{${at(sway - drift * 0.35, -rise * 0.4)}}` +
+      `70%{${at(-drift * 0.7 - sway, -rise * 0.7)};opacity:.8}` +
+      `100%{${at(-drift, -rise)};opacity:0}}` +
       `.rise${p}{animation:rise${p} 12s linear infinite}`
   }
   let sparks = ''

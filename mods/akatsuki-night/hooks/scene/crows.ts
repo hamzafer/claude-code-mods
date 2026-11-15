@@ -6,7 +6,8 @@
 // Desktop limit: a swarm that moved birds with scale() inside path keyframes, cubic-bezier
 // easing or fill-mode `both` froze the whole scene in the desktop app while Chrome played
 // it fine. These move by translate/opacity keyframes with keyword easing only; the
-// wingbeat's scaleY sits on its own element.
+// wingbeat's scaleY sits on its own element, and never flattens past a third, so a small
+// crow mid-beat still reads as a bird and not a dash.
 
 import { seeded, type Random } from './random.js'
 
@@ -47,13 +48,14 @@ export function perched(perches: Point[], leave?: number): { css: string; animat
   }
 }
 
-function keyframes(name: string, points: Point[], at: (n: number) => number): string {
+// Fades in from the first point and out at the last, unless `seen` says it starts in view.
+function keyframes(name: string, points: Point[], at: (n: number) => number, seen = false): string {
   return (
     `@keyframes ${name}{` +
     points
       .map(([x, y], n) => {
-        const edge = n === 0 || n === points.length - 1
-        return `${at(n).toFixed(1)}%{transform:translate(${Math.round(x)}px,${Math.round(y)}px);opacity:${edge ? 0 : 1}}`
+        const hidden = (n === 0 && !seen) || n === points.length - 1
+        return `${at(n).toFixed(1)}%{transform:translate(${Math.round(x)}px,${Math.round(y)}px);opacity:${hidden ? 0 : 1}}`
       })
       .join('')
   )
@@ -75,7 +77,7 @@ export function flock(seed: number, perches: Point[], after: number): Flock {
   let css =
     '.crow{opacity:0}' +
     '.beat{animation:beat .2s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}' +
-    '@keyframes beat{0%{transform:scaleY(1)}100%{transform:scaleY(-.3)}}'
+    '@keyframes beat{0%{transform:scaleY(1)}100%{transform:scaleY(.35)}}'
   for (let w = 0; w < WOBBLES; w++) {
     const a = Math.round(r.pick(4, 10))
     const b = Math.round(r.pick(4, 12))
@@ -84,14 +86,17 @@ export function flock(seed: number, perches: Point[], after: number): Flock {
       `50%{transform:translate(-${b}px,${a}px)}75%{transform:translate(${b}px,${a}px)}100%{transform:translate(0px,0px)}}`
   }
 
-  // The burst: every crow lifts off near a perch and climbs away, fanning outward.
+  // The burst: every crow lifts off near a perch and climbs away, fanning outward. The
+  // first one from each perch is the crow that sat there: it leaves from the spot, in full
+  // view, the moment the sitting crow vanishes, so the perches never look empty first.
   const count = Math.round(r.pick(44, 60))
   let svg = ''
   let i = 0
   for (; i < count; i++) {
     const [px, py] = perches[i % perches.length]!
-    const sx = px + r.pick(-40, 40)
-    const sy = py + r.pick(-30, 10)
+    const sitter = i < perches.length
+    const sx = sitter ? px : px + r.pick(-40, 40)
+    const sy = sitter ? py - 10 : py + r.pick(-30, 10)
     // Up and away from the middle, so the chat column clears first.
     const away = sx < 800 ? -1 : 1
     const angle = -Math.PI / 2 + away * r.pick(0.05, 0.95) + r.pick(-0.25, 0.25)
@@ -99,7 +104,7 @@ export function flock(seed: number, perches: Point[], after: number): Flock {
     const ex = sx + Math.cos(angle) * far
     const ey = sy + Math.sin(angle) * far
     const close = r.next() < 0.12
-    const size = close ? r.pick(1.8, 2.6) : r.pick(0.65, 1.35)
+    const size = sitter ? 0.85 : close ? r.pick(1.8, 2.6) : r.pick(0.65, 1.35)
     const duration = close ? r.pick(1.8, 2.6) : r.pick(2.8, 5)
     const path: Point[] = [
       [sx, sy],
@@ -107,8 +112,9 @@ export function flock(seed: number, perches: Point[], after: number): Flock {
       [sx + (ex - sx) * 0.55 + r.pick(-140, 140), sy + (ey - sy) * 0.55 + r.pick(-120, 120)],
       [ex, ey],
     ]
-    css += keyframes(`${k}${i}`, path, n => [0, 18, 60, 100][n]!) + '}'
-    css += `.${k}${i}{animation:${k}${i} ${duration.toFixed(1)}s ease-in ${(after + r.pick(0, 1.1)).toFixed(2)}s 1}`
+    const start = sitter ? after : after + r.pick(0, 1.1)
+    css += keyframes(`${k}${i}`, path, n => [0, 18, 60, 100][n]!, sitter) + '}'
+    css += `.${k}${i}{animation:${k}${i} ${duration.toFixed(1)}s ease-in ${start.toFixed(2)}s 1}`
     svg += bird(r, `${k}${i}`, size)
   }
 

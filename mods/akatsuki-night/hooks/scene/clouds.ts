@@ -2,8 +2,9 @@
 // layers that drift right to left at their own speeds. Pure: the same seed draws the same sky.
 //
 // Each layer is drawn once across the 1600 width and again just right of it, then carried
-// one width left on a loop, so it wraps with no seam. No cloud crosses the right edge of
-// its own copy, or it would pop in at the left.
+// one width left on a loop, so it wraps with no seam. A cloud's end caps and outline reach
+// a little past its nominal width, so every cloud keeps a margin (`reach`) inside both
+// edges of its copy: none crosses an edge, so none pops in or out as the loop resets.
 
 import { seeded, type Random } from './random.js'
 
@@ -53,14 +54,21 @@ function cloud(r: Random, w: number, h: number): { outline: string; curls: strin
   return { outline, curls }
 }
 
+// How far a cloud can reach past 0 and `w` on either side: its end caps bulge about a
+// tenth of its height, a steep first or last lobe a little more, then half the stroke.
+// Generous on purpose, so no cloud's edge can reach the seam.
+const reach = (w: number, h: number, stroke: number) => h * 0.25 + w * 0.02 + stroke
+
 function layer(r: Random, l: Layer): string {
   const slot = 1600 / l.count
   let svg = ''
   for (let n = 0; n < l.count; n++) {
     const w = r.pick(l.w[0], l.w[1])
-    const x = Math.min(slot * n + r.pick(0, slot * 0.7), 1600 - w)
+    const h = r.pick(l.h[0], l.h[1])
+    const pad = reach(w, h, l.stroke)
+    const x = Math.min(Math.max(slot * n + r.pick(0, slot * 0.7), pad), 1600 - w - pad)
     const y = r.pick(l.y[0], l.y[1])
-    const c = cloud(r, w, r.pick(l.h[0], l.h[1]))
+    const c = cloud(r, w, h)
     svg +=
       `<g transform="translate(${f(x)} ${f(y)})"><path d="${c.outline}"/>` +
       `<path d="${c.curls}" fill="none" stroke-linecap="round"/></g>`

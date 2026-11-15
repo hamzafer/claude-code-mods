@@ -16,8 +16,8 @@ const { theme, problems } = makeColors({
     gray: {
       anchors: {
         'surface-0': '#0d0909',
-        'surface-1': '#130d0d',
-        'surface-2': '#191212',
+        'surface-1': '#150f0f',
+        'surface-2': '#1c1414',
         'surface-3': '#1f1616',
         'text-primary': '#efe5e1',
         'text-secondary': '#c8bab4',
