@@ -4,7 +4,7 @@
 // top) and the core flares from cyan to gold. Pure: the same seed locks the same way.
 //
 // The gold glow is a large animated element (a circle of r=320, fading its opacity in
-// once). It is not full-size and never moves. It has only been played in Chrome so far.
+// once). It is not full-size and never moves.
 
 import { CYAN, GOLD, GOLD_HOT, HAZE, ICE, polar, seedKey, type Part } from './layout.js'
 import { seeded } from './random.js'
@@ -102,8 +102,9 @@ function rings(mark: string): string {
 function spinning(): Part {
   const css =
     PIVOT +
-    RINGS.map(ring => `.${ring.name}{animation:spin ${Math.abs(ring.turn)}s linear infinite${ring.turn < 0 ? ' reverse' : ''}}`).join('') +
+    RINGS.map(ring => `.${ring.name}{animation:${ring.turn < 0 ? 'spinBack' : 'spin'} ${Math.abs(ring.turn)}s linear infinite}`).join('') +
     '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}' +
+    '@keyframes spinBack{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}' +
     '.core{animation:breathe 4.2s ease-in-out infinite}' +
     '@keyframes breathe{0%,100%{opacity:.62}50%{opacity:1}}'
   const svg =
@@ -112,7 +113,8 @@ function spinning(): Part {
   return { defs: DEFS, css, animated: ANIMATED, svg }
 }
 
-// Locked: each ring spins down from its own angle to rest; then cyan gives way to gold.
+// Locked: each ring spins down from its own angle to rest (its markup is the rest, so the
+// keyframes only say where it starts); then cyan gives way to gold.
 function locking(seed: number): Part {
   const r = seeded(seed)
   const k = seedKey('l', seed)
@@ -121,10 +123,11 @@ function locking(seed: number): Part {
     const from = Math.sign(ring.turn) * -r.pick(150, 320)
     css +=
       `@keyframes ${k}${ring.name}{from{transform:rotate(${from.toFixed(0)}deg)}to{transform:rotate(0deg)}}` +
-      `.${ring.name}{animation:${k}${ring.name} ${(LOCK_S * r.pick(0.8, 1)).toFixed(2)}s ease-out 1 forwards}`
+      `.${ring.name}{animation:${k}${ring.name} ${(LOCK_S * r.pick(0.8, 1)).toFixed(2)}s ease-out 1}`
   }
   css +=
-    `.cool{animation:cool .5s ease-in ${LOCK_S - 0.2}s 1 forwards}` +
+    // Opacity only, so `both` holds the cyan core gone once it has faded.
+    `.cool{animation:cool .5s ease-in ${LOCK_S - 0.2}s 1 both}` +
     '@keyframes cool{from{opacity:1}to{opacity:0}}' +
     // `both` keeps the gold hidden until it flares, yet with reduced motion it simply shows.
     `.hot{animation:heat .6s ease-out ${LOCK_S - 0.2}s 1 both}` +
@@ -136,7 +139,8 @@ function locking(seed: number): Part {
     `<g fill="none">${rings(GOLD)}</g>` +
     `<g class="cool">${core('cyanDisc', 'cyanGlow', ICE, 96)}</g>` +
     `<g class="hot"><g class="throb">${core('goldDisc', 'goldGlow', GOLD_HOT, 150)}</g></g>`
-  return { defs: DEFS, css, animated: ANIMATED, svg }
+  // With reduced motion nothing fades, so the cyan core is put away by hand: only gold shows.
+  return { defs: DEFS, css, animated: ANIMATED, still: '.cool{opacity:0}', svg }
 }
 
 // No seed: the working reactor. A seed: the one that locks for this burst.

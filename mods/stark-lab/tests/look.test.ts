@@ -188,3 +188,21 @@ test('each scene has one reduced-motion rule, stilling every animated class', as
     }
   }
 })
+
+test('the stylesheet stays inside what the desktop app animates', async ($, on) => {
+  // Outside @keyframes, no rule may declare a transform: placing is done with attributes.
+  const staticTransforms = (css: string): string[] =>
+    blocks(css).flatMap(([prelude, body]) =>
+      prelude.startsWith('@keyframes') ? [] : prelude.startsWith('@') ? staticTransforms(body) : /(^|[;\s])transform\s*:/.test(body) ? [prelude] : [])
+  for (const scene of await bothScenes($, on)) {
+    const css = styleOf(scene)
+    expect(css.match(/@media/g)?.length).toBe(1)
+    for (const banned of ['forwards', 'backwards', 'cubic-bezier', 'vector-effect', 'clip-path', 'animation-fill-mode', 'animation-name', 'animation-iteration-count', 'animation-timing-function']) {
+      expect([banned, css.includes(banned)]).toEqual([banned, false])
+    }
+    expect(/\breverse\b/.test(css)).toBe(false)
+    expect(scene).not.toContain('clipPath')
+    for (const m of css.matchAll(/steps\(/g)) expect(css.slice(m.index, m.index! + 8)).toBe('steps(1)')
+    expect(staticTransforms(css)).toEqual([])
+  }
+})

@@ -1,33 +1,9 @@
 // Where things sit in the 1600 x 1000 scene, and the colors every part draws with.
 
-// The reactor's centre, right of the chat column and above the message box.
-export const REACTOR = { x: 1370, y: 330 }
-
-// How far right of its centre the reactor draws (the outer arc; brackets reach 206),
-// at full size, and the gap it keeps from the frame's edge.
-const REACH = 232
-const MARGIN = 8
-
-// With xMidYMid slice, a frame of aspect A (width / height, under 1.6) shows x from
-// 800 - 500A to 800 + 500A. So in a band of aspects down to `lower`, the reactor at a
-// given scale stays whole when x + REACH * scale <= 800 + 500 * lower - MARGIN, and each
-// step's x is exactly that. Steps run widest first; the scene's own spot needs 1.6.
-type Step = { below: [number, number]; lower: number; y: number; scale: number }
-const BANDS: Step[] = [
-  { below: [8, 5], lower: 1.5, y: 300, scale: 0.85 },
-  { below: [3, 2], lower: 1.3, y: 250, scale: 0.7 },
-  { below: [13, 10], lower: 1, y: 225, scale: 0.6 },
-  // Down to a phone held upright.
-  { below: [1, 1], lower: 0.45, y: 215, scale: 0.62 },
-]
-
-// Where the reactor's centre lands below each aspect, and its size.
-export const PLACES = BANDS.map(({ below, lower, y, scale }) => ({
-  below: `${below[0]}/${below[1]}`,
-  x: Math.floor(800 + 500 * lower - REACH * scale - MARGIN),
-  y,
-  scale,
-}))
+// The reactor's centre, right of the chat column and above the message box. The whole rig
+// (outer arc 232 out, brackets 206) stays inside the frame down to an aspect of 1.45: a
+// frame of aspect A shows x up to 800 + 500A, so the centre sits at 1525 - 232 or less.
+export const REACTOR = { x: 1290, y: 330 }
 
 // Where the floor meets the back wall, and the point the floor grid runs to.
 export const HORIZON = 640
@@ -55,5 +31,6 @@ export const polar = (r: number, deg: number) => point(r, deg).join(',')
 export const seedKey = (prefix: string, seed: number) => `${prefix}${(seed % 46656).toString(36)}`
 
 // What every part hands the scene: its gradients, its CSS, the classes that CSS animates
-// (for the scene's one reduced-motion rule) and its drawing.
-export type Part = { defs: string; css: string; animated: string[]; svg: string }
+// (for the scene's one reduced-motion rule), any CSS only reduced motion adds (`still`) and
+// its drawing.
+export type Part = { defs: string; css: string; animated: string[]; still?: string; svg: string }

@@ -1,10 +1,9 @@
 // The lock-on, round the reactor when Claude needs you: four corner brackets close in as
 // if targeting, then rings leave the reactor like a ping, one after another. Centred on 0,0.
 //
-// Desktop limit: a ping grows with scale() on a ring that never moves, and fades with
-// its own opacity; nothing here animates a full-size element. The pings are still large
-// animated elements (a circle of r=200 scaled in place to 2.1, looping), and have only
-// been played in Chrome so far.
+// Desktop limit: the brackets rest where they close and animate only from their offset;
+// a ping scales a ring in place (its stroke scales with it) and fades it. Nothing here
+// animates a full-size element, uses a fill mode or a custom easing.
 
 import { GOLD, ICE, type Part } from './layout.js'
 
@@ -36,24 +35,24 @@ const PING_S = 4.2
 // `after` is when the pings start, in seconds: once the reactor has locked.
 export function target(after: number): Part {
   let css =
-    '.bracket{animation-duration:1.5s;animation-timing-function:ease-out;animation-iteration-count:1;animation-fill-mode:forwards}' +
     `.brackets{animation:hold 3.2s ease-in-out ${after + 1}s infinite}` +
     '@keyframes hold{0%,100%{opacity:1}50%{opacity:.45}}' +
     '.ping{opacity:0;transform-origin:0 0}' +
     '@keyframes ping{0%{transform:scale(.85);opacity:0}12%{opacity:.75}100%{transform:scale(2.1);opacity:0}}'
   for (const [name, dx, dy] of CORNERS) {
+    // No `to`: the bracket's own markup is where it ends.
     css +=
-      `@keyframes c${name}{from{transform:translate(${dx * OPEN}px,${dy * OPEN}px);opacity:0}to{transform:translate(0px,0px);opacity:1}}` +
-      `.${name}{animation-name:c${name}}`
+      `@keyframes c${name}{from{transform:translate(${dx * OPEN}px,${dy * OPEN}px);opacity:0}}` +
+      `.${name}{animation:c${name} 1.5s ease-out 1}`
   }
   let pings = ''
   for (let n = 0; n < PINGS; n++) {
     css += `.p${n}{animation:ping ${PING_S}s ease-out ${(after + (n * PING_S) / PINGS).toFixed(2)}s infinite}`
-    pings += `<circle class="ping p${n}" r="200" vector-effect="non-scaling-stroke"/>`
+    pings += `<circle class="ping p${n}" r="200"/>`
   }
   const svg =
     `<g class="target" fill="none" stroke="${ICE}">` +
-    `<g stroke-opacity="0.55" stroke-width="1.4">${pings}</g>` +
+    `<g stroke-opacity="0.55" stroke-width="1">${pings}</g>` +
     `<g class="brackets" stroke-width="2.2" stroke-linecap="square">${CORNERS.map(bracket).join('')}</g></g>`
   return { defs: '', css, animated: ['.bracket', '.brackets', '.ping'], svg }
 }

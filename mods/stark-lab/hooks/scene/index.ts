@@ -6,7 +6,7 @@
 
 import type { Signal } from '../../types'
 import { lab } from './lab.js'
-import { PLACES, REACTOR, type Part } from './layout.js'
+import { REACTOR, type Part } from './layout.js'
 import { motes } from './motes.js'
 import { panels } from './panels.js'
 import { LOCK_S, reactor } from './reactor.js'
@@ -14,18 +14,6 @@ import { sparks } from './sparks.js'
 import { target } from './target.js'
 
 const MOTES = motes(7)
-
-// The reactor and all that hangs round it move as one rig. In a narrower box the rig
-// steps up and in (layout.ts says where), so it stays whole and clear of the message
-// box. Off its spot the reactor no longer stands over the floor, so its pool of light goes.
-
-function placed(x: number, y: number, scale: number): string {
-  const tx = x - REACTOR.x * scale
-  const ty = y - REACTOR.y * scale
-  return `.rig{transform:translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${scale})}.pool{display:none}`
-}
-
-const PLACEMENT = PLACES.map(s => `@media (max-aspect-ratio: ${s.below}){${placed(s.x, s.y, s.scale)}}`).join('')
 
 function build(burst?: number): string {
   const live = burst === undefined
@@ -45,22 +33,21 @@ function build(burst?: number): string {
   ${parts.map(p => p.defs).join('')}
 </defs>
 <style>
-  .rig { transform-origin: 0 0; }
-  ${PLACEMENT}
   ${parts.map(p => p.css).join('\n  ')}
   @media (prefers-reduced-motion: reduce) {
     ${[...new Set(parts.flatMap(p => p.animated))].join(', ')} { animation: none; }
+    ${parts.map(p => p.still ?? '').join('')}
   }
 </style>
 <rect width="1600" height="1000" fill="url(#room)"/>
 ${room.back.svg}
 ${hud.svg}
-<g class="rig"><g transform="translate(${REACTOR.x} ${REACTOR.y})">
+<g transform="translate(${REACTOR.x} ${REACTOR.y})">
 ${hud.orbit}
 ${core.svg}
 ${lock.map(p => p.svg).join('\n')}
 ${MOTES.svg}
-</g></g>
+</g>
 ${room.front}
 </svg>`
 }

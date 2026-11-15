@@ -33,9 +33,8 @@ function wall(): string {
 const CONE = `<polygon points="82,770 94,770 404,356 88,356" fill="url(#cone)"/>`
 
 // The reactor's light pooled on the floor below it: cyan at work, gold when it calls.
-// The scene hides it (class "pool") wherever the reactor moves off its spot.
 const pool = (live: boolean) =>
-  `<ellipse class="pool" cx="${REACTOR.x}" cy="${HORIZON + 46}" rx="330" ry="38" fill="url(#${live ? 'poolCyan' : 'poolGold'})"/>`
+  `<ellipse cx="${REACTOR.x}" cy="${HORIZON + 46}" rx="330" ry="38" fill="url(#${live ? 'poolCyan' : 'poolGold'})"/>`
 
 // The scan line and the soft wash trailing it, at the horizon; the keyframes carry it down.
 const SCAN =
