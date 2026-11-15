@@ -3,10 +3,6 @@
 // The moon, low in the right third, clear of the chat column (about x 440 to 1160).
 export const MOON = { x: 1365, y: 470, r: 225 }
 
-// In a tall, narrow box the slice crop keeps only the middle, so the moon moves up and
-// in, above where the messages sit. A media rule in the scene's style applies it.
-export const MOON_TALL = { dx: -430, dy: -230 }
-
 // The gate on the hill in front of the moon: its foot and the top of its upper beam.
 export const GATE = { x: 1385, ground: 905, top: 668, span: 200 }
 

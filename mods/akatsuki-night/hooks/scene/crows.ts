@@ -42,7 +42,7 @@ export function perched(perches: Point[], leave?: number): { css: string; animat
     .join('')
   if (leave === undefined) return { css: '', animated: [], svg: `<g fill="${BODY}" ${RIM}>${svg}</g>` }
   return {
-    css: `.perch{animation:perch .2s linear ${leave}s forwards}@keyframes perch{to{opacity:0}}`,
+    css: `.perch{animation:perch .2s linear ${leave}s both}@keyframes perch{to{opacity:0}}`,
     animated: ['.perch'],
     svg: `<g class="perch" fill="${BODY}" ${RIM}>${svg}</g>`,
   }

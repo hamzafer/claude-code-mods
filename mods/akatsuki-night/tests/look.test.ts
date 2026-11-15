@@ -218,3 +218,34 @@ test('each scene has one reduced-motion rule, naming every animated class', asyn
     expect(rule).toContain('.cnear')
   }
 })
+
+// `css` with every `@keyframes` block cut out, braces matched.
+function outsideKeyframes(css: string): string {
+  let out = ''
+  for (let n = 0; n < css.length; ) {
+    if (!css.startsWith('@keyframes', n)) { out += css[n++]; continue }
+    let depth = 0
+    for (n = css.indexOf('{', n); n < css.length; n++) {
+      if (css[n] === '{') depth++
+      if (css[n] === '}' && --depth === 0) { n++; break }
+    }
+  }
+  return out
+}
+
+test('the stylesheet stays inside what the desktop app animates', async ($, on) => {
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  const ui = await $.ui.mount(BACKDROP)
+  const svg = async () => ((await ui.find({ type: 'Svg' })) as any).props.source as string
+  const working = await svg()
+  await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
+  await done($, 't1')
+  for (const scene of [working, await svg()]) {
+    const css = /<style>([\s\S]*?)<\/style>/.exec(scene)![1]!
+    expect(css.split('@media').length).toBe(2)
+    for (const word of ['forwards', 'backwards', 'cubic-bezier']) expect(css).not.toContain(word)
+    for (const [call] of css.matchAll(/steps\([^)]*\)/g)) expect(call).toBe('steps(1)')
+    expect(outsideKeyframes(css)).not.toMatch(/(^|[;{\s])transform\s*:/)
+  }
+})

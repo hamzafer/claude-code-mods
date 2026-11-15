@@ -3,7 +3,7 @@
 // vanish into a three-blade pinwheel that locks and throbs, and the moon brightens.
 // Every glow is the moon's own: nothing here covers the whole scene.
 
-import { MOON, MOON_TALL } from './layout.js'
+import { MOON } from './layout.js'
 
 // One comma mark: a round head at 0,0 (radius 1) and a tail sweeping back along the ring.
 const COMMA = 'M0,-1 A1,1 0 1,1 -0.85,0.53 C-1.3,1.05 -2.4,1.2 -3.4,0.9 C-2.5,0.75 -1.6,0.15 -0.95,-0.3 A1,1 0 0,1 0,-1 Z'
@@ -66,16 +66,16 @@ const PUPIL = `<circle r="${RING}" fill="none" stroke="${DARK}" stroke-opacity="
 export type Moon = { defs: string; css: string; animated: string[]; still: string; svg: string }
 
 // `spin` is how long, in seconds, the marks spin up before the pinwheel locks (lit only).
+// Every end state is the markup's own resting pose; animations only fade layers (opacity,
+// held with `both`) or move something that rests where it ends, so no fill mode holds a move.
 export function moon(lit: boolean, spin: number): Moon {
-  const tall = `@media (max-aspect-ratio: 1/1) { .moon { transform: translate(${MOON_TALL.dx}px, ${MOON_TALL.dy}px); } }`
   const place = (inner: string) =>
-    `<g class="moon"><g transform="translate(${MOON.x} ${MOON.y})">${inner}</g></g>`
+    `<g class="moon" transform="translate(${MOON.x} ${MOON.y})">${inner}</g>`
 
   if (!lit) {
     return {
       defs: DEFS,
       css:
-        tall +
         '.think{animation:think 15s ease-in-out infinite}' +
         '@keyframes think{0%{transform:rotate(0deg)}30%,33.3%{transform:rotate(120deg)}63.3%,66.6%{transform:rotate(240deg)}96.6%,100%{transform:rotate(360deg)}}',
       animated: ['.think'],
@@ -84,26 +84,35 @@ export function moon(lit: boolean, spin: number): Moon {
     }
   }
 
+  const lit0 = (spin - 0.3).toFixed(2)
+  const lock = (spin - 0.15).toFixed(2)
+  const throb = (spin + 0.6).toFixed(2)
   return {
     defs: DEFS,
     css:
-      tall +
-      `.spinup{animation:spinup ${spin}s ease-in 1 forwards}` +
-      '@keyframes spinup{0%{transform:rotate(0deg);opacity:1}80%{transform:rotate(1080deg);opacity:1}100%{transform:rotate(1440deg);opacity:0}}' +
-      `.bright{opacity:0;animation:brighten 1.2s ease-out ${spin - 0.3}s forwards}` +
-      '@keyframes brighten{to{opacity:1}}' +
-      `.wheel{opacity:0;animation:lock .7s ease-out ${spin - 0.15}s forwards,throb 2.4s ease-in-out ${spin + 0.6}s infinite}` +
-      '@keyframes lock{0%{opacity:0;transform:rotate(-90deg)}100%{opacity:1;transform:rotate(0deg)}}' +
+      // The marks spin fast on an inner group while the outer one fades them out for good.
+      '.spinturn{animation:spinturn .45s linear infinite}' +
+      '@keyframes spinturn{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}' +
+      `.spinup{animation:spinout ${spin}s ease-in both}` +
+      '@keyframes spinout{0%,80%{opacity:1}100%{opacity:0}}' +
+      `.bright{animation:fadein 1.2s ease-out ${lit0}s both}` +
+      '@keyframes fadein{from{opacity:0}to{opacity:1}}' +
+      // The pinwheel rests locked: it fades in, then throbs; its quarter turn is on the inner group.
+      `.wheel{animation:fadein .7s ease-out ${lock}s both,throb 2.4s ease-in-out ${throb}s infinite}` +
+      `.lock{animation:lock .7s ease-out ${lock}s}` +
+      '@keyframes lock{from{transform:rotate(-90deg)}}' +
       '@keyframes throb{0%,100%{opacity:1}50%{opacity:.72}}' +
-      `.corona{opacity:0;animation:corona 2.4s ease-in-out ${spin + 0.6}s infinite}` +
+      `.corona{animation:coronain 1.2s ease-out ${lit0}s both,corona 2.4s ease-in-out ${throb}s infinite}` +
+      '@keyframes coronain{from{opacity:0}to{opacity:.35}}' +
       '@keyframes corona{0%,100%{opacity:.35}50%{opacity:1}}',
-    animated: ['.spinup', '.bright', '.wheel', '.corona'],
+    animated: ['.spinturn', '.spinup', '.bright', '.wheel', '.lock', '.corona'],
     // With reduced motion the scene shows where the opening ends: bright, the pinwheel locked.
-    still: '.spinup { opacity: 0; } .bright, .wheel, .corona { opacity: 1; }',
+    still: '.spinup { opacity: 0; }',
     svg: place(
       `${HAZE}<circle class="corona" r="${R * 1.45}" fill="url(#corona)"/>${FACE}` +
         `<circle class="bright" r="${R}" fill="url(#moonlit)"/>` +
-        `<g fill="${DARK}">${PUPIL}<g class="spinup">${commas}</g><g class="wheel">${blades}</g></g>`,
+        `<g fill="${DARK}">${PUPIL}<g class="spinup"><g class="spinturn">${commas}</g></g>` +
+        `<g class="wheel"><g class="lock">${blades}</g></g></g>`,
     ),
   }
 }
