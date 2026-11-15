@@ -1,6 +1,6 @@
 // The backdrop for a signal state: code rain while Claude works; when it needs you, the
 // rain slows to a crawl and dims, a few columns stop where they are, and it parts for a
-// prompt typed out in the upper right (top centre in a tall window), its cursor
+// prompt typed out in the upper right, its cursor
 // blinking until you answer.
 // Desktop draws it in a sandboxed frame; CSS animation only, no script.
 

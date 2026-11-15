@@ -1,8 +1,7 @@
 // The rain: columns of glyphs falling in three depths. Far columns are small, dim and
 // slow; near ones large, bright and quick. Each has a hot head and a tail that fades
 // upward, and a glyph or two that keeps changing. Thick at the edges, thin and faint
-// through the chat column (fuller there in a tall window, where the centre is all that
-// shows). Pure: the columns are laid out once from a fixed seed, and a burst seed only
+// through the chat column. Pure: the columns are laid out once from a fixed seed, and a burst seed only
 // picks which of them hold still while Claude waits.
 //
 // Desktop limit: each column moves as one group, by translate keyframes with linear
@@ -10,7 +9,7 @@
 // cubic-bezier, no fill-mode on anything that moves.
 
 import { FONT, glyph } from './glyphs.js'
-import { CHAT, PROMPT, TALL, parting } from './layout.js'
+import { CHAT, PROMPT, parting } from './layout.js'
 import type { Part } from './part.js'
 import { seeded, type Random } from './random.js'
 
@@ -102,20 +101,14 @@ const COLUMNS = columns(1999)
 
 // How the rain falls: `pace` stretches every fall (1 while working), `dim` scales every
 // depth's brightness, `hold` columns stop where they are, and with `parts` the mid and
-// near rain parts around the prompt, wherever the window puts it.
+// near rain parts around the prompt.
 export type Weather = { pace: number; dim: number; hold: number; parts: boolean }
 
-// Each layout's parting, and the class that hides a column there: a column in the wide
-// parting shows only in a tall window, one in the tall parting only in a wide window.
-const PARTINGS = [
-  { range: parting(PROMPT.wide), cls: 'pw' },
-  { range: parting(PROMPT.tall), cls: 'pt' },
-]
+const PARTING = parting(PROMPT.at)
 
-// The parting class a column takes, if it falls in one.
-function parted(c: Column, weather: Weather): string | undefined {
-  if (!weather.parts || c.layer === 0) return undefined
-  return PARTINGS.find(p => c.x >= p.range[0] && c.x <= p.range[1])?.cls
+// A mid or near column inside the parting is left out, so the rain opens around the prompt.
+function parted(c: Column, weather: Weather): boolean {
+  return weather.parts && c.layer > 0 && c.x >= PARTING[0] && c.x <= PARTING[1]
 }
 
 const n = (v: number) => Math.round(v)
@@ -164,9 +157,8 @@ function falling(c: Column, weather: Weather): string {
   const from = top(LAYERS[c.layer]!)
   const rest = n(from + c.lead * (BOTTOM - from))
   const style = `animation-duration:${fall.toFixed(2)}s;animation-delay:-${(c.lead * fall).toFixed(2)}s;transform:translateY(${rest}px)`
-  const cls = parted(c, weather)
   return (
-    `<g transform="translate(${c.x} 0)" font-size="${c.size}"${cls === undefined ? '' : ` class="${cls}"`}>` +
+    `<g transform="translate(${c.x} 0)" font-size="${c.size}">` +
     `<g class="f${c.layer}" style="${style}">${draw(c, true, weather.pace)}</g></g>`
   )
 }
@@ -181,12 +173,12 @@ function keyframes(layer: Layer, index: number): string {
 export function rain(seed: number, weather: Weather): Part {
   const r = seeded(seed)
   // Only mid and near columns at the edges hold, and never one where the rain parts.
-  const holdable = COLUMNS.filter(c => c.layer > 0 && !c.inner && parted(c, weather) === undefined)
+  const holdable = COLUMNS.filter(c => c.layer > 0 && !c.inner && !parted(c, weather))
   const stopped = new Set<Column>()
   while (stopped.size < Math.min(weather.hold, holdable.length)) stopped.add(holdable[Math.floor(r.next() * holdable.length)]!)
 
   const depths = LAYERS.map((layer, index) => {
-    const falls = COLUMNS.filter(c => c.layer === index && !stopped.has(c))
+    const falls = COLUMNS.filter(c => c.layer === index && !stopped.has(c) && !parted(c, weather))
     const edges = falls.filter(c => !c.inner).map(c => falling(c, weather)).join('')
     const centre = falls.filter(c => c.inner).map(c => falling(c, weather)).join('')
     const still = COLUMNS.filter(c => c.layer === index && stopped.has(c)).map(c => held(c, r)).join('')
@@ -210,8 +202,7 @@ export function rain(seed: number, weather: Weather): Part {
       LAYERS.map(keyframes).join('') +
       '.fa{animation:fa 2s steps(1) infinite}.fb{animation:fb 2s steps(1) infinite}' +
       '@keyframes fa{0%{opacity:1}50%{opacity:0}}@keyframes fb{0%{opacity:0}50%{opacity:1}}' +
-      `.inner{opacity:.3}.pw{display:none}` +
-      `@media ${TALL}{.inner{opacity:1}.pw{display:inline}.pt{display:none}}`,
+      '.inner{opacity:.3}',
     animated: [...LAYERS.map((_, index) => `.f${index}`), '.fa', '.fb'],
     still: '.fb{display:none}',
     svg: `<g font-family="${FONT}" text-anchor="middle" fill="#3fd26f">${depths}</g>`,

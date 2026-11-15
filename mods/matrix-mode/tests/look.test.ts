@@ -121,6 +121,41 @@ function fullSizeMovers(svg: string, animated: Set<string>): string[] {
   return found
 }
 
+// The text of every rule block that sits outside an @keyframes block, found by brace
+// matching: each top-level block is kept unless it is @keyframes, and @media is entered.
+function rulesOutsideKeyframes(css: string): string[] {
+  const found: string[] = []
+  const walk = (text: string) => {
+    let i = 0
+    while (i < text.length) {
+      const open = text.indexOf('{', i)
+      if (open < 0) break
+      let depth = 1
+      let j = open + 1
+      while (j < text.length && depth > 0) depth += text[j] === '{' ? 1 : text[j] === '}' ? -1 : 0, j++
+      const head = text.slice(i, open).trim()
+      const body = text.slice(open + 1, j - 1)
+      if (head.startsWith('@keyframes')) { /* skipped */ }
+      else if (head.startsWith('@media')) walk(body)
+      else found.push(body)
+      i = j
+    }
+  }
+  walk(css)
+  return found
+}
+
+test('the stylesheet stays inside what the desktop app animates', () => {
+  for (const scene of [sceneFor({ mode: 'working' }), sceneFor({ mode: 'waiting', burst: 5 })]) {
+    const css = /<style>([\s\S]*?)<\/style>/.exec(scene)![1]!
+    expect(css.split('@media').length).toBe(2)
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)')
+    for (const word of ['forwards', 'backwards', 'cubic-bezier']) expect(css).not.toContain(word)
+    for (const [steps] of css.matchAll(/steps\([^)]*\)/g)) expect(steps).toBe('steps(1)')
+    for (const body of rulesOutsideKeyframes(css)) expect(body).not.toContain('transform:')
+  }
+})
+
 test('the same burst draws the same scene, built fresh', () => {
   const five = sceneFor({ mode: 'waiting', burst: 5 })
   const six = sceneFor({ mode: 'waiting', burst: 6 })
