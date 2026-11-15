@@ -1,6 +1,7 @@
 // The hooks every theme shares: each turns a Claude Code event into a signal event, and
 // the Backdrop hook draws the theme's scene for the current signal. All state logic
-// lives in state.ts; the theme's own parts are look.ts and scene/.
+// lives in state.ts. The theme's own parts are look.ts (LOOK, SCENE_NAME, UNPAINTABLE)
+// and scene/index.ts (sceneFor, altFor).
 //
 // A copy of shared/theme/register.tsx: change it there, then copy it over again and
 // put the mod's name back in the atom.
