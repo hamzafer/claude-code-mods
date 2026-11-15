@@ -50,8 +50,9 @@ const ARC: Point[] = [
 const VOYAGE_S = 150
 const VOYAGE_LEAD = 82
 
-// Still, the ship rests here: aloft on its arc, left of the chat column.
-const PARKED = 2
+// Still, the ship rests here: at the top of its arc, above the chat. The tall rule moves
+// it left with the hole, and from here it stays in view in a window of any shape.
+const PARKED = 3
 
 // A point on the arc, as a translate from the hole the ship is drawn at.
 const at = ([x, y]: Point) => `translate(${x - HOLE.x}px,${y - HOLE.y}px)`
