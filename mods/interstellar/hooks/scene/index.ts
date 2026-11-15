@@ -6,7 +6,7 @@
 
 import type { Signal } from '../../types'
 import { hole } from './hole.js'
-import { HOLE, TALL } from './layout.js'
+import { HOLE } from './layout.js'
 import { meteors } from './meteors.js'
 import type { Part } from './part.js'
 import { planet } from './planet.js'
@@ -15,9 +15,6 @@ import { stars } from './stars.js'
 
 const SKY = stars(7)
 const PLANET = planet()
-
-const shift = ({ x, y }: { x: number; y: number }) => `transform:translate(${x}px,${y}px)`
-const TALL_RULE = `@media (max-aspect-ratio: 1/1){.subject{${shift(TALL.subject)}}.world{${shift(TALL.world)}}}`
 
 function build(parts: { hole: Part; ship: Part; meteors?: Part }): string {
   const all = [SKY, PLANET, parts.hole, parts.ship, ...(parts.meteors ? [parts.meteors] : [])]
@@ -32,7 +29,6 @@ function build(parts: { hole: Part; ship: Part; meteors?: Part }): string {
 </defs>
 <style>
   ${all.map(p => p.css).join('')}
-  ${TALL_RULE}
   @media (prefers-reduced-motion: reduce) {
     ${animated.join(', ')} { animation: none; }
     ${all.map(p => p.still).join('')}
@@ -40,8 +36,8 @@ function build(parts: { hole: Part; ship: Part; meteors?: Part }): string {
 </style>
 <rect width="1600" height="1000" fill="url(#space)"/>
 ${SKY.svg}
-<g class="world">${PLANET.svg}</g>
-<g class="subject"><g transform="translate(${HOLE.x} ${HOLE.y})">${parts.hole.svg}${parts.ship.svg}</g></g>
+${PLANET.svg}
+<g transform="translate(${HOLE.x} ${HOLE.y})">${parts.hole.svg}${parts.ship.svg}</g>
 ${parts.meteors?.svg ?? ''}
 </svg>`
 }

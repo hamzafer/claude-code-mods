@@ -5,9 +5,9 @@
 // Both are drawn relative to the hole, so the scene can move the two together.
 //
 // Desktop limit: the voyage moves with translate keyframes and linear easing only; the
-// spin's rotate and the rings' scale each sit on an element that does not also move.
+// spin's rotate sits on an element that does not also move, and the rings only fade.
 
-import { HOLE, STATION, TALL } from './layout.js'
+import { HOLE, STATION } from './layout.js'
 import type { Part } from './part.js'
 
 type Point = [number, number]
@@ -50,12 +50,13 @@ const ARC: Point[] = [
 const VOYAGE_S = 150
 const VOYAGE_LEAD = 82
 
-// Still, the ship rests here: at the top of its arc, above the chat. The tall rule moves
-// it left with the hole, and from here it stays in view in a window of any shape.
+// Still, the ship rests here: at the top of its arc, above the chat. It is the ship's
+// markup position; the voyage moves it from there.
 const PARKED = 3
 
 // A point on the arc, as a translate from the hole the ship is drawn at.
 const at = ([x, y]: Point) => `translate(${x - HOLE.x}px,${y - HOLE.y}px)`
+const parked = `translate(${ARC[PARKED]![0] - HOLE.x} ${ARC[PARKED]![1] - HOLE.y})`
 
 function voyageKeyframes(): string {
   const last = ARC.length - 1
@@ -87,34 +88,33 @@ export function voyage(): Part {
       `.voyage{opacity:0;animation:voyage ${VOYAGE_S}s linear -${VOYAGE_LEAD}s infinite;will-change:transform}` +
       voyageKeyframes(),
     animated: ['.spin', '.voyage'],
-    still: `.voyage{transform:${at(ARC[PARKED]!)};opacity:1}`,
-    svg: `<g class="voyage"><ellipse cx="-14" cy="5" rx="14" ry="7" fill="url(#engine)"/>${craft(9)}</g>`,
+    still: '.voyage{opacity:1}',
+    svg: `<g class="voyage" transform="${parked}"><ellipse cx="-14" cy="5" rx="14" ry="7" fill="url(#engine)"/>${craft(9)}</g>`,
   }
 }
 
-// Seconds between one ring of signal and the next; the beacon blinks with each.
+// Seconds between one pulse of signal and the next; the beacon blinks with each.
 const PING_S = 2.2
-const RINGS = 3
+// Each pulse lights rings of growing radius one after another, a beat apart.
+const RINGS = [40, 68, 104, 150]
+const BEAT_S = 0.32
 
 export function station(): Part {
   let rings = ''
-  for (let n = 0; n < RINGS; n++) {
-    rings += `<circle class="ping p${n}" r="170" style="animation-delay:${(n * PING_S).toFixed(1)}s"/>`
-  }
+  RINGS.forEach((r, n) => {
+    rings += `<circle class="ping p${n}" r="${r}" fill="none" stroke="#ffd590" stroke-width="2.4" style="animation-delay:${(n * BEAT_S).toFixed(2)}s"/>`
+  })
   return {
     defs: DEFS,
     css:
       SPIN_CSS +
-      `.ping{opacity:0;fill:none;stroke:#ffd590;stroke-width:2.4;vector-effect:non-scaling-stroke;transform-origin:0 0;` +
-      `animation:ping ${(PING_S * RINGS).toFixed(1)}s ease-out infinite}` +
-      '@keyframes ping{0%{transform:scale(.08);opacity:0}6%{opacity:.6}100%{transform:scale(1);opacity:0}}' +
+      `.ping{opacity:0;animation:ping ${PING_S}s ease-out infinite}` +
+      '@keyframes ping{0%{opacity:0}10%{opacity:.6}38%{opacity:0}100%{opacity:0}}' +
       `.beacon{animation:beacon ${PING_S}s steps(1) infinite}` +
-      '@keyframes beacon{0%{opacity:1}7%{opacity:.12}13%{opacity:1}20%,100%{opacity:.08}}' +
-      // In a tall window the chat takes nearly the whole width: smaller rings keep above it.
-      `@media (max-aspect-ratio: 1/1){.pings{transform:scale(${TALL.rings})}}`,
+      '@keyframes beacon{0%{opacity:1}7%{opacity:.12}13%{opacity:1}20%,100%{opacity:.08}}',
     animated: ['.spin', '.ping', '.beacon'],
     // Still, one faint ring stays round the ship and the beacon stays lit.
-    still: '.ping.p0{transform:scale(.4);opacity:.35}',
+    still: '.ping.p1{opacity:.35}',
     svg:
       `<g class="hail" transform="translate(${STATION.x - HOLE.x} ${STATION.y - HOLE.y})">` +
       `<g class="pings">${rings}</g>` +

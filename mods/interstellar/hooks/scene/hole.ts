@@ -17,17 +17,24 @@ const DIP = 9
 const SHADOW = 62
 
 // The lensed arcs: the far side of the disc, bent over the top and, smaller, under the bottom.
-// Each fills with a glow that fades out before its outer edge, so no rim shows.
-const ARC_TOP = `M-175,0 A175,205 0 0 1 175,0 L${SHADOW + 5},0 A${SHADOW + 5},${SHADOW + 5} 0 0 0 -${SHADOW + 5},0 Z`
-const ARC_BOTTOM = `M-130,0 A130,125 0 0 0 130,0 L${SHADOW + 4},0 A${SHADOW + 4},${SHADOW + 4} 0 0 1 -${SHADOW + 4},0 Z`
+// Each fills with a glow that fades out before its outer edge, so no rim shows. A glow is
+// stretched upright by `tall`, so an arc is thickest straight over the shadow and thins
+// toward the disc at its sides: the path is drawn squashed by that much and its group
+// stretched back, which stretches the glow with it.
+const arc = (rx: number, ry: number, tall: number, over: boolean): string => {
+  const inner = SHADOW + (over ? 5 : 4)
+  const outer = over ? 1 : 0
+  const y = (v: number) => (v / tall).toFixed(2)
+  return `M-${rx},0 A${rx},${y(ry)} 0 0 ${outer} ${rx},0 L${inner},0 A${inner},${y(inner)} 0 0 ${1 - outer} -${inner},0 Z`
+}
+const TOP = { tall: 1.25, path: arc(175, 205, 1.25, true) }
+const LOW = { tall: 1.02, path: arc(130, 125, 1.02, false) }
 
 // The lensed glow: white-hot at the shadow's edge, through amber, to nothing at `r` across.
-// `tall` stretches it upright, so an arc is thickest straight over the shadow and thins
-// toward the disc at its sides.
-function lens(id: string, r: number, tall: number): string {
+function lens(id: string, r: number): string {
   const at = (d: number) => (d / r).toFixed(3)
   return (
-    `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="${r}" gradientTransform="scale(1 ${tall})">` +
+    `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="${r}">` +
     `<stop offset="${at(SHADOW + 4)}" stop-color="#fffaf0"/><stop offset="${at(SHADOW + 18)}" stop-color="#ffe0a4" stop-opacity="0.95"/>` +
     `<stop offset="${at(SHADOW + 28)}" stop-color="#f0a24a" stop-opacity="0.42"/><stop offset="${at(SHADOW + 52)}" stop-color="#a05418" stop-opacity="0.1"/>` +
     '<stop offset="1" stop-color="#5a2c0c" stop-opacity="0"/></radialGradient>'
@@ -35,10 +42,12 @@ function lens(id: string, r: number, tall: number): string {
 }
 
 // Where a knot is, `share` of the way along the near side: a point on the front of the ellipse.
-function along(share: number): string {
+function spot(share: number): [number, string] {
   const t = share * Math.PI
-  return `translate(${Math.round(-Math.cos(t) * (REACH - 50))}px,${(Math.sin(t) * DIP).toFixed(1)}px)`
+  return [Math.round(-Math.cos(t) * (REACH - 50)), (Math.sin(t) * DIP).toFixed(1)]
 }
+const along = (share: number) => `translate(${spot(share)[0]}px,${spot(share)[1]}px)`
+const rest = (share: number) => `translate(${spot(share)[0]} ${spot(share)[1]})`
 
 // A knot rides the near side from one end to the other, brightest on the side coming toward you.
 function knotKeyframes(name: string): string {
@@ -60,26 +69,26 @@ const KNOTS = [
   { len: 38, every: 23, lead: 4 },
 ]
 
-// Still, each knot rests where the scene would have opened it, spread along the disc.
+// Still, each knot rests where its markup puts it, spread along the disc; the orbit moves it from there.
 function knots(): { css: string; still: string; svg: string } {
   let css = '.knot{opacity:0}' + knotKeyframes('orbit')
   let still = ''
   let svg = ''
   KNOTS.forEach((k, n) => {
     css += `.kn${n}{animation:orbit ${k.every}s linear -${k.lead}s infinite}`
-    still += `.kn${n}{transform:${along(0.1 + 0.8 * (n / (KNOTS.length - 1)))};opacity:.75}`
-    svg += `<g class="knot kn${n}"><ellipse rx="${k.len}" ry="1.6" fill="url(#streak)"/></g>`
+    still += `.kn${n}{opacity:.75}`
+    svg += `<g class="knot kn${n}" transform="${rest(0.1 + 0.8 * (n / (KNOTS.length - 1)))}"><ellipse rx="${k.len}" ry="1.6" fill="url(#streak)"/></g>`
   })
   return { css, still, svg }
 }
 
-// The lensed light turning: broken rings, clipped to the arcs, rotating about the shadow.
+// The lensed light turning: broken rings, all within the arcs, rotating about the shadow.
 const SWIRL =
-  `<g clip-path="url(#lensed)"><g class="swirl">` +
+  `<g class="swirl">` +
   `<circle r="84" fill="none" stroke="#fff0d0" stroke-width="1.6" stroke-dasharray="60 14 22 40 90 20" opacity="0.22"/>` +
   `<circle r="103" fill="none" stroke="#ffd08a" stroke-width="1.2" stroke-dasharray="24 30 70 16 14 44" opacity="0.16"/>` +
   `<circle r="124" fill="none" stroke="#e8a050" stroke-width="1.4" stroke-dasharray="80 50 30 60" opacity="0.1"/>` +
-  `</g></g>`
+  `</g>`
 
 export function hole(hailing: boolean): Part {
   const k = knots()
@@ -90,8 +99,8 @@ export function hole(hailing: boolean): Part {
     '<stop offset="0.35" stop-color="#b8681e" stop-opacity="0.08"/><stop offset="1" stop-color="#5a3010" stop-opacity="0"/></radialGradient>' +
     '<radialGradient id="haze"><stop offset="0" stop-color="#ffc678" stop-opacity="0.38"/>' +
     '<stop offset="0.45" stop-color="#c06a20" stop-opacity="0.12"/><stop offset="1" stop-color="#6a3410" stop-opacity="0"/></radialGradient>' +
-    lens('lensTop', 160, 1.25) +
-    lens('lensLow', 118, 1.02) +
+    lens('lensTop', 160) +
+    lens('lensLow', 118) +
     '<linearGradient id="streak" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff6e0" stop-opacity="0"/>' +
     '<stop offset="0.5" stop-color="#fff6e0"/><stop offset="1" stop-color="#fff6e0" stop-opacity="0"/></linearGradient>' +
     '<linearGradient id="disc" x1="0" y1="0" x2="1" y2="0">' +
@@ -103,8 +112,7 @@ export function hole(hailing: boolean): Part {
     '<stop offset="0" stop-color="#fffaf0" stop-opacity="0"/><stop offset="0.3" stop-color="#fffaf0" stop-opacity="0.9"/>' +
     '<stop offset="0.7" stop-color="#fffaf0" stop-opacity="0.7"/><stop offset="1" stop-color="#fffaf0" stop-opacity="0"/></linearGradient>' +
     `<radialGradient id="flareRing" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="${SHADOW + 21}">` +
-    `<stop offset="${(SHADOW / (SHADOW + 21)).toFixed(3)}" stop-color="#fff4d8"/><stop offset="1" stop-color="#ffc870" stop-opacity="0"/></radialGradient>` +
-    `<clipPath id="lensed"><path d="${ARC_TOP} ${ARC_BOTTOM}"/></clipPath>`
+    `<stop offset="${(SHADOW / (SHADOW + 21)).toFixed(3)}" stop-color="#fff4d8"/><stop offset="1" stop-color="#ffc870" stop-opacity="0"/></radialGradient>`
 
   // The photon ring: a hairline, and when hailing a hotter one with a pulsing halo.
   const ring = hailing
@@ -129,8 +137,8 @@ export function hole(hailing: boolean): Part {
       `<circle r="620" fill="url(#holeGlow)" opacity="${hailing ? 1 : 0.75}"/>` +
       `<g transform="rotate(${TILT})">` +
       `<ellipse rx="560" ry="86" fill="url(#haze)"/>` +
-      `<path d="${ARC_TOP}" fill="url(#lensTop)"/>` +
-      `<path d="${ARC_BOTTOM}" fill="url(#lensLow)" opacity="0.85"/>` +
+      `<g transform="scale(1 ${TOP.tall})"><path d="${TOP.path}" fill="url(#lensTop)"/></g>` +
+      `<g transform="scale(1 ${LOW.tall})" opacity="0.85"><path d="${LOW.path}" fill="url(#lensLow)"/></g>` +
       SWIRL +
       `<circle r="${SHADOW}" fill="#000"/>` +
       ring +

@@ -119,13 +119,43 @@ test('with reduced motion the sky stills but stays whole: only the shooting star
   const still = (scene: string) => scene.slice(scene.indexOf('@media (prefers-reduced-motion'), scene.indexOf('</style>'))
   const working = still(await svg())
   // The ship rests on its arc and the knots on the disc, all in view
-  expect(working).toMatch(/\.voyage\{transform:translate\([^)]*\);opacity:1\}/)
-  expect(working).toMatch(/\.kn0\{transform:translate\([^)]*\);opacity:\.75\}/)
+  expect(working).toContain('.voyage{opacity:1}')
+  expect(working).toContain('.kn0{opacity:.75}')
   expect(working).not.toContain('display:none')
   await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
   await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
   const hailing = still(await svg())
   // One faint ring stays round the hailing ship; the shooting stars are hidden
-  expect(hailing).toContain('.ping.p0{transform:scale(.4);opacity:.35}')
+  expect(hailing).toContain('.ping.p1{opacity:.35}')
   expect(hailing).toContain('.meteor{display:none}')
+})
+
+test('the stylesheet stays inside what the desktop app animates', async ($, on) => {
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  const ui = await $.ui.mount(BACKDROP)
+  const svg = async () => ((await ui.find({ type: 'Svg' })) as any).props.source as string
+  const working = await svg()
+  await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
+  await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
+  // Everything in the stylesheet outside @keyframes blocks, found by brace matching.
+  const outsideKeyframes = (css: string) => {
+    let out = ''
+    for (let i = 0; i < css.length; ) {
+      if (css.startsWith('@keyframes', i)) {
+        let depth = 0
+        do { depth += css[i] === '{' ? 1 : css[i] === '}' ? -1 : 0; i++ } while (depth > 0 || css[i - 1] !== '}')
+      } else out += css[i++]
+    }
+    return out
+  }
+  for (const scene of [working, await svg()]) {
+    const css = scene.slice(scene.indexOf('<style>'), scene.indexOf('</style>'))
+    expect(css.split('@media').length).toBe(2)
+    for (const word of ['forwards', 'backwards', 'cubic-bezier', 'vector-effect', 'clip-path', 'clipPath', 'gradientTransform']) {
+      expect(scene).not.toContain(word)
+    }
+    for (const call of css.match(/steps\([^)]*\)/g) ?? []) expect(call).toBe('steps(1)')
+    expect(outsideKeyframes(css)).not.toContain('transform:')
+  }
 })
