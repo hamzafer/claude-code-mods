@@ -60,7 +60,7 @@ These are built around my own tools and rules. Fork them and change the rules to
 
 ### 🎨 Themes (Desktop app)
 
-Themes change how the Desktop app's Code tab looks. They apply as soon as they're installed.
+Themes change how the Desktop app's Code tab looks. They apply as soon as they're installed. Turn on one theme at a time: each one sets the whole look, so with two the one that loads last wins.
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
