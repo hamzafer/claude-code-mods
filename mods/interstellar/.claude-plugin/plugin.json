@@ -1,0 +1,10 @@
+{
+  "name": "interstellar",
+  "version": "0.1.0",
+  "description": "An Interstellar theme for the Claude Code Desktop app: a black hole turns while Claude works, and a ship lights its beacon when it needs you.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts"
+}
