@@ -1,3 +1,5 @@
+// A copy of shared/theme/state.ts: change it there, then copy it over again.
+//
 // The signal's state machine, pure: the hooks turn Claude Code's events into these
 // events, and every change of state goes through transition().
 //
@@ -21,11 +23,12 @@ export type SignalEvent =
 const WORKING: Signal = { mode: 'working' }
 
 // Where a session starts. In Desktop the mod loads with your first message, so the
-// first thing that happens is a turn: starting lit would flash the signal before the
-// beams. The state survives a reload of the mod, so a reload mid-turn changes nothing.
+// first thing that happens is a turn: starting lit would flash the needs-you scene
+// before the working one. The state survives a reload of the mod, so a reload mid-turn
+// changes nothing.
 export const INITIAL: Signal = WORKING
 
-// Light the signal. Already lit keeps its burst, so a repeat doesn't replay the bats.
+// Light the signal. Already lit keeps its burst, so a repeat doesn't replay the scene's opening.
 function light(state: Signal, seed: number): Signal {
   return state.mode === 'waiting' ? state : { mode: 'waiting', burst: seed }
 }

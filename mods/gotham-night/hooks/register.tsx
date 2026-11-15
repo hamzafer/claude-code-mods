@@ -1,11 +1,15 @@
-// The hooks: each turns a Claude Code event into a signal event, and the Backdrop
-// hook draws the scene for the current signal. All state logic lives in state.ts.
+// The hooks every theme shares: each turns a Claude Code event into a signal event, and
+// the Backdrop hook draws the theme's scene for the current signal. All state logic
+// lives in state.ts; the theme's own parts are look.ts and scene/.
+//
+// A copy of shared/theme/register.tsx: change it there, then copy it over again and
+// put the mod's name back in the atom.
 
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import { LOOK, SCENE_NAME, UNPAINTABLE } from './look.js'
-import { sceneFor } from './scene/index.js'
+import { altFor, sceneFor } from './scene/index.js'
 import { INITIAL, transition, type SignalEvent } from './state.js'
 
 // How long a permission ask waits unanswered before the signal lights. Auto mode's
@@ -14,6 +18,8 @@ const ASK_DELAY_MS = 1500
 
 const seed = () => Math.floor(Math.random() * 2 ** 31)
 
+// Claude Code reads the plugin and key here as written, so this is the one line that
+// differs in each copy: '<theme>' becomes the mod's own name.
 const signal = atom({ plugin: 'gotham-night', key: 'signal' } as const, INITIAL)
 
 type Engine = Parameters<typeof read>[0]
@@ -81,15 +87,7 @@ export const register: Register = on => {
     const now = await read($, signal)
     const { Svg } = $.ui.resolve(e)
     return (
-      <Svg
-        source={sceneFor(now)}
-        alt={
-          now.mode === 'waiting'
-            ? 'A rainy city at night, a searchlight throwing a bat signal on the clouds: Claude needs you'
-            : 'A rainy city at night, searchlights sweeping the clouds: Claude is working'
-        }
-        isInteractive
-      />
+      <Svg source={sceneFor(now)} alt={altFor(now)} isInteractive />
     )
   })
 }

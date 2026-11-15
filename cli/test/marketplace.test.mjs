@@ -12,7 +12,7 @@ const CATEGORIES = [
   "My setup (fork and adapt)",
   "For fun",
 ];
-const TAGS = ["band", "pane", "statusline", "guard", "toast", "command"];
+const TAGS = ["band", "pane", "statusline", "guard", "toast", "command", "theme"];
 
 for (const p of plugins) {
   test(`${p.name}: category is one of the README groups`, () => {

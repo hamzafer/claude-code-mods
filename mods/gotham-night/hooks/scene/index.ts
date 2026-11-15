@@ -185,3 +185,10 @@ export function sceneFor(signal: Signal): string {
   if (lit?.burst !== signal.burst) lit = { burst: signal.burst, svg: build(true, flock(signal.burst, IGNITE)) }
   return lit.svg
 }
+
+// What a screen reader hears for the scene.
+export function altFor(signal: Signal): string {
+  return signal.mode === 'waiting'
+    ? 'A rainy city at night, a searchlight throwing a bat signal on the clouds: Claude needs you'
+    : 'A rainy city at night, searchlights sweeping the clouds: Claude is working'
+}

@@ -1,12 +1,14 @@
+// A copy of shared/theme/state.test.ts: change it there, then copy it over again.
+
 import { expect, test } from 'claude-code/testing'
 
 import { INITIAL, transition } from '../hooks/state.js'
 
-test('a session starts sweeping, so the first prompt never flashes the signal', () => {
+test('a session starts working, so the first prompt never flashes the signal', () => {
   expect(INITIAL).toEqual({ mode: 'working' })
 })
 
-test('a turn sweeps, its end lights the signal with a new burst', () => {
+test('a turn works, its end lights the signal with a new burst', () => {
   const working = transition(INITIAL, { type: 'turnStarted' })
   expect(working).toEqual({ mode: 'working' })
   expect(transition(working, { type: 'turnEnded', seed: 7 })).toEqual({ mode: 'waiting', burst: 7 })
