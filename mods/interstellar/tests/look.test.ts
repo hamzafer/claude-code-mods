@@ -73,9 +73,19 @@ test('no scene fades anything that covers the whole of it', async ($, on) => {
   const working = await svg()
   await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
   await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
-  // Desktop stops the whole scene for good once a full-size layer's opacity animates
+  // Desktop stops the whole scene for good once a full-size layer's opacity animates.
+  // The full-size layers are the background rect, which never animates, and the two
+  // star layers that drift: they may move, never fade.
   for (const scene of [working, await svg()]) {
     for (const rect of scene.match(/<rect width="1600" height="1000"[^>]*>/g) ?? []) expect(rect).not.toContain('class=')
+    for (const layer of ['driftA', 'driftB']) {
+      expect(scene).toContain(`<g class="${layer}">`)
+      const name = new RegExp(`\\.${layer}\\{animation:([\\w-]+)`).exec(scene)?.[1]
+      expect(name).toBeDefined()
+      const at = scene.indexOf(`@keyframes ${name}{`)
+      expect(at > -1).toBe(true)
+      expect(scene.slice(at, scene.indexOf('}}', at))).not.toContain('opacity')
+    }
     expect(scene).not.toContain('<script')
   }
 })
@@ -96,7 +106,26 @@ test('each scene has one reduced-motion rule, naming every part', async ($, on) 
   for (const [scene, classes] of parts) {
     expect(scene.split('@media (prefers-reduced-motion').length).toBe(2)
     const at = scene.indexOf('@media (prefers-reduced-motion')
-    const rule = scene.slice(at, scene.indexOf('}', at))
-    for (const cls of classes) expect(rule).toContain(cls)
+    const rule = scene.slice(at, scene.indexOf('</style>', at))
+    for (const cls of classes) expect(rule.slice(0, rule.indexOf('{ animation: none; }'))).toContain(cls)
   }
+})
+
+test('with reduced motion the sky stills but stays whole: only the shooting stars go', async ($, on) => {
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  const ui = await $.ui.mount(BACKDROP)
+  const svg = async () => ((await ui.find({ type: 'Svg' })) as any).props.source as string
+  const still = (scene: string) => scene.slice(scene.indexOf('@media (prefers-reduced-motion'), scene.indexOf('</style>'))
+  const working = still(await svg())
+  // The ship rests on its arc and the knots on the disc, all in view
+  expect(working).toMatch(/\.voyage\{transform:translate\([^)]*\);opacity:1\}/)
+  expect(working).toMatch(/\.kn0\{transform:translate\([^)]*\);opacity:\.75\}/)
+  expect(working).not.toContain('display:none')
+  await $.turn.start({ turnId: 't1', prompt: 'hi' } as any)
+  await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 5, isAborted: false, usage: null } as any)
+  const hailing = still(await svg())
+  // One faint ring stays round the hailing ship; the shooting stars are hidden
+  expect(hailing).toContain('.ping.p0{transform:scale(.4);opacity:.35}')
+  expect(hailing).toContain('.meteor{display:none}')
 })

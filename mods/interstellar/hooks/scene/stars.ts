@@ -95,6 +95,7 @@ export function stars(seed: number): Part {
       '.tw{animation:tw 4s ease-in-out infinite}' +
       '@keyframes tw{0%,100%{opacity:1}50%{opacity:.25}}',
     animated: ANIMATED,
+    still: '',
     svg: `${dust(r)}<g class="driftA">${far}</g><g class="driftB">${near}${twinkling}${glints}</g>`,
   }
 }

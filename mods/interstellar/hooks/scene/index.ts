@@ -6,7 +6,7 @@
 
 import type { Signal } from '../../types'
 import { hole } from './hole.js'
-import { HOLE } from './layout.js'
+import { HOLE, TALL } from './layout.js'
 import { meteors } from './meteors.js'
 import type { Part } from './part.js'
 import { planet } from './planet.js'
@@ -16,29 +16,26 @@ import { stars } from './stars.js'
 const SKY = stars(7)
 const PLANET = planet()
 
-// In a tall window the slice crop keeps the middle, which would lose the hole on the
-// right and the planet on the left: both move in toward the middle instead.
-const TALL =
-  '@media (max-aspect-ratio: 1/1){.subject{transform:translate(-300px,-25px)}.world{transform:translate(400px,0px)}}'
+const shift = ({ x, y }: { x: number; y: number }) => `transform:translate(${x}px,${y}px)`
+const TALL_RULE = `@media (max-aspect-ratio: 1/1){.subject{${shift(TALL.subject)}}.world{${shift(TALL.world)}}}`
 
 function build(parts: { hole: Part; ship: Part; meteors?: Part }): string {
   const all = [SKY, PLANET, parts.hole, parts.ship, ...(parts.meteors ? [parts.meteors] : [])]
   const animated = all.flatMap(p => p.animated)
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
 <defs>
-  <radialGradient id="space" gradientUnits="userSpaceOnUse" cx="${HOLE.x}" cy="${HOLE.y}" r="1500">
-    <stop offset="0" stop-color="#140e09"/>
-    <stop offset="0.35" stop-color="#0a0807"/>
+  <linearGradient id="space" x1="1" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#0a0807"/>
     <stop offset="1" stop-color="#040304"/>
-  </radialGradient>
+  </linearGradient>
   ${all.map(p => p.defs).join('')}
 </defs>
 <style>
   ${all.map(p => p.css).join('')}
-  ${TALL}
+  ${TALL_RULE}
   @media (prefers-reduced-motion: reduce) {
     ${animated.join(', ')} { animation: none; }
-    .meteor { display: none; }
+    ${all.map(p => p.still).join('')}
   }
 </style>
 <rect width="1600" height="1000" fill="url(#space)"/>

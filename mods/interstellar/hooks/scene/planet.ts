@@ -32,6 +32,7 @@ export function planet(): Part {
       '<stop offset="0.6" stop-color="#4c4842"/><stop offset="1" stop-color="#151413"/></radialGradient>',
     css: '',
     animated: [],
+    still: '',
     svg:
       `<circle cx="${x}" cy="${y}" r="${r + 26}" fill="url(#air)"/>` +
       `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#ice)"/>` +

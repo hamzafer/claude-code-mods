@@ -6,5 +6,7 @@ export type Part = {
   css: string
   // The classes this part animates, for the scene's one reduced-motion rule.
   animated: string[]
+  // Rules for that same rule: how the part rests, still and in view, when nothing moves.
+  still: string
   svg: string
 }

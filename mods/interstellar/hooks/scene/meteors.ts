@@ -71,6 +71,8 @@ export function meteors(seed: number): Part {
       '<stop offset="0" stop-color="#cfdcff" stop-opacity="0"/><stop offset="1" stop-color="#eef3ff" stop-opacity="0.95"/></linearGradient>',
     css,
     animated: ['.meteor'],
+    // Only the shooting stars leave a still sky: a streak caught mid-flight would be wrong.
+    still: '.meteor{display:none}',
     svg,
   }
 }

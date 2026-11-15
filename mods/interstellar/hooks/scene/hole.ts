@@ -34,15 +34,17 @@ function lens(id: string, r: number, tall: number): string {
   )
 }
 
-// A knot rides the near side from one end to the other: through points on the front of
-// the ellipse, brightest on the side coming toward you.
+// Where a knot is, `share` of the way along the near side: a point on the front of the ellipse.
+function along(share: number): string {
+  const t = share * Math.PI
+  return `translate(${Math.round(-Math.cos(t) * (REACH - 50))}px,${(Math.sin(t) * DIP).toFixed(1)}px)`
+}
+
+// A knot rides the near side from one end to the other, brightest on the side coming toward you.
 function knotKeyframes(name: string): string {
   const stops = [0, 20, 40, 60, 80, 100].map(pct => {
-    const t = (pct / 100) * Math.PI
-    const x = -Math.cos(t) * (REACH - 50)
-    const y = Math.sin(t) * DIP
     const glow = pct === 0 || pct === 100 ? 0 : pct <= 40 ? 1 : pct === 60 ? 0.7 : 0.35
-    return `${pct}%{transform:translate(${Math.round(x)}px,${y.toFixed(1)}px);opacity:${glow}}`
+    return `${pct}%{transform:${along(pct / 100)};opacity:${glow}}`
   })
   return `@keyframes ${name}{${stops.join('')}}`
 }
@@ -58,14 +60,17 @@ const KNOTS = [
   { len: 38, every: 23, lead: 4 },
 ]
 
-function knots(): { css: string; svg: string } {
+// Still, each knot rests where the scene would have opened it, spread along the disc.
+function knots(): { css: string; still: string; svg: string } {
   let css = '.knot{opacity:0}' + knotKeyframes('orbit')
+  let still = ''
   let svg = ''
   KNOTS.forEach((k, n) => {
     css += `.kn${n}{animation:orbit ${k.every}s linear -${k.lead}s infinite}`
+    still += `.kn${n}{transform:${along(0.1 + 0.8 * (n / (KNOTS.length - 1)))};opacity:.75}`
     svg += `<g class="knot kn${n}"><ellipse rx="${k.len}" ry="1.6" fill="url(#streak)"/></g>`
   })
-  return { css, svg }
+  return { css, still, svg }
 }
 
 // The lensed light turning: broken rings, clipped to the arcs, rotating about the shadow.
@@ -79,6 +84,8 @@ const SWIRL =
 export function hole(hailing: boolean): Part {
   const k = knots()
   const defs =
+    '<radialGradient id="farGlow"><stop offset="0" stop-color="#2a1a0c" stop-opacity="0.6"/>' +
+    '<stop offset="0.3" stop-color="#1a120a" stop-opacity="0.35"/><stop offset="1" stop-color="#140e09" stop-opacity="0"/></radialGradient>' +
     '<radialGradient id="holeGlow"><stop offset="0" stop-color="#ffb860" stop-opacity="0.2"/>' +
     '<stop offset="0.35" stop-color="#b8681e" stop-opacity="0.08"/><stop offset="1" stop-color="#5a3010" stop-opacity="0"/></radialGradient>' +
     '<radialGradient id="haze"><stop offset="0" stop-color="#ffc678" stop-opacity="0.38"/>' +
@@ -115,7 +122,10 @@ export function hole(hailing: boolean): Part {
       '@keyframes flare{0%,100%{opacity:.25}50%{opacity:.8}}' +
       k.css,
     animated: ANIMATED,
+    still: k.still,
     svg:
+      // The warm light the hole throws across the sky, so it goes wherever the hole goes.
+      `<circle r="1500" fill="url(#farGlow)"/>` +
       `<circle r="620" fill="url(#holeGlow)" opacity="${hailing ? 1 : 0.75}"/>` +
       `<g transform="rotate(${TILT})">` +
       `<ellipse rx="560" ry="86" fill="url(#haze)"/>` +

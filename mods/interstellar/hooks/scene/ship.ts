@@ -7,7 +7,7 @@
 // Desktop limit: the voyage moves with translate keyframes and linear easing only; the
 // spin's rotate and the rings' scale each sit on an element that does not also move.
 
-import { HOLE, STATION } from './layout.js'
+import { HOLE, STATION, TALL } from './layout.js'
 import type { Part } from './part.js'
 
 type Point = [number, number]
@@ -50,15 +50,20 @@ const ARC: Point[] = [
 const VOYAGE_S = 150
 const VOYAGE_LEAD = 82
 
+// Still, the ship rests here: aloft on its arc, left of the chat column.
+const PARKED = 2
+
+// A point on the arc, as a translate from the hole the ship is drawn at.
+const at = ([x, y]: Point) => `translate(${x - HOLE.x}px,${y - HOLE.y}px)`
+
 function voyageKeyframes(): string {
   const last = ARC.length - 1
-  const stops = ARC.map(([x, y], n) => {
+  const stops = ARC.map((p, n) => {
     const pct = (n / last) * 96
     const opacity = n === 0 || n === last ? 0 : 1
-    return `${pct.toFixed(1)}%{transform:translate(${x - HOLE.x}px,${y - HOLE.y}px);opacity:${opacity}}`
+    return `${pct.toFixed(1)}%{transform:${at(p)};opacity:${opacity}}`
   })
-  const [ex, ey] = ARC[last]!
-  return `@keyframes voyage{${stops.join('')}100%{transform:translate(${ex - HOLE.x}px,${ey - HOLE.y}px);opacity:0}}`
+  return `@keyframes voyage{${stops.join('')}100%{transform:${at(ARC[last]!)};opacity:0}}`
 }
 
 const SPIN_CSS =
@@ -81,6 +86,7 @@ export function voyage(): Part {
       `.voyage{opacity:0;animation:voyage ${VOYAGE_S}s linear -${VOYAGE_LEAD}s infinite;will-change:transform}` +
       voyageKeyframes(),
     animated: ['.spin', '.voyage'],
+    still: `.voyage{transform:${at(ARC[PARKED]!)};opacity:1}`,
     svg: `<g class="voyage"><ellipse cx="-14" cy="5" rx="14" ry="7" fill="url(#engine)"/>${craft(9)}</g>`,
   }
 }
@@ -92,21 +98,25 @@ const RINGS = 3
 export function station(): Part {
   let rings = ''
   for (let n = 0; n < RINGS; n++) {
-    rings += `<circle class="ping" r="170" style="animation-delay:${(n * PING_S).toFixed(1)}s"/>`
+    rings += `<circle class="ping p${n}" r="170" style="animation-delay:${(n * PING_S).toFixed(1)}s"/>`
   }
   return {
     defs: DEFS,
     css:
       SPIN_CSS +
       `.ping{opacity:0;fill:none;stroke:#ffd590;stroke-width:2.4;vector-effect:non-scaling-stroke;transform-origin:0 0;` +
-      `animation:ping ${PING_S * RINGS}s ease-out infinite}` +
+      `animation:ping ${(PING_S * RINGS).toFixed(1)}s ease-out infinite}` +
       '@keyframes ping{0%{transform:scale(.08);opacity:0}6%{opacity:.6}100%{transform:scale(1);opacity:0}}' +
       `.beacon{animation:beacon ${PING_S}s steps(1) infinite}` +
-      '@keyframes beacon{0%{opacity:1}7%{opacity:.12}13%{opacity:1}20%,100%{opacity:.08}}',
+      '@keyframes beacon{0%{opacity:1}7%{opacity:.12}13%{opacity:1}20%,100%{opacity:.08}}' +
+      // In a tall window the chat takes nearly the whole width: smaller rings keep above it.
+      `@media (max-aspect-ratio: 1/1){.pings{transform:scale(${TALL.rings})}}`,
     animated: ['.spin', '.ping', '.beacon'],
+    // Still, one faint ring stays round the ship and the beacon stays lit.
+    still: '.ping.p0{transform:scale(.4);opacity:.35}',
     svg:
       `<g class="hail" transform="translate(${STATION.x - HOLE.x} ${STATION.y - HOLE.y})">` +
-      rings +
+      `<g class="pings">${rings}</g>` +
       craft(14) +
       `<g class="beacon"><circle r="46" fill="url(#beam)"/>` +
       `<ellipse rx="70" ry="1" fill="url(#flash)"/><circle cy="-1" r="2.6" fill="#fffaf0"/></g>` +
