@@ -349,6 +349,19 @@
       "needs": [
         "Claude Code Desktop app"
       ]
+    },
+    {
+      "name": "matrix-mode",
+      "description": "A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only.",
+      "version": "0.1.0",
+      "source": "./mods/matrix-mode",
+      "category": "For fun",
+      "tags": [
+        "theme"
+      ],
+      "needs": [
+        "Claude Code Desktop app"
+      ]
     }
   ]
 }

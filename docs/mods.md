@@ -65,6 +65,7 @@ Themes change how the Desktop app's Code tab looks. They apply as soon as they'r
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
 | 🦇 | **gotham-night** | A Gotham theme for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
+| 🟩 | **matrix-mode** | A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only | |
 
 ## 🧭 How they behave
 
@@ -513,6 +514,22 @@ A Gotham theme for the Claude Code Desktop app that shows whether Claude is work
 - Your system's reduced-motion setting stills the scene and hides the bats
 - **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
 - **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the signal stays lit until that tool finishes. Background subagents and other plugins' tool calls never change the signal
+
+### 🟩 matrix-mode
+
+A Matrix theme for the Claude Code Desktop app that shows whether Claude is working or waiting on you.
+
+![matrix-mode: green code rain slowed to a crawl, parting in the upper right for a prompt that reads your move with a block cursor](../images/matrix-mode.png)
+
+- **Needs** the Desktop app, with Claude Code 2.1.324 or newer in its Code tab. The terminal draws no theme, so there it does nothing
+- **Nothing to run.** Start a local session in the Code tab and send a message: the rain starts behind the chat
+- **While Claude works:** columns of green glyphs fall in three depths: small, dim and slow far away, large and bright up close, each with a white-hot head and a fading tail. The rain is thick at the edges and thin behind the chat, so the words stay easy to read
+- **When Claude needs you:** its turn ended, it asks you a question, or a permission prompt is still unanswered after 1.5 s. The rain slows to a crawl and dims, a few columns stop where they are, and in the upper right a prompt types out `> your move`. Its block cursor blinks for as long as it waits
+- **Every time is new:** each wait picks its own columns to stop
+- **Colors:** green-black with a phosphor-green accent, dark mode only
+- Your system's reduced-motion setting stops the rain and shows the prompt already typed
+- **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
+- **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the needs-you scene stays until that tool finishes. Background subagents and other plugins' tool calls never change it
 
 ## 🛠️ Build your own
 

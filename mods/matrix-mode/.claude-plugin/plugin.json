@@ -1,0 +1,10 @@
+{
+  "name": "matrix-mode",
+  "version": "0.1.0",
+  "description": "A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and it parts for a waiting cursor when it needs you.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts"
+}

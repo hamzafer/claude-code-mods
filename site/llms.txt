@@ -11,6 +11,7 @@ Install: `npx claude-code-mods@latest` (tick the mods you want), or `claude plug
 ## Themes
 
 - [gotham-night](https://hamzafer.github.io/claude-code-mods/mods/gotham-night/): A Gotham theme for the Claude Code Desktop app: searchlights sweep while Claude works, and when it needs you the signal lights with a burst of bats. Desktop app only.
+- [matrix-mode](https://hamzafer.github.io/claude-code-mods/mods/matrix-mode/): A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only.
 
 ## See what's happening
 

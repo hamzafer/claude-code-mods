@@ -91,6 +91,7 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 <a href="docs/mods.md#-gotham-night"><img src="images/gotham-night.gif" width="560" alt="gotham-night: Why do we fall, Bruce? Searchlights sweep a rainy city, then the signal lights and bats scatter"></a>
 
 - 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights while Claude works, the signal and a burst of bats when it needs you
+- 🟩 [**matrix-mode**](docs/mods.md#-matrix-mode): green code rain while Claude works, a blinking `> your move` when it needs you
 
 <a id="-community-mods"></a>
 
