@@ -1,5 +1,6 @@
 // What the signal shows. One value, so a state that can't happen can't be written:
-// only a lit signal has a bat burst, and only a pending ask has an ask id.
+// only a waiting signal has a burst (it picks the columns that hold), and only a pending
+// ask has an ask id.
 export type Signal =
   // Claude is busy: the code rains.
   | { mode: 'working' }

@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
+import { sceneFor } from '../hooks/scene/index.js'
+
 test('session start sets the dark look with the scene', async ($, on) => {
   let sent: any
   on('theme.set', ($, e) => { sent = e; return { value: { isDrawn: true } as any } })
@@ -95,8 +97,51 @@ test('each scene has one reduced-motion rule naming every animated class, and no
     expect(animated.length > 0).toBe(true)
     for (const cls of animated) expect(rule).toContain(cls)
     // Desktop stops the whole scene for good once a full-size layer animates
-    expect(scene).not.toMatch(/<rect width="1600" height="1000"[^>]*class=/)
+    expect(fullSizeMovers(scene, new Set(animated))).toEqual([])
   }
   for (const cls of ['.f0', '.f1', '.f2', '.fa', '.fb']) expect(working).toContain(cls)
   for (const cls of ['.key', '.caret', '.blink']) expect(waiting).toContain(cls)
+})
+
+// Every full-size rect (1600 x 1000 or larger) that carries a class, or sits inside an
+// element with an animated class. Walks the tags with a stack of each one's classes.
+function fullSizeMovers(svg: string, animated: Set<string>): string[] {
+  const found: string[] = []
+  const open: string[][] = []
+  for (const [tag, close, name, attrs, self] of svg.matchAll(/<(\/?)([\w:]+)([^>]*?)(\/?)>/g)) {
+    if (close) { open.pop(); continue }
+    const classes = (/class="([^"]*)"/.exec(attrs!)?.[1] ?? '').split(' ').filter(Boolean).map(c => `.${c}`)
+    const size = (attr: string) => Number(new RegExp(`\\b${attr}="([\\d.]+)"`).exec(attrs!)?.[1] ?? 0)
+    if (name === 'rect' && size('width') >= 1600 && size('height') >= 1000) {
+      const wrapped = open.some(cls => cls.some(c => animated.has(c)))
+      if (classes.length > 0 || wrapped) found.push(tag)
+    }
+    if (!self) open.push(classes)
+  }
+  return found
+}
+
+test('the same burst draws the same scene, built fresh', () => {
+  const five = sceneFor({ mode: 'waiting', burst: 5 })
+  const six = sceneFor({ mode: 'waiting', burst: 6 })
+  expect(six).not.toBe(five)
+  expect(sceneFor({ mode: 'waiting', burst: 5 })).toBe(five)
+})
+
+test('no column has two changing glyphs in the same slot', () => {
+  for (const scene of [sceneFor({ mode: 'working' }), sceneFor({ mode: 'waiting', burst: 5 })]) {
+    const columns = [...scene.matchAll(/<g class="f\d"[^>]*>(.*?)<\/g>/g)]
+    expect(columns.length > 40).toBe(true)
+    for (const [, body] of columns) {
+      const slots = [...body!.matchAll(/<text class="fa" y="(\d+)"/g)].map(m => m[1])
+      expect(new Set(slots).size).toBe(slots.length)
+    }
+  }
+})
+
+test('a full-size rect that animates is caught', () => {
+  const moving = new Set(['.m'])
+  expect(fullSizeMovers('<g class="m"><rect height="1000" x="0" width="1600"/></g>', moving).length).toBe(1)
+  expect(fullSizeMovers('<rect fill="red" width="1700" height="1100" class="still"/>', moving).length).toBe(1)
+  expect(fullSizeMovers('<g class="m"></g><rect width="1600" height="1000"/>', moving).length).toBe(0)
 })

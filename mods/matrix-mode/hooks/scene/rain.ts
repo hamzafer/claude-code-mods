@@ -10,7 +10,7 @@
 // cubic-bezier, no fill-mode on anything that moves.
 
 import { FONT, glyph } from './glyphs.js'
-import { CHAT, TALL } from './layout.js'
+import { CHAT, PROMPT, TALL, parting } from './layout.js'
 import type { Part } from './part.js'
 import { seeded, type Random } from './random.js'
 
@@ -65,6 +65,16 @@ function keeps(r: Random, layer: Layer, outside: number): boolean {
   return r.next() < Math.min(1, 0.4 + (outside - layer.edge) / 260)
 }
 
+// The slots a column's changing glyphs take: never the first or the head, never twice.
+function slots(r: Random, length: number, count: number): number[] {
+  const free = Array.from({ length: length - 2 }, (_, i) => i + 1)
+  for (let i = free.length - 1; i > 0; i--) {
+    const j = Math.floor(r.next() * (i + 1))
+    ;[free[i], free[j]] = [free[j]!, free[i]!]
+  }
+  return free.slice(0, count)
+}
+
 function columns(seed: number): Column[] {
   const r = seeded(seed)
   const all: Column[] = []
@@ -81,11 +91,7 @@ function columns(seed: number): Column[] {
         glyphs: Array.from({ length }, () => glyph(r)),
         fall: r.pick(layer.fall[0], layer.fall[1]),
         lead: r.next(),
-        flips: Array.from({ length: layer.flips }, () => ({
-          at: 1 + Math.floor(r.next() * (length - 2)),
-          to: glyph(r),
-          every: r.pick(0.9, 2.6),
-        })),
+        flips: slots(r, length, layer.flips).map(at => ({ at, to: glyph(r), every: r.pick(0.9, 2.6) })),
       })
     }
   })
@@ -95,8 +101,22 @@ function columns(seed: number): Column[] {
 const COLUMNS = columns(1999)
 
 // How the rain falls: `pace` stretches every fall (1 while working), `dim` scales every
-// depth's brightness, `hold` columns stop where they are, and none falls in `parted`.
-export type Weather = { pace: number; dim: number; hold: number; parted?: [number, number] }
+// depth's brightness, `hold` columns stop where they are, and with `parts` the mid and
+// near rain parts around the prompt, wherever the window puts it.
+export type Weather = { pace: number; dim: number; hold: number; parts: boolean }
+
+// Each layout's parting, and the class that hides a column there: a column in the wide
+// parting shows only in a tall window, one in the tall parting only in a wide window.
+const PARTINGS = [
+  { range: parting(PROMPT.wide), cls: 'pw' },
+  { range: parting(PROMPT.tall), cls: 'pt' },
+]
+
+// The parting class a column takes, if it falls in one.
+function parted(c: Column, weather: Weather): string | undefined {
+  if (!weather.parts || c.layer === 0) return undefined
+  return PARTINGS.find(p => c.x >= p.range[0] && c.x <= p.range[1])?.cls
+}
 
 const n = (v: number) => Math.round(v)
 
@@ -131,37 +151,44 @@ function held(c: Column, r: Random): string {
   return `<g transform="translate(${c.x} ${y})" font-size="${c.size}">${draw(c, false, 1)}</g>`
 }
 
-function falling(c: Column, pace: number): string {
-  const fall = c.fall * pace
-  const style = `animation-duration:${fall.toFixed(2)}s;animation-delay:-${(c.lead * fall).toFixed(2)}s`
-  return `<g transform="translate(${c.x} 0)" font-size="${c.size}"><g class="f${c.layer}" style="${style}">${draw(c, true, pace)}</g></g>`
-}
-
-function inside(x: number, range?: [number, number]): boolean {
-  return range !== undefined && x >= range[0] && x <= range[1]
-}
-
 // Each depth falls from just above the scene, its longest column clear of the top, to
 // just below it.
+const BOTTOM = 1040
+const top = (layer: Layer) => -Math.ceil(layer.length[1] * layer.size[1] * PITCH)
+
+// The resting transform is where the column starts its fall, so with reduced motion
+// the columns stand staggered instead of in an even curtain. A running animation
+// overrides it.
+function falling(c: Column, weather: Weather): string {
+  const fall = c.fall * weather.pace
+  const from = top(LAYERS[c.layer]!)
+  const rest = n(from + c.lead * (BOTTOM - from))
+  const style = `animation-duration:${fall.toFixed(2)}s;animation-delay:-${(c.lead * fall).toFixed(2)}s;transform:translateY(${rest}px)`
+  const cls = parted(c, weather)
+  return (
+    `<g transform="translate(${c.x} 0)" font-size="${c.size}"${cls === undefined ? '' : ` class="${cls}"`}>` +
+    `<g class="f${c.layer}" style="${style}">${draw(c, true, weather.pace)}</g></g>`
+  )
+}
+
 function keyframes(layer: Layer, index: number): string {
-  const tallest = Math.ceil(layer.length[1] * layer.size[1] * PITCH)
   return (
     `.f${index}{animation:f${index} 6s linear infinite;will-change:transform}` +
-    `@keyframes f${index}{from{transform:translateY(-${tallest}px)}to{transform:translateY(1040px)}}`
+    `@keyframes f${index}{from{transform:translateY(${top(layer)}px)}to{transform:translateY(${BOTTOM}px)}}`
   )
 }
 
 export function rain(seed: number, weather: Weather): Part {
   const r = seeded(seed)
   // Only mid and near columns at the edges hold, and never one where the rain parts.
-  const holdable = COLUMNS.filter(c => c.layer > 0 && !c.inner && !inside(c.x, weather.parted))
+  const holdable = COLUMNS.filter(c => c.layer > 0 && !c.inner && parted(c, weather) === undefined)
   const stopped = new Set<Column>()
   while (stopped.size < Math.min(weather.hold, holdable.length)) stopped.add(holdable[Math.floor(r.next() * holdable.length)]!)
 
   const depths = LAYERS.map((layer, index) => {
-    const falls = COLUMNS.filter(c => c.layer === index && !stopped.has(c) && (index === 0 || !inside(c.x, weather.parted)))
-    const edges = falls.filter(c => !c.inner).map(c => falling(c, weather.pace)).join('')
-    const centre = falls.filter(c => c.inner).map(c => falling(c, weather.pace)).join('')
+    const falls = COLUMNS.filter(c => c.layer === index && !stopped.has(c))
+    const edges = falls.filter(c => !c.inner).map(c => falling(c, weather)).join('')
+    const centre = falls.filter(c => c.inner).map(c => falling(c, weather)).join('')
     const still = COLUMNS.filter(c => c.layer === index && stopped.has(c)).map(c => held(c, r)).join('')
     return (
       `<g opacity="${(layer.opacity * weather.dim).toFixed(2)}">${edges}<g class="inner">${centre}</g></g>` +
@@ -183,7 +210,8 @@ export function rain(seed: number, weather: Weather): Part {
       LAYERS.map(keyframes).join('') +
       '.fa{animation:fa 2s steps(1) infinite}.fb{animation:fb 2s steps(1) infinite}' +
       '@keyframes fa{0%{opacity:1}50%{opacity:0}}@keyframes fb{0%{opacity:0}50%{opacity:1}}' +
-      `.inner{opacity:.3}@media ${TALL}{.inner{opacity:1}}`,
+      `.inner{opacity:.3}.pw{display:none}` +
+      `@media ${TALL}{.inner{opacity:1}.pw{display:inline}.pt{display:none}}`,
     animated: [...LAYERS.map((_, index) => `.f${index}`), '.fa', '.fb'],
     still: '.fb{display:none}',
     svg: `<g font-family="${FONT}" text-anchor="middle" fill="#3fd26f">${depths}</g>`,

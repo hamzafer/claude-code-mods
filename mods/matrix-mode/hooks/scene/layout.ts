@@ -7,9 +7,17 @@ export const CHAT = { left: 440, right: 1160 }
 // the rain there comes up and the prompt moves to the top centre.
 export const TALL = '(max-aspect-ratio: 4/3)'
 
-// Where the waiting prompt line starts: upper right in a wide window, clear of the chat;
-// in a tall one, at `tallY`, centred.
-export const PROMPT = { x: 1210, y: 250, tallY: 130 }
+// Where the waiting prompt line sits, and how wide it is: upper right in a wide window,
+// clear of the chat; top centre in a tall one.
+const WIDTH = 210
+export const PROMPT = {
+  width: WIDTH,
+  wide: { x: 1210, y: 250 },
+  tall: { x: 800 - WIDTH / 2, y: 130 },
+}
 
-// The stretch of rain that parts around the prompt in a wide window.
-export const PARTING: [number, number] = [PROMPT.x - 50, PROMPT.x + 300]
+// The stretch of rain that parts around the prompt, wherever it sits.
+export type Spot = { x: number; y: number }
+export function parting(spot: Spot): [number, number] {
+  return [spot.x - 50, spot.x + WIDTH + 90]
+}

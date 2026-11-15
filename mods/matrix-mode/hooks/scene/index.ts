@@ -1,17 +1,17 @@
 // The backdrop for a signal state: code rain while Claude works; when it needs you, the
 // rain slows to a crawl and dims, a few columns stop where they are, and it parts for a
-// prompt typed out in the upper right, its cursor blinking until you answer.
+// prompt typed out in the upper right (top centre in a tall window), its cursor
+// blinking until you answer.
 // Desktop draws it in a sandboxed frame; CSS animation only, no script.
 
 import type { Signal } from '../../types'
 import { GROUND, SHADE } from './ground.js'
-import { PARTING } from './layout.js'
 import type { Part } from './part.js'
 import { PROMPT_PART } from './prompt.js'
 import { rain, type Weather } from './rain.js'
 
-const WORKING_RAIN: Weather = { pace: 1, dim: 1, hold: 0 }
-const WAITING_RAIN: Weather = { pace: 5, dim: 0.6, hold: 9, parted: PARTING }
+const WORKING_RAIN: Weather = { pace: 1, dim: 1, hold: 0, parts: false }
+const WAITING_RAIN: Weather = { pace: 5, dim: 0.6, hold: 9, parts: true }
 
 // Stacks the parts back to front, with one reduced-motion rule naming every part's
 // animated classes, so a part's new class can't be left moving.

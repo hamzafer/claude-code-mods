@@ -6,14 +6,14 @@
 // So with reduced motion the whole line simply stands, typed.
 
 import { FONT } from './glyphs.js'
-import { PROMPT, TALL } from './layout.js'
+import { PROMPT, TALL, type Spot } from './layout.js'
 import type { Part } from './part.js'
 
 const LINE = '> your move'
 const SIZE = 30
 // Every character gets its own slot, so any monospace face lines up with the cursor.
-const ADVANCE = 19
-const WIDTH = LINE.length * ADVANCE
+const WIDTH = PROMPT.width
+const ADVANCE = WIDTH / LINE.length
 // Seconds before the first key, and between keys.
 const START = 1.4
 const KEY = 0.13
@@ -23,11 +23,11 @@ const keys = [...LINE]
   .map((c, i) =>
     c === ' '
       ? ''
-      : `<text class="key" x="${i * ADVANCE + ADVANCE / 2}" style="animation-duration:${(START + i * KEY).toFixed(2)}s">${c}</text>`,
+      : `<text class="key" x="${(i * ADVANCE + ADVANCE / 2).toFixed(1)}" style="animation-duration:${(START + i * KEY).toFixed(2)}s">${c}</text>`,
   )
   .join('')
 
-const at = (x: number, y: number) => `transform:translate(${x}px,${y}px)`
+const at = ({ x, y }: Spot) => `transform:translate(${x}px,${y}px)`
 
 export const PROMPT_PART: Part = {
   defs:
@@ -36,8 +36,8 @@ export const PROMPT_PART: Part = {
     '<radialGradient id="phosphor"><stop offset="0" stop-color="#5dff8f" stop-opacity="0.16"/>' +
     '<stop offset="1" stop-color="#5dff8f" stop-opacity="0"/></radialGradient>',
   css:
-    `.spot{${at(PROMPT.x, PROMPT.y)}}` +
-    `@media ${TALL}{.spot{${at(800 - WIDTH / 2, PROMPT.tallY)}}}` +
+    `.spot{${at(PROMPT.wide)}}` +
+    `@media ${TALL}{.spot{${at(PROMPT.tall)}}}` +
     '.key{animation:hide 1s steps(1) 1}@keyframes hide{from,to{opacity:0}}' +
     `.caret{transform:translateX(${WIDTH}px);animation:caret ${TYPED.toFixed(2)}s steps(${LINE.length},start) 1}` +
     `@keyframes caret{0%,${((START / TYPED) * 100).toFixed(1)}%{transform:translateX(0px)}100%{transform:translateX(${WIDTH}px)}}` +
@@ -49,6 +49,6 @@ export const PROMPT_PART: Part = {
     `<ellipse cx="${WIDTH / 2}" cy="-10" rx="${WIDTH + 140}" ry="230" fill="url(#clearing)"/>` +
     `<ellipse cx="${WIDTH / 2}" cy="-10" rx="${WIDTH * 0.85}" ry="70" fill="url(#phosphor)"/>` +
     `<g font-family="${FONT}" font-size="${SIZE}" font-weight="600" text-anchor="middle" fill="#b4ffc8">${keys}</g>` +
-    `<g class="caret"><rect class="blink" x="2" y="${-SIZE * 0.78}" width="${ADVANCE - 3}" height="${SIZE}" fill="#c8ffd6"/></g>` +
+    `<g class="caret"><rect class="blink" x="2" y="${-SIZE * 0.78}" width="${(ADVANCE - 3).toFixed(1)}" height="${SIZE}" fill="#c8ffd6"/></g>` +
     `</g>`,
 }
