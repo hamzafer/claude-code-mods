@@ -1,0 +1,10 @@
+{
+  "name": "stark-lab",
+  "version": "0.1.0",
+  "description": "A JARVIS theme for the Claude Code Desktop app: a holographic lab and a spinning arc reactor while Claude works, and the reactor flares when it needs you.",
+  "author": {
+    "name": "Hamza Zafar",
+    "url": "https://github.com/hamzafer"
+  },
+  "types": "./types/index.d.ts"
+}

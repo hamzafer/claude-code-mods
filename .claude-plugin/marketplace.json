@@ -362,6 +362,19 @@
       "needs": [
         "Claude Code Desktop app"
       ]
+    },
+    {
+      "name": "stark-lab",
+      "description": "A JARVIS theme for the Claude Code Desktop app: a holographic workshop with a spinning arc reactor while Claude works, and when it needs you the reactor locks and flares gold. Desktop app only.",
+      "version": "0.1.0",
+      "source": "./mods/stark-lab",
+      "category": "For fun",
+      "tags": [
+        "theme"
+      ],
+      "needs": [
+        "Claude Code Desktop app"
+      ]
     }
   ]
 }

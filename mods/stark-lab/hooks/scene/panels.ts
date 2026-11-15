@@ -1,0 +1,90 @@
+// The holographic panels: a waveform, a dial and a bank of level bars floating high on
+// the left, and thin arcs orbiting the reactor. Abstract shapes, no text. Live, the wave
+// ripples, the needle sweeps and the bars jump; hushed, they dim and hold, the needle
+// resting in the gold.
+
+import { CYAN, GOLD, ICE, type Part } from './layout.js'
+
+// A panel's outline: a rectangle with two corners cut off.
+const frame = (x: number, y: number, w: number, h: number) =>
+  `<path d="M${x + 12},${y} L${x + w},${y} L${x + w},${y + h - 12} L${x + w - 12},${y + h} L${x},${y + h} L${x},${y + 12} Z"/>`
+
+// A wave of the given period and height, long enough to slide one period and still fill.
+function wave(x: number, y: number, w: number, period: number, height: number): string {
+  let d = `M${x - period},${y} Q${x - period * 0.75},${y - height} ${x - period / 2},${y}`
+  for (let px = x; px <= x + w + period; px += period / 2) d += ` T${px},${y}`
+  return d
+}
+
+const WAVE = { x: 96, y: 96, w: 300, h: 96 }
+const DIAL = { x: 152, y: 296, r: 50 }
+const BARS = { x: 236, y: 340, count: 9, heights: [26, 44, 34, 58, 40, 50, 22, 38, 30] }
+
+function wavePanel(): string {
+  const { x, y, w, h } = WAVE
+  const mid = y + h / 2 + 8
+  return (
+    `<clipPath id="waveClip"><rect x="${x + 6}" y="${y + 22}" width="${w - 12}" height="${h - 28}"/></clipPath>` +
+    `<g fill="${CYAN}" fill-opacity="0.035" stroke="${ICE}" stroke-opacity="0.32" stroke-width="1">${frame(x, y, w, h)}</g>` +
+    `<line x1="${x + 14}" y1="${y + 12}" x2="${x + 74}" y2="${y + 12}" stroke="${ICE}" stroke-opacity="0.5" stroke-width="3"/>` +
+    `<line x1="${x + 82}" y1="${y + 12}" x2="${x + 104}" y2="${y + 12}" stroke="${ICE}" stroke-opacity="0.25" stroke-width="3"/>` +
+    `<line x1="${x + 8}" y1="${mid}" x2="${x + w - 8}" y2="${mid}" stroke="${ICE}" stroke-opacity="0.12"/>` +
+    `<g clip-path="url(#waveClip)" fill="none">` +
+    `<path class="wave" d="${wave(x, mid, w, 48, 22)}" stroke="${CYAN}" stroke-opacity="0.85" stroke-width="1.5"/>` +
+    `<path class="wave2" d="${wave(x, mid, w, 84, 12)}" stroke="${ICE}" stroke-opacity="0.35" stroke-width="1"/></g>`
+  )
+}
+
+function dialPanel(): string {
+  const { x, y, r } = DIAL
+  const circ = 2 * Math.PI * (r - 6)
+  return (
+    `<g fill="none" stroke="${ICE}">` +
+    `<circle cx="${x}" cy="${y}" r="${r}" fill="${CYAN}" fill-opacity="0.04" stroke-opacity="0.3"/>` +
+    `<circle cx="${x}" cy="${y}" r="${r - 6}" stroke-opacity="0.5" stroke-width="6" stroke-dasharray="1 ${(circ / 36 - 1).toFixed(3)}"/>` +
+    `<circle cx="${x}" cy="${y}" r="${r + 9}" stroke="${CYAN}" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="${(circ * 0.45).toFixed(1)} ${circ}" transform="rotate(140 ${x} ${y})"/></g>` +
+    `<circle cx="${x + (r - 6) * Math.cos(0.6)}" cy="${y + (r - 6) * Math.sin(-0.6)}" r="3" fill="${GOLD}"/>` +
+    `<g class="needle"><line x1="${x}" y1="${y}" x2="${x}" y2="${y - r + 10}" stroke="${ICE}" stroke-width="2" stroke-linecap="round"/></g>` +
+    `<circle cx="${x}" cy="${y}" r="4" fill="${ICE}"/>`
+  )
+}
+
+function barsPanel(): string {
+  const { x, y, heights } = BARS
+  const bars = heights
+    .map((h, n) => `<rect class="bar" x="${x + n * 17}" y="${y - h}" width="9" height="${h}" style="animation-duration:${(0.7 + ((n * 37) % 11) / 10).toFixed(1)}s;animation-delay:-${((n * 53) % 9) / 10}s"/>`)
+    .join('')
+  return (
+    `<g fill="${CYAN}" fill-opacity="0.5">${bars}</g>` +
+    `<line x1="${x - 6}" y1="${y + 6}" x2="${x + heights.length * 17}" y2="${y + 6}" stroke="${ICE}" stroke-opacity="0.4"/>`
+  )
+}
+
+// Thin arcs round the reactor's 0,0, outside its rings.
+const ORBIT =
+  `<g fill="none" stroke="${ICE}" stroke-linecap="round">` +
+  `<path d="M${-262 * Math.cos(0.5)},${262 * Math.sin(0.5)} A262,262 0 0 1 ${-262},0" stroke-opacity="0.35" stroke-width="1.2"/>` +
+  `<path d="M${-246 * Math.cos(-1.1)},${-246 * Math.sin(1.1)} A246,246 0 0 0 ${-246 * Math.cos(0.65)},${-246 * Math.sin(0.65)}" stroke="${CYAN}" stroke-opacity="0.5" stroke-width="3" stroke-dasharray="14 6"/>` +
+  `<path d="M${246 * Math.cos(0.35)},${246 * Math.sin(0.35)} A246,246 0 0 1 ${246 * Math.cos(1.05)},${246 * Math.sin(1.05)}" stroke-opacity="0.28"/></g>`
+
+export type Panels = Part & { orbit: string }
+
+export function panels(live: boolean): Panels {
+  const css = live
+    ? '.wave{animation:slide 1.4s linear infinite}.wave2{animation:slide2 2.6s linear infinite}' +
+      '@keyframes slide{from{transform:translateX(0px)}to{transform:translateX(-48px)}}' +
+      '@keyframes slide2{from{transform:translateX(0px)}to{transform:translateX(-84px)}}' +
+      `.needle{transform-origin:${DIAL.x}px ${DIAL.y}px;animation:needle 3.4s ease-in-out infinite alternate}` +
+      '@keyframes needle{from{transform:rotate(-120deg)}to{transform:rotate(60deg)}}' +
+      '.bar{transform-box:fill-box;transform-origin:50% 100%;animation:level 1s ease-in-out infinite alternate}' +
+      '@keyframes level{from{transform:scaleY(1)}to{transform:scaleY(.3)}}'
+    : // Hushed: the needle rests on the gold mark.
+      `.needle{transform-origin:${DIAL.x}px ${DIAL.y}px;transform:rotate(56deg)}.bar{transform-box:fill-box;transform-origin:50% 100%;transform:scaleY(.25)}`
+  return {
+    defs: '',
+    css,
+    animated: ['.wave', '.wave2', '.needle', '.bar'],
+    svg: `<g opacity="${live ? 0.9 : 0.4}">${wavePanel()}${dialPanel()}${barsPanel()}</g>`,
+    orbit: ORBIT,
+  }
+}
