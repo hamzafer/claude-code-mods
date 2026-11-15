@@ -2,17 +2,15 @@
 // luminous strokes and centred on 0,0. Working, its rings counter-rotate and the core
 // breathes. Locked, the rings spin down into alignment (each ring's notch meets at the
 // top) and the core flares from cyan to gold. Pure: the same seed locks the same way.
+//
+// The gold glow is a large animated element (a circle of r=320, fading its opacity in
+// once). It is not full-size and never moves. It has only been played in Chrome so far.
 
-import { CYAN, GOLD, GOLD_HOT, HAZE, ICE, type Part } from './layout.js'
+import { CYAN, GOLD, GOLD_HOT, HAZE, ICE, polar, seedKey, type Part } from './layout.js'
 import { seeded } from './random.js'
 
 // Seconds a locking reactor takes to spin down; the core flares as it settles.
 export const LOCK_S = 1.6
-
-const polar = (r: number, deg: number) => {
-  const a = (deg * Math.PI) / 180
-  return `${(r * Math.cos(a)).toFixed(1)},${(r * Math.sin(a)).toFixed(1)}`
-}
 
 // Evenly spaced ticks round a circle, drawn as one dashed stroke as wide as a tick is long.
 function ticks(r: number, count: number, length: number, width: number, opacity: number): string {
@@ -93,6 +91,9 @@ const DEFS =
 
 const ANIMATED = ['.ra', '.rb', '.rc', '.rd', '.core', '.cool', '.hot', '.throb']
 
+// Every ring turns about the reactor's centre, its own 0,0: said outright, never left to a default.
+const PIVOT = RINGS.map(ring => `.${ring.name}`).join(',') + '{transform-origin:0 0}'
+
 function rings(mark: string): string {
   return RINGS.map(ring => `<g class="${ring.name}">${ring.svg(mark)}</g>`).join('')
 }
@@ -100,6 +101,7 @@ function rings(mark: string): string {
 // Working: the rings turn for good, the core breathes.
 function spinning(): Part {
   const css =
+    PIVOT +
     RINGS.map(ring => `.${ring.name}{animation:spin ${Math.abs(ring.turn)}s linear infinite${ring.turn < 0 ? ' reverse' : ''}}`).join('') +
     '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}' +
     '.core{animation:breathe 4.2s ease-in-out infinite}' +
@@ -113,9 +115,8 @@ function spinning(): Part {
 // Locked: each ring spins down from its own angle to rest; then cyan gives way to gold.
 function locking(seed: number): Part {
   const r = seeded(seed)
-  // The keyframes carry the seed, so a new lock is new CSS and plays from the start.
-  const k = `l${(seed % 46656).toString(36)}`
-  let css = ''
+  const k = seedKey('l', seed)
+  let css = PIVOT
   for (const ring of RINGS) {
     const from = Math.sign(ring.turn) * -r.pick(150, 320)
     css +=

@@ -6,7 +6,7 @@
 
 import type { Signal } from '../../types'
 import { lab } from './lab.js'
-import { REACTOR, type Part } from './layout.js'
+import { PLACES, REACTOR, type Part } from './layout.js'
 import { motes } from './motes.js'
 import { panels } from './panels.js'
 import { LOCK_S, reactor } from './reactor.js'
@@ -16,13 +16,8 @@ import { target } from './target.js'
 const MOTES = motes(7)
 
 // The reactor and all that hangs round it move as one rig. In a narrower box the rig
-// steps up and in, so it stays in view clear of the chat column and the message box.
-// Each step is where the reactor's centre lands, and its size. Off its spot the reactor
-// no longer stands over the floor, so its pool of light there goes.
-const STEPS: { below: string; x: number; y: number; scale: number }[] = [
-  { below: '3/2', x: 1240, y: 250, scale: 0.7 },
-  { below: '1/1', x: 880, y: 215, scale: 0.68 },
-]
+// steps up and in (layout.ts says where), so it stays whole and clear of the message
+// box. Off its spot the reactor no longer stands over the floor, so its pool of light goes.
 
 function placed(x: number, y: number, scale: number): string {
   const tx = x - REACTOR.x * scale
@@ -30,7 +25,7 @@ function placed(x: number, y: number, scale: number): string {
   return `.rig{transform:translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${scale})}.pool{display:none}`
 }
 
-const PLACEMENT = STEPS.map(s => `@media (max-aspect-ratio: ${s.below}){${placed(s.x, s.y, s.scale)}}`).join('')
+const PLACEMENT = PLACES.map(s => `@media (max-aspect-ratio: ${s.below}){${placed(s.x, s.y, s.scale)}}`).join('')
 
 function build(burst?: number): string {
   const live = burst === undefined

@@ -3,7 +3,7 @@
 // ripples, the needle sweeps and the bars jump; hushed, they dim and hold, the needle
 // resting in the gold.
 
-import { CYAN, GOLD, ICE, type Part } from './layout.js'
+import { CYAN, GOLD, ICE, point, polar, type Part } from './layout.js'
 
 // A panel's outline: a rectangle with two corners cut off.
 const frame = (x: number, y: number, w: number, h: number) =>
@@ -35,6 +35,10 @@ function wavePanel(): string {
   )
 }
 
+// Where the needle rests when hushed: rotate(56deg) from straight up.
+const REST_DEG = 56
+const GOLD_MARK = point(DIAL.r - 6, REST_DEG - 90)
+
 function dialPanel(): string {
   const { x, y, r } = DIAL
   const circ = 2 * Math.PI * (r - 6)
@@ -43,7 +47,7 @@ function dialPanel(): string {
     `<circle cx="${x}" cy="${y}" r="${r}" fill="${CYAN}" fill-opacity="0.04" stroke-opacity="0.3"/>` +
     `<circle cx="${x}" cy="${y}" r="${r - 6}" stroke-opacity="0.5" stroke-width="6" stroke-dasharray="1 ${(circ / 36 - 1).toFixed(3)}"/>` +
     `<circle cx="${x}" cy="${y}" r="${r + 9}" stroke="${CYAN}" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="${(circ * 0.45).toFixed(1)} ${circ}" transform="rotate(140 ${x} ${y})"/></g>` +
-    `<circle cx="${x + (r - 6) * Math.cos(0.6)}" cy="${y + (r - 6) * Math.sin(-0.6)}" r="3" fill="${GOLD}"/>` +
+    `<circle cx="${x + GOLD_MARK[0]}" cy="${y + GOLD_MARK[1]}" r="3" fill="${GOLD}"/>` +
     `<g class="needle"><line x1="${x}" y1="${y}" x2="${x}" y2="${y - r + 10}" stroke="${ICE}" stroke-width="2" stroke-linecap="round"/></g>` +
     `<circle cx="${x}" cy="${y}" r="4" fill="${ICE}"/>`
   )
@@ -63,9 +67,9 @@ function barsPanel(): string {
 // Thin arcs round the reactor's 0,0, outside its rings.
 const ORBIT =
   `<g fill="none" stroke="${ICE}" stroke-linecap="round">` +
-  `<path d="M${-262 * Math.cos(0.5)},${262 * Math.sin(0.5)} A262,262 0 0 1 ${-262},0" stroke-opacity="0.35" stroke-width="1.2"/>` +
-  `<path d="M${-246 * Math.cos(-1.1)},${-246 * Math.sin(1.1)} A246,246 0 0 0 ${-246 * Math.cos(0.65)},${-246 * Math.sin(0.65)}" stroke="${CYAN}" stroke-opacity="0.5" stroke-width="3" stroke-dasharray="14 6"/>` +
-  `<path d="M${246 * Math.cos(0.35)},${246 * Math.sin(0.35)} A246,246 0 0 1 ${246 * Math.cos(1.05)},${246 * Math.sin(1.05)}" stroke-opacity="0.28"/></g>`
+  `<path d="M${polar(262, 151.4)} A262,262 0 0 1 ${polar(262, 180)}" stroke-opacity="0.35" stroke-width="1.2"/>` +
+  `<path d="M${polar(246, 243)} A246,246 0 0 0 ${polar(246, 217.2)}" stroke="${CYAN}" stroke-opacity="0.5" stroke-width="3" stroke-dasharray="14 6"/>` +
+  `<path d="M${polar(246, 20)} A246,246 0 0 1 ${polar(246, 60.2)}" stroke-opacity="0.28"/></g>`
 
 export type Panels = Part & { orbit: string }
 
@@ -79,7 +83,7 @@ export function panels(live: boolean): Panels {
       '.bar{transform-box:fill-box;transform-origin:50% 100%;animation:level 1s ease-in-out infinite alternate}' +
       '@keyframes level{from{transform:scaleY(1)}to{transform:scaleY(.3)}}'
     : // Hushed: the needle rests on the gold mark.
-      `.needle{transform-origin:${DIAL.x}px ${DIAL.y}px;transform:rotate(56deg)}.bar{transform-box:fill-box;transform-origin:50% 100%;transform:scaleY(.25)}`
+      `.needle{transform-origin:${DIAL.x}px ${DIAL.y}px;transform:rotate(${REST_DEG}deg)}.bar{transform-box:fill-box;transform-origin:50% 100%;transform:scaleY(.25)}`
   return {
     defs: '',
     css,

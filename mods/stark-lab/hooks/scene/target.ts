@@ -2,7 +2,9 @@
 // if targeting, then rings leave the reactor like a ping, one after another. Centred on 0,0.
 //
 // Desktop limit: a ping grows with scale() on a ring that never moves, and fades with
-// its own opacity; nothing here animates a full-size element.
+// its own opacity; nothing here animates a full-size element. The pings are still large
+// animated elements (a circle of r=200 scaled in place to 2.1, looping), and have only
+// been played in Chrome so far.
 
 import { GOLD, ICE, type Part } from './layout.js'
 

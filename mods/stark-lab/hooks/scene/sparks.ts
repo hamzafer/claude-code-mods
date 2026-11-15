@@ -6,7 +6,7 @@
 // opacity keyframes and keyword easing only, and no fill-mode, so a swarm never freezes
 // the scene.
 
-import { GOLD, GOLD_HOT, ICE, type Part } from './layout.js'
+import { GOLD, GOLD_HOT, ICE, seedKey, type Part } from './layout.js'
 import { seeded } from './random.js'
 
 const COLORS = [GOLD, GOLD_HOT, GOLD_HOT, ICE]
@@ -14,8 +14,7 @@ const COLORS = [GOLD, GOLD_HOT, GOLD_HOT, ICE]
 // `after` is when they fly, in seconds: the moment the core flares.
 export function sparks(seed: number, after: number): Part {
   const r = seeded(seed)
-  // Class names carry the seed, so a new scatter is new CSS and plays from the start.
-  const k = `s${(seed % 46656).toString(36)}`
+  const k = seedKey('s', seed)
   let css = '.spark{opacity:0}'
   let svg = ''
   const count = Math.round(r.pick(22, 32))
