@@ -188,6 +188,15 @@
       "url": "https://github.com/vibesenpai/vibesenpai",
       "description": "Shows the turns where your agent went wrong (a misread request, a broken rule, work claimed but not done, work nobody asked for), quoting your own words, with a fix to apply. The free checks run locally; the model reads (Haiku, on your account) are off until you say yes after seeing exactly what they would send",
       "tags": ["pane"]
+    },
+    {
+      "name": "claude-carbon",
+      "marketplace": "claude-carbon",
+      "repo": "gwittebolle/claude-carbon",
+      "author": "gwittebolle",
+      "url": "https://github.com/gwittebolle/claude-carbon",
+      "description": "The CO2 of your Claude Code sessions, estimated locally from token counts: the session's CO2 and API-equivalent cost under the prompt, the CO2 of each answer, and a /carbon-panel pane with your last 30 days and their warming stripes. Sourced, public methodology; checks GitHub for a new release once a day",
+      "tags": ["band", "pane", "statusline"]
     }
   ]
 }
