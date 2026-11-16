@@ -181,6 +181,15 @@
       "tags": ["statusline", "pane", "toast", "command"]
     },
     {
+      "name": "vibesenpai",
+      "marketplace": "vibesenpai",
+      "repo": "vibesenpai/vibesenpai",
+      "author": "vibesenpai",
+      "url": "https://github.com/vibesenpai/vibesenpai",
+      "description": "Shows the turns where your agent went wrong (a misread request, a broken rule, work claimed but not done, work nobody asked for), quoting your own words, with a fix to apply. The free checks run locally; the model reads (Haiku, on your account) are off until you say yes after seeing exactly what they would send",
+      "tags": ["pane"]
+    },
+    {
       "name": "claude-carbon",
       "marketplace": "claude-carbon",
       "repo": "gwittebolle/claude-carbon",
