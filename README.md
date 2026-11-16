@@ -89,9 +89,9 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 ### Themes (Desktop app)
 
 <a href="docs/mods.md#-gotham-night"><img src="images/gotham-night.gif" width="560" alt="gotham-night: Why do we fall, Bruce? Searchlights sweep a rainy city, then the signal lights and bats scatter"></a>
-<a href="docs/mods.md#-matrix-mode"><img src="images/matrix-mode.png" width="275" alt="matrix-mode: green code rain slowed to a crawl, parting in the upper right for a prompt that reads your move with a block cursor"></a> <a href="docs/mods.md#-stark-lab"><img src="images/stark-lab.png" width="275" alt="stark-lab: a dark holographic workshop, the arc reactor at the right locked and glowing gold inside targeting brackets, ping rings spreading from it"></a>
+<a href="docs/mods.md#-matrix-mode"><img src="images/matrix-mode.png" width="275" alt="matrix-mode: green code rain slowed to a crawl, parting in the upper right for a prompt that reads your move with a block cursor"></a> <a href="docs/mods.md#-stark-lab"><img src="images/stark-lab.png" width="275" alt="stark-lab: a dark holographic workshop, the arc reactor at the right locked and glowing gold inside targeting brackets, ping rings spreading from it"></a> <a href="docs/mods.md#-interstellar"><img src="images/interstellar.png" width="275" alt="interstellar: deep space, a black hole with a glowing disc at the upper right, a small ring ship below it sending signal rings, an ice planet in the lower left"></a>
 
-Each theme has two scenes, one while Claude works and one when it needs you. 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights, then the signal and a burst of bats. 🟩 [**matrix-mode**](docs/mods.md#-matrix-mode): code rain, then a waiting cursor. 💠 [**stark-lab**](docs/mods.md#-stark-lab): a spinning arc reactor, then a gold flare.
+Each theme has two scenes, one while Claude works and one when it needs you. 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights, then the signal and a burst of bats. 🟩 [**matrix-mode**](docs/mods.md#-matrix-mode): code rain, then a waiting cursor. 💠 [**stark-lab**](docs/mods.md#-stark-lab): a spinning arc reactor, then a gold flare. 🪐 [**interstellar**](docs/mods.md#-interstellar): a turning black hole, then a ship hailing you.
 
 <a id="-community-mods"></a>
 

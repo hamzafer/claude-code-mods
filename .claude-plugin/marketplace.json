@@ -375,6 +375,19 @@
       "needs": [
         "Claude Code Desktop app"
       ]
+    },
+    {
+      "name": "interstellar",
+      "description": "An Interstellar theme for the Claude Code Desktop app: a black hole turns while Claude works, and when it needs you a ship holds station and hails you with its beacon. Desktop app only.",
+      "version": "0.1.0",
+      "source": "./mods/interstellar",
+      "category": "For fun",
+      "tags": [
+        "theme"
+      ],
+      "needs": [
+        "Claude Code Desktop app"
+      ]
     }
   ]
 }

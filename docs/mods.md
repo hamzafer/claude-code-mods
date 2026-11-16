@@ -67,6 +67,7 @@ Themes change how the Desktop app's Code tab looks. They apply as soon as they'r
 | 🦇 | **gotham-night** | A Gotham theme for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
 | 🟩 | **matrix-mode** | A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only | |
 | 💠 | **stark-lab** | A JARVIS theme for the Claude Code Desktop app: a holographic workshop with a spinning arc reactor while Claude works, and when it needs you the reactor locks and flares gold. Desktop app only | |
+| 🪐 | **interstellar** | An Interstellar theme for the Claude Code Desktop app: a black hole turns while Claude works, and when it needs you a ship holds station and hails you with its beacon. Desktop app only | |
 
 ## 🧭 How they behave
 
@@ -545,6 +546,22 @@ A JARVIS theme for the Claude Code Desktop app that shows whether Claude is work
 - **Every time is new:** each lock starts from its own ring angles and throws its own sparks
 - **Colors:** blue-black with a cyan hologram accent and one warm gold, dark mode only
 - Your system's reduced-motion setting stills the lab and hides the sparks, pings and motes
+- **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
+- **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the needs-you scene stays until that tool finishes. Background subagents and other plugins' tool calls never change it
+
+### 🪐 interstellar
+
+An Interstellar theme for the Claude Code Desktop app that shows whether Claude is working or waiting on you.
+
+![interstellar: deep space, a black hole with a glowing disc at the upper right, a small ring ship below it sending signal rings, an ice planet in the lower left](../images/interstellar.png)
+
+- **Needs** the Desktop app, with Claude Code 2.1.324 or newer in its Code tab. The terminal draws no theme, so there it does nothing
+- **Nothing to run.** Start a local session in the Code tab and send a message: deep space opens behind the chat
+- **While Claude works:** a black hole sits in the upper right: a pitch-black shadow, a thin photon ring, lensed light bending over the top, and a bright disc crossing in front with knots of light running along it. Stars twinkle and drift, an ice planet's limb fills the lower left corner, and a tiny ring ship crosses the sky on a long arc toward the hole
+- **When Claude needs you:** its turn ended, it asks you a question, or a permission prompt is still unanswered after 1.5 s. The ship holds station below the black hole and blinks its beacon, sending amber rings out from itself. The photon ring burns hotter and pulses, and a handful of shooting stars streak past
+- **Every time is new:** each wait throws its own shooting stars
+- **Colors:** deep-space black with an amber accent, dark mode only
+- Your system's reduced-motion setting stills the sky and hides the shooting stars
 - **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
 - **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the needs-you scene stays until that tool finishes. Background subagents and other plugins' tool calls never change it
 

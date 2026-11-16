@@ -13,6 +13,7 @@ Install: `npx claude-code-mods@latest` (tick the mods you want), or `claude plug
 - [gotham-night](https://hamzafer.github.io/claude-code-mods/mods/gotham-night/): A Gotham theme for the Claude Code Desktop app: searchlights sweep while Claude works, and when it needs you the signal lights with a burst of bats. Desktop app only.
 - [matrix-mode](https://hamzafer.github.io/claude-code-mods/mods/matrix-mode/): A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only.
 - [stark-lab](https://hamzafer.github.io/claude-code-mods/mods/stark-lab/): A JARVIS theme for the Claude Code Desktop app: a holographic workshop with a spinning arc reactor while Claude works, and when it needs you the reactor locks and flares gold. Desktop app only.
+- [interstellar](https://hamzafer.github.io/claude-code-mods/mods/interstellar/): An Interstellar theme for the Claude Code Desktop app: a black hole turns while Claude works, and when it needs you a ship holds station and hails you with its beacon. Desktop app only.
 
 ## See what's happening
 
