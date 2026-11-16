@@ -9,6 +9,7 @@ const TAGS = {
   guard: 'a guard on tool calls',
   toast: 'a toast',
   command: 'a command',
+  theme: 'a theme for the Desktop app',
 };
 const SCOPES = { user: 'everywhere (user scope)', project: 'this project (project scope)' };
 export const HINTS = ['↑↓ move', 'space pick', 'p preview', 'o order', 'enter apply', 'q quit'];

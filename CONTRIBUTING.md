@@ -36,6 +36,7 @@ cd cli && node --test
 - 🗺️ Add the page to `site/sitemap.xml`, and a line to `site/llms.txt`
 - 📸 Add a screenshot to `images/` (and `site/images/` for the site page)
 - 📏 A band mod (tagged `band`) copies `shared/bands.ts` to `mods/<name>/hooks/bands.ts`. The repo tests check this
+- 🎨 A theme mod (tagged `theme`) copies the files in `shared/theme/` into its `hooks/` and `tests/` folders, and writes only its own `hooks/look.ts` and `hooks/scene/`. `test/themes.test.mjs` lists where each copy goes and checks them
 - 🆕 A mod that needs a newer Claude Code than CI's pinned minimum puts that version in `mods/<name>/.claude-code-version` (one line, like `2.1.325`), and CI checks it with that version
 
 ## 🔢 Change a mod

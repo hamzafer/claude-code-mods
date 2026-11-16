@@ -340,10 +340,12 @@
     {
       "name": "gotham-night",
       "description": "A Gotham theme for the Claude Code Desktop app: searchlights sweep while Claude works, and when it needs you the signal lights with a burst of bats. Desktop app only.",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "source": "./mods/gotham-night",
       "category": "For fun",
-      "tags": [],
+      "tags": [
+        "theme"
+      ],
       "needs": [
         "Claude Code Desktop app"
       ]

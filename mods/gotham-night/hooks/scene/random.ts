@@ -1,3 +1,5 @@
+// A copy of shared/theme/random.ts: change it there, then copy it over again.
+//
 // A small seeded random (mulberry32): the same seed always draws the same scene.
 
 export type Random = {
