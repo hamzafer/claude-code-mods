@@ -1,7 +1,6 @@
 <p align="center"><img src="images/claude-wave.gif" alt="" width="40"></p>
 
 <h1 align="center">Claude Code mods and themes</h1>
-
 <p align="center"><b>Make Claude Code show what it's doing, and look the way you want.</b><br>Plugins for Claude Code, built on function hooks: live lines above the prompt, guards, panes, games and Desktop themes. Install only the ones you want.</p>
 
 <p align="center">
@@ -17,7 +16,6 @@
 <p align="center"><sub><b>mission-control</b>: every subagent, tool call and file they touch, live. Shown at 4x. <a href="docs/mods.md#%EF%B8%8F-mission-control">Details</a></sub></p>
 
 <a id="-install"></a>
-
 ## Install
 
 ```sh
@@ -40,13 +38,11 @@ Tick the mods you want, press Enter, restart Claude Code. Needs Claude Code 2.1.
 </table>
 
 <a id="-the-mods"></a>
-
 ## The mods
 
 Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md). More screenshots are in [docs/demo.md](docs/demo.md).
 
 ### See what's happening
-
 - 🛰️ [**mission-control**](docs/mods.md#%EF%B8%8F-mission-control): agents, tool calls and the code they touch
 - 📊 [**context-bar**](docs/mods.md#-context-bar): what fills your context window
 - 🌦️ [**token-weather**](docs/mods.md#%EF%B8%8F-token-weather): context fill and a prompt-cache countdown
@@ -65,43 +61,45 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 - 📝 [**md-preview**](docs/mods.md#-md-preview): Markdown edits rendered like GitHub (needs Chrome)
 
 ### Guard your repo
-
 - 💥 [**blast-radius**](docs/mods.md#-blast-radius): see what `rm -r` would delete before it runs
 - 🔑 [**secret-guard**](docs/mods.md#-secret-guard): keeps API keys out of Claude's context and your commits
 
 ### Spend less
-
 - 🔀 [**switchboard**](docs/mods.md#-switchboard): cheaper models for subagents, with their costs
 
 ### My setup (fork and adapt)
-
 - 👀 [**glance**](docs/mods.md#-glance): meetings, PRs, issues and DMs (needs `gh` and connectors)
 - 🚦 [**merge-gate**](docs/mods.md#-merge-gate): holds merges until CI and Codex pass (needs `gh`, Codex)
 - 📏 [**rulebook-guard**](docs/mods.md#-rulebook-guard): enforces my writing and git rules
 - 💾 [**session-saver**](docs/mods.md#-session-saver): where you left off (needs [unpause](https://github.com/hamzafer/unpause))
 
 ### For fun (opt-in)
-
 - 📱 [**reels**](docs/mods.md#-reels-and-snake): Shorts while Claude works
 - 🐍 [**snake**](docs/mods.md#-reels-and-snake): Snake while Claude works
 - 🎵 [**now-playing**](docs/mods.md#-now-playing): Spotify and its lyrics (needs macOS)
 
 ### Themes (Desktop app)
-
-<a href="docs/mods.md#-gotham-night"><img src="images/gotham-night.gif" width="560" alt="gotham-night: Why do we fall, Bruce? Searchlights sweep a rainy city, then the signal lights and bats scatter"></a>
-<a href="docs/mods.md#-matrix-mode"><img src="images/matrix-mode.png" width="205" alt="matrix-mode: green code rain slowed to a crawl, parting in the upper right for a prompt that reads your move with a block cursor"></a> <a href="docs/mods.md#-stark-lab"><img src="images/stark-lab.png" width="205" alt="stark-lab: a dark holographic workshop, the arc reactor at the right locked and glowing gold inside targeting brackets, ping rings spreading from it"></a> <a href="docs/mods.md#-interstellar"><img src="images/interstellar.png" width="205" alt="interstellar: deep space, a black hole with a glowing disc at the upper right, a small ring ship below it sending signal rings, an ice planet in the lower left"></a> <a href="docs/mods.md#-akatsuki-night"><img src="images/akatsuki-night.png" width="205" alt="akatsuki-night: a blood-red moon with three comma marks in its eye over a shrine gate, red clouds with pale outlines and crows resting on the gate"></a>
-
-Most themes have two scenes, one while Claude works and one when it needs you. 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights, then the signal and a burst of bats. 🟩 [**matrix-mode**](docs/mods.md#-matrix-mode): code rain, then a waiting cursor. 💠 [**stark-lab**](docs/mods.md#-stark-lab): a spinning arc reactor, then a gold flare. 🪐 [**interstellar**](docs/mods.md#-interstellar): a turning black hole, then a ship hailing you. 🍥 [**akatsuki-night**](docs/mods.md#-akatsuki-night): one scene, red clouds and a blood moon with a turning eye.
+Most themes have two scenes, one while Claude works and one when it needs you; [**akatsuki-night**](docs/mods.md#-akatsuki-night) has one.
+<p align="center"><a href="docs/mods.md#-gotham-night"><img src="images/gotham-night.gif" width="560" alt="gotham-night: Why do we fall, Bruce? Searchlights sweep a rainy city, then the signal lights and bats scatter"></a><br><a href="docs/mods.md#-gotham-night"><b>gotham-night</b></a><br>searchlights, then the signal and a burst of bats</p><!-- [**gotham-night**] -->
+<table>
+  <tr>
+    <td align="center" width="50%"><a href="docs/mods.md#-matrix-mode"><img src="images/matrix-mode.png" alt="matrix-mode: green code rain slowed to a crawl, parting in the upper right for a prompt that reads your move with a block cursor" width="400"></a><br><a href="docs/mods.md#-matrix-mode"><b>matrix-mode</b></a><br>code rain, then a waiting cursor</td><!-- [**matrix-mode**] -->
+    <td align="center" width="50%"><a href="docs/mods.md#-stark-lab"><img src="images/stark-lab.png" alt="stark-lab: a dark holographic workshop, the arc reactor at the right locked and glowing gold inside targeting brackets, ping rings spreading from it" width="400"></a><br><a href="docs/mods.md#-stark-lab"><b>stark-lab</b></a><br>a spinning arc reactor, then a gold flare</td><!-- [**stark-lab**] -->
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="docs/mods.md#-interstellar"><img src="images/interstellar.png" alt="interstellar: deep space, a black hole with a glowing disc at the upper right, a small ring ship below it sending signal rings, an ice planet in the lower left" width="400"></a><br><a href="docs/mods.md#-interstellar"><b>interstellar</b></a><br>a turning black hole, then a ship hailing you</td><!-- [**interstellar**] -->
+    <td align="center" width="50%"><a href="docs/mods.md#-akatsuki-night"><img src="images/akatsuki-night.png" alt="akatsuki-night: a blood-red moon with three comma marks in its eye over a shrine gate, red clouds with pale outlines and crows resting on the gate" width="400"></a><br><a href="docs/mods.md#-akatsuki-night"><b>akatsuki-night</b></a><br>one scene, red clouds and a blood moon with a turning eye</td>
+  </tr>
+</table>
 
 <a id="-community-mods"></a>
-
 ## Community mods
 
 Built by other people and maintained in their own repos, so read the code before you install. They show up last in the checklist. [See them all](docs/community.md), or open a PR to add yours.
 
 **Community pick: [image-view](https://github.com/jarrodwatts/claude-image-view)** by [@jarrodwatts](https://github.com/jarrodwatts) shows the images you paste as thumbnails above the prompt.
 
-<img src="images/community/image-view.png" width="600" alt="image-view: a thumbnail of the pasted image, labeled #1, above the prompt that holds [Image #1]">
+<p align="center"><img src="images/community/image-view.png" width="600" alt="image-view: a thumbnail of the pasted image, labeled #1, above the prompt that holds [Image #1]"></p>
 
 ## More
 
