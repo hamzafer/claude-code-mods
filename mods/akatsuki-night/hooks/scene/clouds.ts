@@ -78,14 +78,13 @@ function layer(r: Random, l: Layer): string {
 
 export type Clouds = { css: string; animated: string[]; far: string; mid: string; near: string }
 
-// `pace` scales how fast the sky moves: below 1 is faster.
-export function clouds(seed: number, pace: number): Clouds {
+export function clouds(seed: number): Clouds {
   const r = seeded(seed)
   const drawn: Record<string, string> = {}
   let css = '@keyframes cdrift{from{transform:translateX(0px)}to{transform:translateX(-1600px)}}'
   for (const l of LAYERS) {
-    const seconds = l.seconds * pace
-    // Start each layer part-way through its loop, the same part-way at any pace.
+    const seconds = l.seconds
+    // Start each layer part-way through its loop.
     const lead = r.next() * seconds
     css += `.${l.name}{animation:cdrift ${f(seconds)}s linear -${f(lead)}s infinite;will-change:transform}`
     drawn[l.name] =
