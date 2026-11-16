@@ -66,6 +66,7 @@ Themes change how the Desktop app's Code tab looks. They apply as soon as they'r
 | --- | --- | --- | --- |
 | 🦇 | **gotham-night** | A Gotham theme for the Desktop app: searchlights sweep while Claude works, and the signal lights with a burst of bats when it needs you. Desktop app only | |
 | 🟩 | **matrix-mode** | A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only | |
+| 💠 | **stark-lab** | A JARVIS theme for the Claude Code Desktop app: a holographic workshop with a spinning arc reactor while Claude works, and when it needs you the reactor locks and flares gold. Desktop app only | |
 
 ## 🧭 How they behave
 
@@ -528,6 +529,22 @@ A Matrix theme for the Claude Code Desktop app that shows whether Claude is work
 - **Every time is new:** each wait picks its own columns to stop
 - **Colors:** green-black with a phosphor-green accent, dark mode only
 - Your system's reduced-motion setting stops the rain and shows the prompt already typed
+- **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
+- **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the needs-you scene stays until that tool finishes. Background subagents and other plugins' tool calls never change it
+
+### 💠 stark-lab
+
+A JARVIS theme for the Claude Code Desktop app that shows whether Claude is working or waiting on you.
+
+![stark-lab: a dark holographic workshop, the arc reactor at the right locked and glowing gold inside targeting brackets, ping rings spreading from it](../images/stark-lab.png)
+
+- **Needs** the Desktop app, with Claude Code 2.1.324 or newer in its Code tab. The terminal draws no theme, so there it does nothing
+- **Nothing to run.** Start a local session in the Code tab and send a message: the lab comes up behind the chat
+- **While Claude works:** a dark workshop with a floor grid running to the horizon. At the right a holographic arc reactor turns, its four rings counter-rotating at different speeds and its core breathing. A scan line sweeps the floor, motes rise, a robot arm idles at the bench, and a waveform, a dial and level bars hang in a projector's light
+- **When Claude needs you:** its turn ended, it asks you a question, or a permission prompt is still unanswered after 1.5 s. The rings spin down and lock with their notches lined up, the core flares gold-white and pulses, sparks pop, targeting brackets close in around the reactor and slow rings spread from it like a ping. The panels at the left dim and freeze
+- **Every time is new:** each lock starts from its own ring angles and throws its own sparks
+- **Colors:** blue-black with a cyan hologram accent and one warm gold, dark mode only
+- Your system's reduced-motion setting stills the lab and hides the sparks, pings and motes
 - **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
 - **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the needs-you scene stays until that tool finishes. Background subagents and other plugins' tool calls never change it
 
