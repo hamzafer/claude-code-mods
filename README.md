@@ -89,8 +89,9 @@ Full descriptions, commands and setup notes are in [docs/mods.md](docs/mods.md).
 ### Themes (Desktop app)
 
 <a href="docs/mods.md#-gotham-night"><img src="images/gotham-night.gif" width="560" alt="gotham-night: Why do we fall, Bruce? Searchlights sweep a rainy city, then the signal lights and bats scatter"></a>
+<a href="docs/mods.md#-matrix-mode"><img src="images/matrix-mode.png" width="275" alt="matrix-mode: green code rain slowed to a crawl, parting in the upper right for a prompt that reads your move with a block cursor"></a>
 
-- 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights while Claude works, the signal and a burst of bats when it needs you
+Each theme has two scenes, one while Claude works and one when it needs you. 🦇 [**gotham-night**](docs/mods.md#-gotham-night): searchlights, then the signal and a burst of bats. 🟩 [**matrix-mode**](docs/mods.md#-matrix-mode): code rain, then a waiting cursor.
 
 <a id="-community-mods"></a>
 
