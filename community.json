@@ -179,6 +179,15 @@
       "url": "https://github.com/araujo-eduardo/claude-usage-bar",
       "description": "A 7-day token history pane with per-model totals, plus the 5-hour and weekly plan limits with reset times, context fill and session cost in the status line, and a toast past 90% of the 5-hour window. English and pt-BR. No network requests and no model calls",
       "tags": ["statusline", "pane", "toast", "command"]
+    },
+    {
+      "name": "vibesenpai",
+      "marketplace": "vibesenpai",
+      "repo": "vibesenpai/vibesenpai",
+      "author": "vibesenpai",
+      "url": "https://github.com/vibesenpai/vibesenpai",
+      "description": "Shows the turns where your agent went wrong (a misread request, a broken rule, work claimed but not done, work nobody asked for), quoting your own words, with a fix to apply. The free checks run locally; the model reads (Haiku, on your account) are off until you say yes after seeing exactly what they would send",
+      "tags": ["pane"]
     }
   ]
 }
