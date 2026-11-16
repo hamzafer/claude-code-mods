@@ -388,6 +388,19 @@
       "needs": [
         "Claude Code Desktop app"
       ]
+    },
+    {
+      "name": "akatsuki-night",
+      "description": "An Akatsuki theme for the Claude Code Desktop app: red clouds drift past a blood moon whose eye slowly turns, crows resting on a shrine gate. Desktop app only.",
+      "version": "0.1.0",
+      "source": "./mods/akatsuki-night",
+      "category": "For fun",
+      "tags": [
+        "theme"
+      ],
+      "needs": [
+        "Claude Code Desktop app"
+      ]
     }
   ]
 }

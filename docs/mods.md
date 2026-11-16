@@ -60,7 +60,7 @@ These are built around my own tools and rules. Fork them and change the rules to
 
 ### 🎨 Themes (Desktop app)
 
-Themes change how the Desktop app's Code tab looks. They apply as soon as they're installed.
+Themes change how the Desktop app's Code tab looks. They apply as soon as they're installed. Turn on one theme at a time: each one sets the whole look, so with two the one that loads last wins.
 
 | | Mod | What it does | Command |
 | --- | --- | --- | --- |
@@ -68,6 +68,7 @@ Themes change how the Desktop app's Code tab looks. They apply as soon as they'r
 | 🟩 | **matrix-mode** | A Matrix theme for the Claude Code Desktop app: green code rains while Claude works, and when it needs you the rain slows and parts for a waiting cursor. Desktop app only | |
 | 💠 | **stark-lab** | A JARVIS theme for the Claude Code Desktop app: a holographic workshop with a spinning arc reactor while Claude works, and when it needs you the reactor locks and flares gold. Desktop app only | |
 | 🪐 | **interstellar** | An Interstellar theme for the Claude Code Desktop app: a black hole turns while Claude works, and when it needs you a ship holds station and hails you with its beacon. Desktop app only | |
+| 🍥 | **akatsuki-night** | An Akatsuki theme for the Claude Code Desktop app: red clouds drift past a blood moon whose eye slowly turns, crows resting on a shrine gate. Desktop app only | |
 
 ## 🧭 How they behave
 
@@ -564,6 +565,20 @@ An Interstellar theme for the Claude Code Desktop app that shows whether Claude 
 - Your system's reduced-motion setting stills the sky and hides the shooting stars
 - **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
 - **Known gap:** there is no event for the moment you approve a permission prompt, so after you approve one the needs-you scene stays until that tool finishes. Background subagents and other plugins' tool calls never change it
+
+### 🍥 akatsuki-night
+
+An Akatsuki theme for the Claude Code Desktop app, for Naruto fans, with one night scene that does not change with Claude's state.
+
+![akatsuki-night: a blood-red moon with three comma marks in its eye over a shrine gate, red clouds with pale outlines and crows resting on the gate](../images/akatsuki-night.png)
+
+- **Needs** the Desktop app, with Claude Code 2.1.324 or newer in its Code tab. The terminal draws no theme, so there it does nothing
+- **Nothing to run.** Start a local session in the Code tab and send a message: the night comes up behind the chat
+- **The scene:** a blood-red moon hangs low at the right behind a shrine gate, and an eye in it turns its three comma marks a step at a time. Red clouds with pale outlines drift in three layers, crows sit still on the gate, a bare tree and a temple roof, and embers rise
+- **One scene:** it looks the same while Claude works, when its turn ends and when it asks you something.
+- **Colors:** red-black with a crimson accent, dark mode only
+- Your system's reduced-motion setting stills the night
+- **To take it off:** turn the mod off, start a new session, then open Settings, search for `code appearance` and choose Remove colors
 
 ## 🛠️ Build your own
 
