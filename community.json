@@ -197,6 +197,15 @@
       "url": "https://github.com/gwittebolle/claude-carbon",
       "description": "The CO2 of your Claude Code sessions, estimated locally from token counts: the session's CO2 and API-equivalent cost under the prompt, the CO2 of each answer, and a /carbon-panel pane with your last 30 days and their warming stripes. Sourced, public methodology; checks GitHub for a new release once a day",
       "tags": ["band", "pane", "statusline"]
+    },
+    {
+      "name": "multiverse",
+      "marketplace": "claude-multiverse",
+      "repo": "Nam0101/claude-multiverse",
+      "author": "Nam0101",
+      "url": "https://github.com/Nam0101/claude-multiverse",
+      "description": "A theme in fourteen dark universes: each new session lands in one, from a galactic war to the deep sea, and the Claude critter works at its desk there, showing thinking, commands, errors and done. Subagents arrive through portals, ultracode adds a golden aura, and the scene fits between the desktop app's side panels. Desktop and mobile app; the terminal gets the universe's name and a sparking ULTRA row. No network requests and no model calls",
+      "tags": ["band", "toast", "command"]
     }
   ]
 }
