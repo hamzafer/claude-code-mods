@@ -436,13 +436,29 @@ export function cdOf(command: string): string | undefined {
   return /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*(?:&&|;)/.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
 }
 
+// An absolute path as the shell means it, or undefined for a relative one. On Windows that
+// includes `C:/x` and `C:\x`, and Git Bash's `/c/x` (rewritten to `C:/x`, since git and the
+// folder lookup run natively and know no `/c/`).
+export function absolute(base: string, to: string): string | undefined {
+  if (drive(to)) return to
+  if (!to.startsWith('/')) return undefined
+  const msys = /^\/([A-Za-z])(\/|$)/.exec(to)
+  if (msys && drive(base)) return `${msys[1].toUpperCase()}:/${to.slice(3)}`
+  return to
+}
+
+// `C:/…` or `C:` followed by a backslash (char code 92).
+function drive(p: string) {
+  return /^[A-Za-z]:/.test(p) && (p[2] === '/' || p.charCodeAt(2) === 92)
+}
+
 // Where git runs: the session's folder, moved by a leading `cd x &&` and then by `git -C y`.
 async function runDir($: EngineInterface, command: string, c: string | undefined): Promise<string> {
   const home = (await $.env.get('HOME')) ?? ''
   const join = (base: string, to: string | undefined) => {
     if (to === undefined || to.includes('$')) return base
     if (to === '~' || to.startsWith('~/')) return home ? home + to.slice(1) : base
-    return to.startsWith('/') ? to : `${base.replace(/\/$/, '')}/${to}`
+    return absolute(base, to) ?? `${base.replace(/\/$/, '')}/${to}`
   }
   const dir = join(await $.session.cwd(), cdOf(command))
   return join(dir, c)

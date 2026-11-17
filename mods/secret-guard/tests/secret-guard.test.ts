@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { addPaths, bare, cdOf, gitCOf } from '../hooks/register'
+import { absolute, addPaths, bare, cdOf, gitCOf } from '../hooks/register'
 import { addedLines, builtin, describe as say, mapStrings, redact } from '../hooks/rules'
 
 // Fake keys, built at run time so no scanner (GitHub push protection included) sees a key in this file.
@@ -148,6 +148,14 @@ describe('secret-guard', () => {
     expect(gitCOf('git -C sub status && git -C api commit -m x')).toBe('api')
     expect(gitCOf('git -C "a b"/c commit -m x')).toBe('a b/c')
     expect(gitCOf('git commit -m x')).toBe(undefined)
+    // Windows: `git -C "C:/repo"` names a folder of its own, not one under the session's folder.
+    const win = 'C:' + String.fromCharCode(92) + 'Users' + String.fromCharCode(92) + 'me'
+    expect(absolute(win, 'C:/Users/me/repo')).toBe('C:/Users/me/repo')
+    expect(absolute(win, 'D:' + String.fromCharCode(92) + 'repo')).toBe('D:' + String.fromCharCode(92) + 'repo')
+    expect(absolute(win, '/c/Users/me/repo')).toBe('C:/Users/me/repo')
+    expect(absolute(win, '../repo')).toBe(undefined)
+    expect(absolute('/home/me', '/c/repo')).toBe('/c/repo')
+    expect(absolute('/home/me', 'repo')).toBe(undefined)
   })
 
   test('a secret in Bash output is hidden before Claude reads it, with a toast', async ($, on) => {
