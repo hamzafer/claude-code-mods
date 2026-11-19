@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, sep } from 'node:path';
-import { parseArgs, main, profileLabel, bandsPath, parseBandOrder } from '../src/cli.js';
+import { parseArgs, main, profileLabel, bandsPath, parseBandOrder, trimDir } from '../src/cli.js';
 
 const catalog = [
   { name: 'context-bar', description: 'A bar', category: 'See what\'s happening', tags: [], needs: [] },
@@ -331,6 +331,18 @@ test('profileLabel names the profile claude will use', () => {
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: work }, home), `~${sep}.claude-work`);
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/opt/claude' }, home), '/opt/claude');
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: `${work}/` }, home), `~${sep}.claude-work`);
+});
+
+test('trimDir drops trailing separators and keeps a root', () => {
+  const BS = '\\';
+  assert.equal(trimDir('/home/u/.claude-work//', '/'), '/home/u/.claude-work');
+  assert.equal(trimDir('/', '/'), '/');
+  assert.equal(trimDir(`a${BS}`, '/'), `a${BS}`); // on macOS/Linux a backslash is part of the name
+  assert.equal(trimDir(`C:${BS}Users${BS}u${BS}.claude-work${BS}/`, BS), `C:${BS}Users${BS}u${BS}.claude-work`);
+  assert.equal(trimDir(`C:${BS}`, BS), `C:${BS}`);
+  assert.equal(trimDir('C:/', BS), 'C:/');
+  assert.equal(trimDir(`C:${BS}${BS}`, BS), `C:${BS}`);
+  assert.equal(trimDir(`${BS}${BS}server${BS}share${BS}`, BS), `${BS}${BS}server${BS}share`);
 });
 
 // Band order: read the file in, save it from the order screen's effect.

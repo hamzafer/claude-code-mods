@@ -64,9 +64,15 @@ function printList(mods, out) {
   out(blocks.join('\n\n'));
 }
 
-// CLAUDE_CONFIG_DIR without trailing separators (on Windows `\\` is one too), or null.
-const TRAILING = sep === '\\' ? /(.)[\\/]+$/ : /(.)\/+$/;
-const configEnv = (env) => (env.CLAUDE_CONFIG_DIR || '').replace(TRAILING, '$1') || null;
+// A folder without trailing separators (on Windows a backslash is one too). A root keeps its
+// own: `/` and `C:\` stay, since `C:` alone is the current folder on drive C.
+export function trimDir(dir, separator = sep) {
+  if (separator === '\\') return /^[A-Za-z]:[\\/]+$/.test(dir) ? dir.slice(0, 3) : dir.replace(/(.)[\\/]+$/, '$1');
+  return dir.replace(/(.)\/+$/, '$1');
+}
+
+// CLAUDE_CONFIG_DIR without trailing separators, or null.
+const configEnv = (env) => trimDir(env.CLAUDE_CONFIG_DIR || '') || null;
 
 // The profile claude uses here: CLAUDE_CONFIG_DIR, or ~/.claude, with the platform's separator.
 export function profileLabel(env = process.env, home = homedir()) {
