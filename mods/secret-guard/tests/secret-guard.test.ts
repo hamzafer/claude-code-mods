@@ -25,6 +25,7 @@ type Opts = {
   folder?: Record<string, string> | null // files in /repo before git init; null: the folder doesn't exist yet
   truncated?: boolean // git's output was cut at 4 MiB
   timedOut?: boolean // git diff failed, but the folder is a repo
+  cwd?: string // the session's folder, '/repo' by default
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -60,7 +61,7 @@ function engine(on: any, opts: Opts = {}) {
     return { value: undefined }
   })
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/Users/me' : '/tmp' }))
-  on('session.cwd', () => ({ value: '/repo' }))
+  on('session.cwd', () => ({ value: opts.cwd ?? '/repo' }))
   const file = (path: string) => (opts.untracked ?? {})[path.replace('/repo/', '')]
   on('fs.stat', (_$: any, e: any) => ({ value: { kind: 'file', size: (file(e.path) ?? '').length, mtimeMs: 0, isLink: false, realPath: e.path } }))
   on('fs.read', (_$: any, e: any) => ({ value: file(e.path) ?? (opts.folder ?? {})[e.path.replace('/repo/', '')] ?? opts.existing ?? '' }))
@@ -159,7 +160,7 @@ describe('secret-guard', () => {
     // Elsewhere `C:/x` is a folder named `C:` under the session's folder.
     expect(absolute('/home/me', 'C:/repo')).toBe(undefined)
     // Bash drops an unquoted backslash: `C:\repo` reaches git as the drive-relative `C:repo`,
-    // which stays relative (git then fails there and the guard asks), while `"C:\repo"` keeps it.
+    // while `"C:\repo"` keeps it. Inside double quotes `\\` is one backslash, as in bash.
     const BS = String.fromCharCode(92)
     expect(shellWord(`C:${BS}repo`)).toBe('C:repo')
     expect(shellWord(`"C:${BS}repo"`)).toBe(`C:${BS}repo`)
@@ -168,7 +169,29 @@ describe('secret-guard', () => {
     expect(gitCOf(`git -C "C:${BS}repo" commit -m x`)).toBe(`C:${BS}repo`)
     expect(cdOf(`cd C:${BS}proj && git commit -m x`)).toBe('C:proj')
     expect(cdOf(`cd "C:${BS}proj" && git commit -m x`)).toBe(`C:${BS}proj`)
-    expect(absolute(win, 'C:repo')).toBe(undefined)
+    expect(shellWord(`"C:${BS}${BS}repo"`)).toBe(`C:${BS}repo`)
+    // `C:repo` is `repo` under the session's folder on its own drive; on another drive, unknown.
+    expect(absolute(win, 'C:repo')).toBe(`${win}/repo`)
+    expect(absolute(win, 'c:')).toBe(win)
+    expect(absolute(win, 'D:repo')).toBe(null)
+    expect(absolute('/home/me', 'C:repo')).toBe(undefined)
+  })
+
+  test('Windows: an unquoted C:\\x commits where git does, and another drive asks', async ($, on) => {
+    const BS = String.fromCharCode(92)
+    const win = `C:${BS}Users${BS}me`
+    const same = engine(on, { cwd: win, diff: '+++ b/a.ts\n+fine\n' })
+    await $.tool.call({ tool: 'Bash', command: `git -C C:${BS}proj commit -m x` } as any)
+    expect(same.cwds).toContain(`${win}/proj`)
+  })
+
+  test('Windows: git init on another drive asks, with no folder to read', async ($, on) => {
+    const BS = String.fromCharCode(92)
+    const { asked, runs } = engine(on, { cwd: `C:${BS}Users${BS}me`, gitFails: true, folder: null, answer: 'Block it' })
+    const r: any = await $.tool.call({ tool: 'Bash', command: `cd D:${BS}proj && git init && git add . && git commit -m x` } as any)
+    expect(asked[0]).toMatch(/couldn't tell which folder it runs in/)
+    expect(r.deny).toMatch(/blocked this commit/)
+    expect(runs.some(a => a.includes('diff'))).toBe(false)
   })
 
   test('a secret in Bash output is hidden before Claude reads it, with a toast', async ($, on) => {
