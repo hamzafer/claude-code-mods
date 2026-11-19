@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, addPaths, bare, cdOf, gitCOf } from '../hooks/register'
+import { absolute, addPaths, bare, cdOf, gitCOf, shellWord } from '../hooks/register'
 import { addedLines, builtin, describe as say, mapStrings, redact } from '../hooks/rules'
 
 // Fake keys, built at run time so no scanner (GitHub push protection included) sees a key in this file.
@@ -156,6 +156,19 @@ describe('secret-guard', () => {
     expect(absolute(win, '../repo')).toBe(undefined)
     expect(absolute('/home/me', '/c/repo')).toBe('/c/repo')
     expect(absolute('/home/me', 'repo')).toBe(undefined)
+    // Elsewhere `C:/x` is a folder named `C:` under the session's folder.
+    expect(absolute('/home/me', 'C:/repo')).toBe(undefined)
+    // Bash drops an unquoted backslash: `C:\repo` reaches git as the drive-relative `C:repo`,
+    // which stays relative (git then fails there and the guard asks), while `"C:\repo"` keeps it.
+    const BS = String.fromCharCode(92)
+    expect(shellWord(`C:${BS}repo`)).toBe('C:repo')
+    expect(shellWord(`"C:${BS}repo"`)).toBe(`C:${BS}repo`)
+    expect(shellWord(`'C:${BS}repo'`)).toBe(`C:${BS}repo`)
+    expect(gitCOf(`git -C C:${BS}repo commit -m x`)).toBe('C:repo')
+    expect(gitCOf(`git -C "C:${BS}repo" commit -m x`)).toBe(`C:${BS}repo`)
+    expect(cdOf(`cd C:${BS}proj && git commit -m x`)).toBe('C:proj')
+    expect(cdOf(`cd "C:${BS}proj" && git commit -m x`)).toBe(`C:${BS}proj`)
+    expect(absolute(win, 'C:repo')).toBe(undefined)
   })
 
   test('a secret in Bash output is hidden before Claude reads it, with a toast', async ($, on) => {

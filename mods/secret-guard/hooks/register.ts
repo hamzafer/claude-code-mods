@@ -440,14 +440,22 @@ function plainShape(command: string): string | undefined {
 
 // The directory a leading `cd x &&` moves to, if any.
 export function cdOf(command: string): string | undefined {
-  return /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*(?:&&|;)/.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
+  const word = /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*(?:&&|;)/.exec(command)?.[1]
+  return word === undefined ? undefined : shellWord(word)
 }
 
-// An absolute path as the shell means it, or undefined for a relative one. On Windows that
-// includes `C:/x` and `C:\x`, and Git Bash's `/c/x` (rewritten to `C:/x`, since git and the
-// folder lookup run natively and know no `/c/`).
+// A shell word as bash hands it on: quotes dropped, and outside them `\x` read as `x`. So an
+// unquoted `C:\repo` is `C:repo` (drive-relative, as git then sees it), and `"C:\repo"` keeps its `\`.
+export function shellWord(word: string): string {
+  return word.replace(/"([^"]*)"|'([^']*)'|\\(.)/g, (_, dq, sq, esc) => dq ?? sq ?? esc)
+}
+
+// An absolute path as the shell means it, or undefined for a relative one. When the session's
+// folder is a Windows one, that includes `C:/x` and `C:\x`, and Git Bash's `/c/x` (rewritten to
+// `C:/x`, since git and the folder lookup run natively and know no `/c/`). Elsewhere `C:/x` is
+// a folder named `C:`, so it stays relative.
 export function absolute(base: string, to: string): string | undefined {
-  if (drive(to)) return to
+  if (drive(to) && drive(base)) return to
   if (!to.startsWith('/')) return undefined
   const msys = /^\/([A-Za-z])(\/|$)/.exec(to)
   if (msys && drive(base)) return `${msys[1].toUpperCase()}:/${to.slice(3)}`
@@ -485,7 +493,8 @@ export function gitSteps(command: string): { step: 'commit' | 'push'; dir: strin
     const [from, to] = m.indices[1]
     // A shell word: quoted parts and bare parts run together, as in `"a b"/c`.
     const opts = [...command.slice(from, to).matchAll(/(?:^|[ \t])-C[ \t]+((?:"[^"]*"|'[^']*'|[^\s"'])+)/g)]
-    const dir = opts.at(-1)?.[1]?.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
+    const word = opts.at(-1)?.[1]
+    const dir = word === undefined ? undefined : shellWord(word)
     out.push({ step: m[2] as 'commit' | 'push', dir })
   }
   return out
