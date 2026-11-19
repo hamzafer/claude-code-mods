@@ -170,10 +170,12 @@ describe('secret-guard', () => {
     expect(cdOf(`cd C:${BS}proj && git commit -m x`)).toBe('C:proj')
     expect(cdOf(`cd "C:${BS}proj" && git commit -m x`)).toBe(`C:${BS}proj`)
     expect(shellWord(`"C:${BS}${BS}repo"`)).toBe(`C:${BS}repo`)
-    // `C:repo` is `repo` under the session's folder on its own drive; on another drive, unknown.
-    expect(absolute(win, 'C:repo')).toBe(`${win}/repo`)
-    expect(absolute(win, 'c:')).toBe(win)
-    expect(absolute(win, 'D:repo')).toBe(null)
+    // `C:repo` for git (native) is `repo` under the current folder on its own drive; for Git
+    // Bash's `cd`, or on another drive, it can't be placed, so null (the guard asks).
+    expect(absolute(win, 'C:repo', true)).toBe(`${win}/repo`)
+    expect(absolute(win, 'c:', true)).toBe(win)
+    expect(absolute(win, 'D:repo', true)).toBe(null)
+    expect(absolute(win, 'C:repo')).toBe(null)
     expect(absolute('/home/me', 'C:repo')).toBe(undefined)
   })
 
@@ -185,10 +187,10 @@ describe('secret-guard', () => {
     expect(same.cwds).toContain(`${win}/proj`)
   })
 
-  test('Windows: git init on another drive asks, with no folder to read', async ($, on) => {
+  test('Windows: an unquoted cd C:\\x then git init asks, with no folder to read', async ($, on) => {
     const BS = String.fromCharCode(92)
     const { asked, runs } = engine(on, { cwd: `C:${BS}Users${BS}me`, gitFails: true, folder: null, answer: 'Block it' })
-    const r: any = await $.tool.call({ tool: 'Bash', command: `cd D:${BS}proj && git init && git add . && git commit -m x` } as any)
+    const r: any = await $.tool.call({ tool: 'Bash', command: `cd C:${BS}proj && git init && git add . && git commit -m x` } as any)
     expect(asked[0]).toMatch(/couldn't tell which folder it runs in/)
     expect(r.deny).toMatch(/blocked this commit/)
     expect(runs.some(a => a.includes('diff'))).toBe(false)

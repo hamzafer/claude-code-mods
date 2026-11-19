@@ -457,15 +457,20 @@ export function shellWord(word: string): string {
 // folder is a Windows one, that includes `C:/x` and `C:\x`, and Git Bash's `/c/x` (rewritten to
 // `C:/x`, since git and the folder lookup run natively and know no `/c/`). Elsewhere `C:/x` is
 // a folder named `C:`, so it stays relative. A drive-relative `C:x` (what an unquoted `C:\x`
-// becomes) is `x` under the session's folder on its own drive; on another drive the folder
-// that drive was last in is unknown here, so null: the guard then asks.
-export function absolute(base: string, to: string): string | null | undefined {
-  if (drive(to) && drive(base)) return to
-  const rel = /^([A-Za-z]):(.*)$/.exec(to)
-  if (rel && drive(base)) return rel[1].toUpperCase() === base[0].toUpperCase() ? `${base.replace(/[\\/]$/, '')}/${rel[2]}`.replace(/\/$/, '') : null
+// becomes) is null, so the guard asks, unless git reads it natively (`git -C`, so `native`) on
+// the base's own drive: Win32 then reads it as `x` under the current folder. Git Bash's own `cd`
+// may read it otherwise, and another drive's last folder is unknown here.
+export function absolute(base: string, to: string, native = false): string | null | undefined {
+  const winBase = /^([A-Za-z]):[\\/]/.exec(base)?.[1]
+  if (drive(to) && winBase) return to
+  const [, letter, rest] = /^([A-Za-z]):(.*)$/.exec(to) ?? []
+  if (letter !== undefined && winBase) {
+    const same = native && letter.toUpperCase() === winBase.toUpperCase()
+    return same ? `${base.replace(/[\\/]$/, '')}/${rest}`.replace(/\/$/, '') : null
+  }
   if (!to.startsWith('/')) return undefined
-  const msys = /^\/([A-Za-z])(\/|$)/.exec(to)
-  if (msys && drive(base)) return `${msys[1].toUpperCase()}:/${to.slice(3)}`
+  const msys = /^\/([A-Za-z])(?:\/|$)/.exec(to)?.[1]
+  if (msys && winBase) return `${msys.toUpperCase()}:/${to.slice(3)}`
   return to
 }
 
@@ -478,14 +483,14 @@ function drive(p: string) {
 // null when it can't be placed (see absolute).
 async function runDir($: EngineInterface, command: string, c: string | undefined): Promise<string | null> {
   const home = (await $.env.get('HOME')) ?? ''
-  const join = (base: string, to: string | undefined) => {
+  const join = (base: string, to: string | undefined, native: boolean) => {
     if (to === undefined || to.includes('$')) return base
     if (to === '~' || to.startsWith('~/')) return home ? home + to.slice(1) : base
-    const at = absolute(base, to)
+    const at = absolute(base, to, native)
     return at === undefined ? `${base.replace(/\/$/, '')}/${to}` : at
   }
-  const dir = join(await $.session.cwd(), cdOf(command))
-  return dir === null ? null : join(dir, c)
+  const dir = join(await $.session.cwd(), cdOf(command), false)
+  return dir === null ? null : join(dir, c, true)
 }
 
 // The folder the commit's or push's own `git -C dir` names, if any. Text in quotes (a commit
