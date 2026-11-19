@@ -227,12 +227,20 @@ async function ignored($: EngineInterface, path: string) {
 async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push', adds: string[] | null): Promise<string | null> {
   const at = { cwd, timeoutMs: 30_000 }
   const run = (argv: string[]) => $.process.run(argv, at).catch(() => null)
-  const DIFF = [...GIT_SAFE, 'diff', '--no-ext-diff', '--no-color', '-U0']
+  // --text --no-textconv: a .gitattributes `-diff` or `binary` line, or a textconv filter,
+  // would otherwise turn a file's lines into "Binary files differ" and hide a key.
+  const PATCH = ['--no-ext-diff', '--no-textconv', '--text', '--no-color', '-U0']
+  const DIFF = [...GIT_SAFE, 'diff', ...PATCH]
   if (step === 'push') {
     // Every commit not on any remote yet, each one's own patch: a secret added and then
     // deleted still lands in history. With no remote at all, that's the whole history.
-    // Every local branch, not just HEAD: `git push origin other-branch` pushes that one.
-    const r = await run([...GIT_SAFE, 'log', '-p', '--no-ext-diff', '--no-color', '-U0', '--format=', '--branches', '--not', '--remotes'])
+    // Every local branch and tag, not just HEAD: `git push origin other-branch` pushes that one.
+    // HEAD too, for commits on a detached HEAD (a fresh `git worktree add <path> origin/main`).
+    // With no commit yet (`git init && … && git commit && git push`) HEAD names nothing, so
+    // read the branches alone; the commit step scans what that first commit takes.
+    const LOG = [...GIT_SAFE, 'log', '-p', ...PATCH, '--format=']
+    let r = await run([...LOG, 'HEAD', '--tags', '--branches', '--not', '--remotes'])
+    if (!r || r.exitCode !== 0) r = await run([...LOG, '--tags', '--branches', '--not', '--remotes'])
     return r && r.exitCode === 0 ? r.stdout + (r.isStdoutTruncated ? TRUNCATED : '') : null
   }
   let r = await run([...DIFF, 'HEAD'])
