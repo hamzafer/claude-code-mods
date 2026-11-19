@@ -64,13 +64,14 @@ function printList(mods, out) {
   out(blocks.join('\n\n'));
 }
 
-// CLAUDE_CONFIG_DIR without trailing slashes, or null.
-const configEnv = (env) => (env.CLAUDE_CONFIG_DIR || '').replace(/(.)\/+$/, '$1') || null;
+// CLAUDE_CONFIG_DIR without trailing separators (on Windows `\\` is one too), or null.
+const TRAILING = sep === '\\' ? /(.)[\\/]+$/ : /(.)\/+$/;
+const configEnv = (env) => (env.CLAUDE_CONFIG_DIR || '').replace(TRAILING, '$1') || null;
 
-// The profile claude uses here: CLAUDE_CONFIG_DIR, or ~/.claude.
+// The profile claude uses here: CLAUDE_CONFIG_DIR, or ~/.claude, with the platform's separator.
 export function profileLabel(env = process.env, home = homedir()) {
   const dir = configEnv(env);
-  if (!dir) return '~/.claude';
+  if (!dir) return `~${sep}.claude`;
   return dir === home || dir.startsWith(home + sep) ? '~' + dir.slice(home.length) : dir;
 }
 

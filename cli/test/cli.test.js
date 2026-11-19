@@ -325,7 +325,9 @@ test('profileLabel names the profile claude will use', () => {
   // Paths are built with join, so the separator is the platform's own.
   const home = join(sep, 'home', 'u');
   const work = join(home, '.claude-work');
-  assert.equal(profileLabel({}, home), '~/.claude');
+  assert.equal(profileLabel({}, home), `~${sep}.claude`);
+  // A trailing separator is dropped, a backslash too where it is one.
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: `${work}${sep}${sep}` }, home), `~${sep}.claude-work`);
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: work }, home), `~${sep}.claude-work`);
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/opt/claude' }, home), '/opt/claude');
   assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: `${work}/` }, home), `~${sep}.claude-work`);
