@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { addPaths, bare, cdOf, gitCOf } from '../hooks/register'
+import { absolute, addPaths, bare, cdOf, gitCOf, shellWord } from '../hooks/register'
 import { addedLines, builtin, describe as say, mapStrings, redact } from '../hooks/rules'
 
 // Fake keys, built at run time so no scanner (GitHub push protection included) sees a key in this file.
@@ -25,6 +25,7 @@ type Opts = {
   folder?: Record<string, string> | null // files in /repo before git init; null: the folder doesn't exist yet
   truncated?: boolean // git's output was cut at 4 MiB
   timedOut?: boolean // git diff failed, but the folder is a repo
+  cwd?: string // the session's folder, '/repo' by default
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -60,7 +61,7 @@ function engine(on: any, opts: Opts = {}) {
     return { value: undefined }
   })
   on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? '/Users/me' : '/tmp' }))
-  on('session.cwd', () => ({ value: '/repo' }))
+  on('session.cwd', () => ({ value: opts.cwd ?? '/repo' }))
   const file = (path: string) => (opts.untracked ?? {})[path.replace('/repo/', '')]
   on('fs.stat', (_$: any, e: any) => ({ value: { kind: 'file', size: (file(e.path) ?? '').length, mtimeMs: 0, isLink: false, realPath: e.path } }))
   on('fs.read', (_$: any, e: any) => ({ value: file(e.path) ?? (opts.folder ?? {})[e.path.replace('/repo/', '')] ?? opts.existing ?? '' }))
@@ -148,6 +149,51 @@ describe('secret-guard', () => {
     expect(gitCOf('git -C sub status && git -C api commit -m x')).toBe('api')
     expect(gitCOf('git -C "a b"/c commit -m x')).toBe('a b/c')
     expect(gitCOf('git commit -m x')).toBe(undefined)
+    // Windows: `git -C "C:/repo"` names a folder of its own, not one under the session's folder.
+    const win = 'C:' + String.fromCharCode(92) + 'Users' + String.fromCharCode(92) + 'me'
+    expect(absolute(win, 'C:/Users/me/repo')).toBe('C:/Users/me/repo')
+    expect(absolute(win, 'D:' + String.fromCharCode(92) + 'repo')).toBe('D:' + String.fromCharCode(92) + 'repo')
+    expect(absolute(win, '/c/Users/me/repo')).toBe('C:/Users/me/repo')
+    expect(absolute(win, '../repo')).toBe(undefined)
+    expect(absolute('/home/me', '/c/repo')).toBe('/c/repo')
+    expect(absolute('/home/me', 'repo')).toBe(undefined)
+    // Elsewhere `C:/x` is a folder named `C:` under the session's folder.
+    expect(absolute('/home/me', 'C:/repo')).toBe(undefined)
+    // Bash drops an unquoted backslash: `C:\repo` reaches git as the drive-relative `C:repo`,
+    // while `"C:\repo"` keeps it. Inside double quotes `\\` is one backslash, as in bash.
+    const BS = String.fromCharCode(92)
+    expect(shellWord(`C:${BS}repo`)).toBe('C:repo')
+    expect(shellWord(`"C:${BS}repo"`)).toBe(`C:${BS}repo`)
+    expect(shellWord(`'C:${BS}repo'`)).toBe(`C:${BS}repo`)
+    expect(gitCOf(`git -C C:${BS}repo commit -m x`)).toBe('C:repo')
+    expect(gitCOf(`git -C "C:${BS}repo" commit -m x`)).toBe(`C:${BS}repo`)
+    expect(cdOf(`cd C:${BS}proj && git commit -m x`)).toBe('C:proj')
+    expect(cdOf(`cd "C:${BS}proj" && git commit -m x`)).toBe(`C:${BS}proj`)
+    expect(shellWord(`"C:${BS}${BS}repo"`)).toBe(`C:${BS}repo`)
+    // `C:repo` for git (native) is `repo` under the current folder on its own drive; for Git
+    // Bash's `cd`, or on another drive, it can't be placed, so null (the guard asks).
+    expect(absolute(win, 'C:repo', true)).toBe(`${win}/repo`)
+    expect(absolute(win, 'c:', true)).toBe(win)
+    expect(absolute(win, 'D:repo', true)).toBe(null)
+    expect(absolute(win, 'C:repo')).toBe(null)
+    expect(absolute('/home/me', 'C:repo')).toBe(undefined)
+  })
+
+  test('Windows: an unquoted C:\\x commits where git does, and another drive asks', async ($, on) => {
+    const BS = String.fromCharCode(92)
+    const win = `C:${BS}Users${BS}me`
+    const same = engine(on, { cwd: win, diff: '+++ b/a.ts\n+fine\n' })
+    await $.tool.call({ tool: 'Bash', command: `git -C C:${BS}proj commit -m x` } as any)
+    expect(same.cwds).toContain(`${win}/proj`)
+  })
+
+  test('Windows: an unquoted cd C:\\x then git init asks, with no folder to read', async ($, on) => {
+    const BS = String.fromCharCode(92)
+    const { asked, runs } = engine(on, { cwd: `C:${BS}Users${BS}me`, gitFails: true, folder: null, answer: 'Block it' })
+    const r: any = await $.tool.call({ tool: 'Bash', command: `cd C:${BS}proj && git init && git add . && git commit -m x` } as any)
+    expect(asked[0]).toMatch(/couldn't tell which folder it runs in/)
+    expect(r.deny).toMatch(/blocked this commit/)
+    expect(runs.some(a => a.includes('diff'))).toBe(false)
   })
 
   test('a secret in Bash output is hidden before Claude reads it, with a toast', async ($, on) => {

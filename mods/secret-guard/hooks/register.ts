@@ -73,19 +73,21 @@ export const register: Register = (on, options) => {
     // Each commit and push call, in its own folder: `git -C a commit && git -C b commit` checks both.
     const seen = new Set<string>()
     for (const { step, dir: c } of gitSteps(e.command)) {
+      // null: a folder this can't place (`C:proj` on another drive), so it asks.
       const cwd = await runDir($, e.command, c)
       if (seen.has(`${step} ${cwd}`)) continue
       seen.add(`${step} ${cwd}`)
       // A commit with its own `git -C` runs elsewhere than the add: scan every untracked file there.
-      let diff = await gitDiff($, cwd, step, GIT_ADD.test(shell) ? (c ? [] : addPaths(e.command)) : null)
+      let diff = cwd === null ? null : await gitDiff($, cwd, step, GIT_ADD.test(shell) ? (c ? [] : addPaths(e.command)) : null)
       // `git init && git add . && git commit`: no repo yet, so git can't answer. The folder's
       // files are what the first commit takes; a folder the command makes has none yet.
       // Only when git says the folder is no repo: a timeout in a big repo still asks.
-      if (diff === null && step === 'commit' && GIT_INIT.test(shell) && (await notARepo($, cwd))) diff = await folderFiles($, cwd)
+      if (diff === null && cwd !== null && step === 'commit' && GIT_INIT.test(shell) && (await notARepo($, cwd))) diff = await folderFiles($, cwd)
       if (diff === null) {
         // git couldn't say what goes in (not a repo, a timeout): ask rather than wave it through.
         stats.held++
-        if (await allow($, `Couldn't read what this ${step} adds (git gave no answer in ${short(cwd)}), so it wasn't checked for keys.`)) continue
+        const where = cwd === null ? `couldn't tell which folder it runs in` : `git gave no answer in ${short(cwd)}`
+        if (await allow($, `Couldn't read what this ${step} adds (${where}), so it wasn't checked for keys.`)) continue
         stats.blocked++
         return { deny: `secret-guard: the user blocked this ${step}: secret-guard couldn't read what it adds, so it wasn't checked for keys.` }
       }
@@ -440,19 +442,55 @@ function plainShape(command: string): string | undefined {
 
 // The directory a leading `cd x &&` moves to, if any.
 export function cdOf(command: string): string | undefined {
-  return /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*(?:&&|;)/.exec(command)?.[1]?.replace(/^["']|["']$/g, '')
+  const word = /^\s*cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*(?:&&|;)/.exec(command)?.[1]
+  return word === undefined ? undefined : shellWord(word)
+}
+
+// A shell word as bash hands it on: quotes dropped, and outside them `\x` read as `x`. So an
+// unquoted `C:\repo` is `C:repo` (drive-relative, as git then sees it), and `"C:\repo"` keeps its `\`.
+// Inside double quotes `\` keeps its meaning only before `\`, `$` and a backtick.
+export function shellWord(word: string): string {
+  return word.replace(/"([^"]*)"|'([^']*)'|\\(.)/g, (_, dq, sq, esc) => dq?.replace(/\\([\\$`])/g, '$1') ?? sq ?? esc)
+}
+
+// An absolute path as the shell means it, or undefined for a relative one. When the session's
+// folder is a Windows one, that includes `C:/x` and `C:\x`, and Git Bash's `/c/x` (rewritten to
+// `C:/x`, since git and the folder lookup run natively and know no `/c/`). Elsewhere `C:/x` is
+// a folder named `C:`, so it stays relative. A drive-relative `C:x` (what an unquoted `C:\x`
+// becomes) is null, so the guard asks, unless git reads it natively (`git -C`, so `native`) on
+// the base's own drive: Win32 then reads it as `x` under the current folder. Git Bash's own `cd`
+// may read it otherwise, and another drive's last folder is unknown here.
+export function absolute(base: string, to: string, native = false): string | null | undefined {
+  const winBase = /^([A-Za-z]):[\\/]/.exec(base)?.[1]
+  if (drive(to) && winBase) return to
+  const [, letter, rest] = /^([A-Za-z]):(.*)$/.exec(to) ?? []
+  if (letter !== undefined && winBase) {
+    const same = native && letter.toUpperCase() === winBase.toUpperCase()
+    return same ? `${base.replace(/[\\/]$/, '')}/${rest}`.replace(/\/$/, '') : null
+  }
+  if (!to.startsWith('/')) return undefined
+  const msys = /^\/([A-Za-z])(?:\/|$)/.exec(to)?.[1]
+  if (msys && winBase) return `${msys.toUpperCase()}:/${to.slice(3)}`
+  return to
+}
+
+// `C:/…` or `C:` followed by a backslash (char code 92).
+function drive(p: string) {
+  return /^[A-Za-z]:/.test(p) && (p[2] === '/' || p.charCodeAt(2) === 92)
 }
 
 // Where git runs: the session's folder, moved by a leading `cd x &&` and then by `git -C y`.
-async function runDir($: EngineInterface, command: string, c: string | undefined): Promise<string> {
+// null when it can't be placed (see absolute).
+async function runDir($: EngineInterface, command: string, c: string | undefined): Promise<string | null> {
   const home = (await $.env.get('HOME')) ?? ''
-  const join = (base: string, to: string | undefined) => {
+  const join = (base: string, to: string | undefined, native: boolean) => {
     if (to === undefined || to.includes('$')) return base
     if (to === '~' || to.startsWith('~/')) return home ? home + to.slice(1) : base
-    return to.startsWith('/') ? to : `${base.replace(/\/$/, '')}/${to}`
+    const at = absolute(base, to, native)
+    return at === undefined ? `${base.replace(/\/$/, '')}/${to}` : at
   }
-  const dir = join(await $.session.cwd(), cdOf(command))
-  return join(dir, c)
+  const dir = join(await $.session.cwd(), cdOf(command), false)
+  return dir === null ? null : join(dir, c, true)
 }
 
 // The folder the commit's or push's own `git -C dir` names, if any. Text in quotes (a commit
@@ -469,7 +507,8 @@ export function gitSteps(command: string): { step: 'commit' | 'push'; dir: strin
     const [from, to] = m.indices[1]
     // A shell word: quoted parts and bare parts run together, as in `"a b"/c`.
     const opts = [...command.slice(from, to).matchAll(/(?:^|[ \t])-C[ \t]+((?:"[^"]*"|'[^']*'|[^\s"'])+)/g)]
-    const dir = opts.at(-1)?.[1]?.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
+    const word = opts.at(-1)?.[1]
+    const dir = word === undefined ? undefined : shellWord(word)
     out.push({ step: m[2] as 'commit' | 'push', dir })
   }
   return out
