@@ -25,7 +25,6 @@ type Opts = {
   folder?: Record<string, string> | null // files in /repo before git init; null: the folder doesn't exist yet
   truncated?: boolean // git's output was cut at 4 MiB
   timedOut?: boolean // git diff failed, but the folder is a repo
-  noCommit?: boolean // no commit yet: git log fails when given HEAD
 }
 
 // Stands for the engine beneath the mod: records what ran, answers the dialog, fakes git and gitleaks.
@@ -86,7 +85,6 @@ function engine(on: any, opts: Opts = {}) {
     }
     if (argv.includes('rev-parse')) return { value: { exitCode: opts.gitFails && !opts.timedOut ? 128 : 0, stdout: '.git\n', stderr: '' } }
     if (argv.includes('check-ignore')) return { value: { exitCode: opts.ignored ? 0 : 1, stdout: '', stderr: '' } }
-    if (argv.includes('log') && argv.includes('HEAD') && opts.noCommit) return { value: { exitCode: 128, stdout: '', stderr: "fatal: ambiguous argument 'HEAD'" } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.gitFails) return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
     if ((argv.includes('diff') || argv.includes('log')) && opts.truncated) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '', isStdoutTruncated: true } }
     if (argv.includes('diff') || argv.includes('log')) return { value: { exitCode: 0, stdout: opts.diff ?? '', stderr: '' } }
@@ -370,8 +368,8 @@ describe('secret-guard', () => {
     await $.tool.call({ tool: 'Bash', command: 'cd api && git push' } as any)
     expect(runs.find(a => a.includes('diff'))).toContain('HEAD')
     const log = runs.find(a => a.includes('log'))!
-    // HEAD for a detached HEAD's commits, then every branch and tag not on a remote.
-    expect(log.slice(-5)).toEqual(['HEAD', '--tags', '--branches', '--not', '--remotes'])
+    // HEAD for a detached HEAD's commits (none yet is fine), then every branch not on a remote.
+    expect(log.slice(-5)).toEqual(['--ignore-missing', 'HEAD', '--branches', '--not', '--remotes'])
   })
 
   test('diff and log read every file as text, so .gitattributes -diff hides no key', async ($, on) => {
@@ -384,13 +382,11 @@ describe('secret-guard', () => {
     }
   })
 
-  test('a push with no commit yet reads the branches alone and still scans them', async ($, on) => {
-    const { runs, asked } = engine(on, { noCommit: true, diff: `+++ b/a.ts\n+k = '${STRIPE}'\n`, answer: 'Block it' })
+  test('a push git cannot read asks, with no second try that could drop HEAD', async ($, on) => {
+    const { runs, asked } = engine(on, { gitFails: true, answer: 'Block it' })
     await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
-    const logs = runs.filter(a => a.includes('log'))
-    expect(logs.length).toBe(2)
-    expect(logs[1]).not.toContain('HEAD')
-    expect(asked.length).toBe(1)
+    expect(runs.filter(a => a.includes('log')).length).toBe(1)
+    expect(asked[0]).toMatch(/Couldn't read what this push adds/)
   })
 
   test('git -C scans the repo it names', async ($, on) => {
