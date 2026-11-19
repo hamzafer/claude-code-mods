@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join, sep } from 'node:path';
 import { parseArgs, main, profileLabel, bandsPath, parseBandOrder } from '../src/cli.js';
 
 const catalog = [
@@ -321,16 +322,20 @@ test('an empty mod list exits 1 before the checklist opens', async () => {
 });
 
 test('profileLabel names the profile claude will use', () => {
-  assert.equal(profileLabel({}, '/home/u'), '~/.claude');
-  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work' }, '/home/u'), '~/.claude-work');
-  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/opt/claude' }, '/home/u'), '/opt/claude');
-  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work/' }, '/home/u'), '~/.claude-work');
+  // Paths are built with join, so the separator is the platform's own.
+  const home = join(sep, 'home', 'u');
+  const work = join(home, '.claude-work');
+  assert.equal(profileLabel({}, home), '~/.claude');
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: work }, home), `~${sep}.claude-work`);
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: '/opt/claude' }, home), '/opt/claude');
+  assert.equal(profileLabel({ CLAUDE_CONFIG_DIR: `${work}/` }, home), `~${sep}.claude-work`);
 });
 
 // Band order: read the file in, save it from the order screen's effect.
 test('bandsPath sits in the profile folder, trailing slashes dropped', () => {
-  assert.equal(bandsPath({}, '/home/u'), '/home/u/.claude/claude-code-mods/bands.json');
-  assert.equal(bandsPath({ CLAUDE_CONFIG_DIR: '/home/u/.claude-work//' }, '/home/u'), '/home/u/.claude-work/claude-code-mods/bands.json');
+  const home = join(sep, 'home', 'u');
+  assert.equal(bandsPath({}, home), join(home, '.claude', 'claude-code-mods', 'bands.json'));
+  assert.equal(bandsPath({ CLAUDE_CONFIG_DIR: `${join(home, '.claude-work')}//` }, home), join(home, '.claude-work', 'claude-code-mods', 'bands.json'));
 });
 
 test('parseBandOrder reads names, anything odd means no order', () => {
@@ -344,6 +349,8 @@ test('parseBandOrder drops repeated names, first place wins', () => {
   assert.deepEqual(parseBandOrder('{"order":["a","a","b","a"]}'), ['a', 'b']);
 });
 
+const HOME = join(sep, 'p');
+
 async function ordering(list, extra = {}) {
   const writes = [];
   const reads = [];
@@ -356,7 +363,7 @@ async function ordering(list, extra = {}) {
   };
   const r = await go(extra.argv || [], fakeClaude(), {
     isTTY: true, checklist,
-    env: { CLAUDE_CONFIG_DIR: '/p/.claude-work/' }, home: '/p',
+    env: { CLAUDE_CONFIG_DIR: `${join(HOME, '.claude-work')}/` }, home: HOME,
     readText: async (path) => { reads.push(path); if (extra.file === undefined) throw Object.assign(new Error('no'), { code: 'ENOENT' }); return extra.file; },
     writeText: async (path, text) => { if (extra.failWrite) throw new Error('disk full'); writes.push([path, text]); },
     ...extra.main,
@@ -364,13 +371,13 @@ async function ordering(list, extra = {}) {
   return { ...r, writes, reads, results, seen };
 }
 
-const PATH = '/p/.claude-work/claude-code-mods/bands.json';
+const PATH = join(sep, 'p', '.claude-work', 'claude-code-mods', 'bands.json');
 
 test('the order file is read from the profile and handed to the checklist', async () => {
   const r = await ordering([], { file: '{"order":["context-bar","where-am-i"]}' });
   assert.deepEqual(r.reads, [PATH]);
   assert.deepEqual(r.seen.bandOrder, ['context-bar', 'where-am-i']);
-  assert.equal(r.seen.profile, '~/.claude-work');
+  assert.equal(r.seen.profile, `~${sep}.claude-work`);
 });
 
 test('a missing order file means no order', async () => {
@@ -410,7 +417,7 @@ test('--dry-run writes nothing, shows the path and JSON, and prints them after',
   const r = await ordering([{ type: 'order', order: ['where-am-i'] }], { argv: ['--dry-run'] });
   assert.deepEqual(r.writes, []);
   assert.equal(r.code, 0);
-  assert.match(r.results[0].message, /Dry run: would write \/p\/\.claude-work\/claude-code-mods\/bands\.json/);
+  assert.ok(r.results[0].message.startsWith(`Dry run: would write ${PATH}`));
   assert.match(r.results[0].message, /"where-am-i"/);
   assert.equal(r.out, `would write ${PATH}\n{\n  "order": [\n    "where-am-i"\n  ]\n}`);
 });
