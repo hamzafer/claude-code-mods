@@ -7,6 +7,7 @@
   <a href="https://www.npmjs.com/package/claude-code-mods"><img src="https://img.shields.io/npm/v/claude-code-mods.svg" alt="npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
   <a href="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml"><img src="https://github.com/hamzafer/claude-code-mods/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://agentskins.app/creators/hamza"><img src="https://agentskins.app/badge/creator/hamza.svg" alt="Featured on Agent Skins"></a>
 </p>
 
 <a id="mission-control"></a>
