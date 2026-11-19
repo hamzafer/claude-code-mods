@@ -227,12 +227,19 @@ async function ignored($: EngineInterface, path: string) {
 async function gitDiff($: EngineInterface, cwd: string, step: 'commit' | 'push', adds: string[] | null): Promise<string | null> {
   const at = { cwd, timeoutMs: 30_000 }
   const run = (argv: string[]) => $.process.run(argv, at).catch(() => null)
-  const DIFF = [...GIT_SAFE, 'diff', '--no-ext-diff', '--no-color', '-U0']
+  // --text --no-textconv: a `-diff` or `binary` attribute (.gitattributes or .git/info/attributes)
+  // or a textconv filter would otherwise turn a file's lines into "Binary files differ" and hide
+  // a key. Real binaries then print whole too, as untracked files already do: past 4 MiB it asks.
+  const PATCH = ['--no-ext-diff', '--no-textconv', '--text', '--no-color', '-U0']
+  const DIFF = [...GIT_SAFE, 'diff', ...PATCH]
   if (step === 'push') {
     // Every commit not on any remote yet, each one's own patch: a secret added and then
     // deleted still lands in history. With no remote at all, that's the whole history.
     // Every local branch, not just HEAD: `git push origin other-branch` pushes that one.
-    const r = await run([...GIT_SAFE, 'log', '-p', '--no-ext-diff', '--no-color', '-U0', '--format=', '--branches', '--not', '--remotes'])
+    // HEAD too, for commits on a detached HEAD (a fresh `git worktree add <path> origin/main`);
+    // --ignore-missing lets it name nothing before the first commit. No --tags: tags are never
+    // under refs/remotes, so an upstream's tag-only release commits would ask on every push.
+    const r = await run([...GIT_SAFE, 'log', '-p', ...PATCH, '--format=', '--ignore-missing', 'HEAD', '--branches', '--not', '--remotes'])
     return r && r.exitCode === 0 ? r.stdout + (r.isStdoutTruncated ? TRUNCATED : '') : null
   }
   let r = await run([...DIFF, 'HEAD'])

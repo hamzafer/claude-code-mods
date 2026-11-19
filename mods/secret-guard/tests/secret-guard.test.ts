@@ -368,7 +368,25 @@ describe('secret-guard', () => {
     await $.tool.call({ tool: 'Bash', command: 'cd api && git push' } as any)
     expect(runs.find(a => a.includes('diff'))).toContain('HEAD')
     const log = runs.find(a => a.includes('log'))!
-    expect(log.slice(-3)).toEqual(['--branches', '--not', '--remotes'])
+    // HEAD for a detached HEAD's commits (none yet is fine), then every branch not on a remote.
+    expect(log.slice(-5)).toEqual(['--ignore-missing', 'HEAD', '--branches', '--not', '--remotes'])
+  })
+
+  test('diff and log read every file as text, so .gitattributes -diff hides no key', async ($, on) => {
+    const { runs } = engine(on, { diff: '+++ b/a.ts\n+fine\n' })
+    await $.tool.call({ tool: 'Bash', command: 'git commit -am "x"' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
+    for (const a of runs.filter(a => a.includes('diff') || a.includes('log'))) {
+      expect(a).toContain('--text')
+      expect(a).toContain('--no-textconv')
+    }
+  })
+
+  test('a push git cannot read asks, with no second try that could drop HEAD', async ($, on) => {
+    const { runs, asked } = engine(on, { gitFails: true, answer: 'Block it' })
+    await $.tool.call({ tool: 'Bash', command: 'git push' } as any)
+    expect(runs.filter(a => a.includes('log')).length).toBe(1)
+    expect(asked[0]).toMatch(/Couldn't read what this push adds/)
   })
 
   test('git -C scans the repo it names', async ($, on) => {
