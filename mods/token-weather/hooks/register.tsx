@@ -257,9 +257,9 @@ function arm($: EngineInterface, since: number, now: number, ttlMs: number) {
   })
 }
 
-// The context window's fill now; null when the engine has no window yet.
+// The context window's fill now; null when the engine has no window yet or the call fails.
 async function measure($: EngineInterface): Promise<TokenWeatherReading | null> {
-  const { context } = await $.session.usage()
+  const context = (await $.session.usage().catch(() => null))?.context // runs mid-turn: never break the turn
   if (!context?.window) return null
   const tokens = context.tokens ?? 0
   const percent = context.percent ?? Math.round((tokens / context.window) * 100)

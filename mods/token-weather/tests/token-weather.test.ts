@@ -1,6 +1,17 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+import type { Engine } from 'claude-code/testing'
+
 import { resetBandOrder } from '../hooks/register'
+
+// One model request, read to its end as the engine would.
+async function request($: Engine, turnId: string, agentId?: string) {
+  const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(agentId ? { agentId } : {}) } as any)
+  for await (const _ of stream) {
+    // drain
+  }
+  await stream.result
+}
 
 describe('token-weather', () => {
   test('the band follows the context window', async ($, on) => {
@@ -61,21 +72,13 @@ describe('token-weather', () => {
 
     // A tool step of the main thread, before the turn ends.
     tokens = 170_000
-    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'm', messageCount: 1 } as any)
-    for await (const _ of stream) {
-      // drain
-    }
-    await stream.result
+    await request($, 't1')
     expect(await ui.find({ type: 'Text', text: /Storm/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
 
     // A subagent's step is not the main window.
     tokens = 190_000
-    const sub = $.turn.step({ turnId: 't2', index: 0, model: 'm', messageCount: 1, agentId: 'a' } as any)
-    for await (const _ of sub) {
-      // drain
-    }
-    await sub.result
+    await request($, 't2', 'a')
     expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
     await ui.unmount()
   })
