@@ -257,13 +257,15 @@ function arm($: EngineInterface, since: number, now: number, ttlMs: number) {
   })
 }
 
-// The context window's fill now; null when the engine has no window yet or the call fails.
+// The context window's fill now, against the window auto-compact measures (an `autoCompactWindow`
+// smaller than the model's counts); null when the engine has no window yet or the call fails.
 async function measure($: EngineInterface): Promise<TokenWeatherReading | null> {
-  const context = (await $.session.usage().catch(() => null))?.context // runs mid-turn: never break the turn
-  if (!context?.window) return null
-  const tokens = context.tokens ?? 0
-  const percent = context.percent ?? Math.round((tokens / context.window) * 100)
-  return { tokens, window: context.window, percent }
+  // A summary breakdown is estimated locally, with no API call. Runs mid-turn: never break the turn.
+  const context = (await $.session.usage({ breakdown: 'summary' }).catch(() => null))?.context
+  const window = context?.breakdown?.rawMaxTokens || context?.window
+  if (!window) return null
+  const tokens = context?.tokens ?? 0
+  return { tokens, window, percent: Math.round((tokens / window) * 100) }
 }
 
 // Updates the band's figures without adding a point to the per-turn history.

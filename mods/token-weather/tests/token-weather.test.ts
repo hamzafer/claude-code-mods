@@ -51,6 +51,29 @@ describe('token-weather', () => {
     await desk.unmount()
   })
 
+  test('measures against a smaller compaction window', async ($, on) => {
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', (_$, e: any) => ({
+      value: {
+        startedAt: 0,
+        rateLimits: [],
+        // autoCompactWindow 400k on a 1M model: the engine's own percent is against 1M
+        context: { tokens: 164_000, window: 1_000_000, percent: 16, ...(e.breakdown ? { breakdown: { rawMaxTokens: 400_000 } } : {}) },
+      },
+    }) as any)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({
+      plugin: 'token-weather',
+      surface: 'terminal',
+      component: 'AbovePrompt',
+      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+    } as any)
+    expect(await ui.find({ type: 'Text', text: /Cloudy/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /41% of context/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /164k \/ 400k/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('the band follows the window within a long turn', async ($, on) => {
     let tokens = 36_100
     mock.clock(on, { now: 1_000_000 })
