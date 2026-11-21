@@ -69,13 +69,22 @@ export const register: Register = (on, options) => {
   })
 
 
-  // A /clear or a resume leaves the old conversation, and its cache, behind.
+  // A /clear or a resume leaves the old conversation, its window and its cache, behind.
   on('session.end', async ($, e, next) => {
     if (e.reason === 'clear' || e.reason === 'resume') {
       stop()
       await update($, lastRequestAt, () => null)
+      await update($, current, () => null) // hidden until the new conversation's first request
+      await update($, readings, () => [])
     }
     return next(e)
+  })
+
+  // A /compact empties the window without a turn ending.
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (!e.agentId && 'messages' in result) await refreshReading($)
+    return result
   })
 
   // One model request of a turn. The cache's clock restarts when each one on the
@@ -260,7 +269,8 @@ function arm($: EngineInterface, since: number, now: number, ttlMs: number) {
 // The context window's fill now, against the window auto-compact measures (an `autoCompactWindow`
 // smaller than the model's counts); null when the engine has no window yet or the call fails.
 async function measure($: EngineInterface): Promise<TokenWeatherReading | null> {
-  // A summary breakdown is estimated locally, with no API call. Runs mid-turn: never break the turn.
+  // A summary breakdown is estimated locally, with no API call. A failure skips this reading alone:
+  // thrown, it would skip the rest of the hook (at a turn's end, the cache-clock check and lifetime detection).
   const context = (await $.session.usage({ breakdown: 'summary' }).catch(() => null))?.context
   const window = context?.breakdown?.rawMaxTokens || context?.window
   if (!window) return null

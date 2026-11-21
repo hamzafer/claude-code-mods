@@ -4,6 +4,11 @@ import type { Engine } from 'claude-code/testing'
 
 import { resetBandOrder } from '../hooks/register'
 
+const BAND = {
+  component: 'AbovePrompt',
+  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+}
+
 // One model request, read to its end as the engine would.
 async function request($: Engine, turnId: string, agentId?: string) {
   const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(agentId ? { agentId } : {}) } as any)
@@ -29,10 +34,6 @@ describe('token-weather', () => {
 
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
 
-    const BAND = {
-      component: 'AbovePrompt',
-      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
-    }
 
     const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
@@ -103,6 +104,55 @@ describe('token-weather', () => {
     tokens = 190_000
     await request($, 't2', 'a')
     expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a failed usage call skips the reading, not the rest of the turn end', async ($, on) => {
+    let fails = false
+    let statusLine = ''
+    mock.clock(on, { now: 1_000_000 })
+    on('settings.read', () => ({ value: { statusLine: { command: statusLine } } }) as any)
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => {
+      if (fails) throw new Error('usage unavailable')
+      return { value: { startedAt: 0, rateLimits: [], context: { tokens: 36_100, window: 200_000 } } } as any
+    })
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
+    })
+    on('turn.complete', () => ({ text: '' }) as any)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await request($, 't1')
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeDefined()
+
+    // cache-clock set up mid-session, and the usage call fails at this turn's end
+    fails = true
+    statusLine = 'node "/h/.claude/cache-clock/cache-clock.mjs"'
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeUndefined() // the cache-clock check still ran
+    expect(await ui.find({ type: 'Text', text: /18% of context/ })).toBeDefined() // the last good reading
+    await ui.unmount()
+  })
+
+  test('a /compact rereads the window, a /clear hides the old one', async ($, on) => {
+    let tokens: number | undefined = 180_000
+    mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
+    on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
+    on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /Compact soon/ })).toBeDefined()
+
+    tokens = 20_000
+    await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /10% of context/ })).toBeDefined()
+
+    await $.session.end({ reason: 'clear', sessionId: 's' } as any)
+    expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
     await ui.unmount()
   })
 
