@@ -30,6 +30,8 @@ const TAIL_BYTES = 1024 * 1024
 
 // Held by the host, so the history survives a hot reload of this file.
 const readings = atom({ plugin: 'token-weather', key: 'readings' } as const, [] as TokenWeatherReading[])
+// The latest reading, taken after every main-thread model request, so the band moves within a long turn.
+const current = atom({ plugin: 'token-weather', key: 'current' } as const, null as TokenWeatherReading | null)
 const lastRequestAt = atom({ plugin: 'token-weather', key: 'lastRequestAt' } as const, null as number | null)
 // The cache lifetime Claude's responses last showed; null until one wrote to the cache.
 const detectedTtl = atom({ plugin: 'token-weather', key: 'detectedTtl' } as const, null as CacheTtl | null)
@@ -84,6 +86,7 @@ export const register: Register = (on, options) => {
       const now = await $.clock.now()
       await update($, lastRequestAt, () => now)
       restart($, now, now, await ttlMsFor($, override))
+      await refreshReading($) // the window filled during this request: show it before the turn ends
     }
     return result
   })
@@ -105,7 +108,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const rest = await next(e) // what other mods and Claude Code draw here stays
     const history = await read($, readings)
-    const now = history.at(-1)
+    const now = (await read($, current)) ?? history.at(-1)
     if (e.props.hasSurvey || !now) {
       return rest
     }
@@ -254,12 +257,27 @@ function arm($: EngineInterface, since: number, now: number, ttlMs: number) {
   })
 }
 
-async function takeReading($: EngineInterface) {
+// The context window's fill now; null when the engine has no window yet.
+async function measure($: EngineInterface): Promise<TokenWeatherReading | null> {
   const { context } = await $.session.usage()
-  if (!context?.window) return
+  if (!context?.window) return null
   const tokens = context.tokens ?? 0
   const percent = context.percent ?? Math.round((tokens / context.window) * 100)
-  await update($, readings, history => [...history, { tokens, window: context.window, percent }].slice(-HISTORY))
+  return { tokens, window: context.window, percent }
+}
+
+// Updates the band's figures without adding a point to the per-turn history.
+async function refreshReading($: EngineInterface) {
+  const reading = await measure($)
+  if (reading) await update($, current, () => reading)
+}
+
+// A turn's end: the figures, and one more point of history.
+async function takeReading($: EngineInterface) {
+  const reading = await measure($)
+  if (!reading) return
+  await update($, current, () => reading)
+  await update($, readings, history => [...history, reading].slice(-HISTORY))
 }
 
 // What the cache part says with `leftMs` until the cache expires at `expiresAt`

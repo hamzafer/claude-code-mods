@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { resetBandOrder } from '../hooks/register'
 
@@ -38,6 +38,46 @@ describe('token-weather', () => {
     expect(await desk.find({ type: 'Text', text: /Showers/ })).toBeDefined()
     expect(await desk.find({ type: 'Text', text: /engine band/ })).toBeDefined() // stacked, not replaced
     await desk.unmount()
+  })
+
+  test('the band follows the window within a long turn', async ($, on) => {
+    let tokens = 36_100
+    mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({
+      value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000, percent: Math.round(tokens / 2_000) } },
+    }) as any)
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'tool_use', usage: null } as any
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({
+      plugin: 'token-weather',
+      surface: 'terminal',
+      component: 'AbovePrompt',
+      props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 },
+    } as any)
+    expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+
+    // A tool step of the main thread, before the turn ends.
+    tokens = 170_000
+    const stream = $.turn.step({ turnId: 't1', index: 0, model: 'm', messageCount: 1 } as any)
+    for await (const _ of stream) {
+      // drain
+    }
+    await stream.result
+    expect(await ui.find({ type: 'Text', text: /Storm/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
+
+    // A subagent's step is not the main window.
+    tokens = 190_000
+    const sub = $.turn.step({ turnId: 't2', index: 0, model: 'm', messageCount: 1, agentId: 'a' } as any)
+    for await (const _ of sub) {
+      // drain
+    }
+    await sub.result
+    expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
+    await ui.unmount()
   })
 
   test('yields the band to a survey', async ($, on) => {

@@ -5,6 +5,8 @@ declare module 'claude-code' {
   interface PluginState {
     'token-weather': {
       readings: TokenWeatherReading[]
+      // The latest reading, after every main-thread model request; null before the first.
+      current: TokenWeatherReading | null
       // When the last main-thread model request finished, in ms since the epoch; null before the first.
       lastRequestAt: number | null
       // The cache lifetime Claude's responses last showed; null until one wrote to the cache.
