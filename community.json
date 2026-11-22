@@ -206,6 +206,15 @@
       "url": "https://github.com/Nam0101/claude-multiverse",
       "description": "A theme in fourteen dark universes: each new session lands in one, from a galactic war to the deep sea, and the Claude critter works at its desk there, showing thinking, commands, errors and done. Subagents arrive through portals, ultracode adds a golden aura, and the scene fits between the desktop app's side panels. Desktop and mobile app; the terminal gets the universe's name and a sparking ULTRA row. No network requests and no model calls",
       "tags": ["band", "toast", "command"]
+    },
+    {
+      "name": "prismor",
+      "marketplace": "prismor",
+      "repo": "PrismorSec/prismor",
+      "author": "PrismorSec",
+      "url": "https://github.com/PrismorSec/prismor",
+      "description": "Runtime security for Claude Code: checks every prompt and tool call against your local Prismor policy, blocks secret leaks and risky commands, and records a local audit trail",
+      "tags": ["guard"]
     }
   ]
 }
