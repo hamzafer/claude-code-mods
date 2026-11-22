@@ -62,6 +62,7 @@ describe('token-weather', () => {
         context: { tokens: 164_000, window: 1_000_000, percent: 16, ...(e.breakdown ? { breakdown: { rawMaxTokens: 400_000 } } : {}) },
       },
     }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const ui = await $.ui.mount({
       plugin: 'token-weather',
@@ -85,6 +86,7 @@ describe('token-weather', () => {
     on('turn.step', async function* (_$, e) {
       return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'tool_use', usage: null } as any
     })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const ui = await $.ui.mount({
       plugin: 'token-weather',
@@ -121,6 +123,7 @@ describe('token-weather', () => {
       return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
     })
     on('turn.complete', () => ({ text: '' }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     await request($, 't1')
     const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
@@ -142,6 +145,7 @@ describe('token-weather', () => {
     on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
     on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
     on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /Compact soon/ })).toBeDefined()
