@@ -6,7 +6,7 @@ export type Finding = { kind: string; secret: string }
 
 // `code`: drop a value that reads as code (`settings.KEY`, `getenv(`), for the rules that
 // take any value after `=` or `:`.
-type Rule = { kind: string; re: RegExp; group?: number; code?: true }
+type Rule = { kind: string; re: RegExp; group?: number; code?: true; article?: 'a' | 'an'; plural?: string }
 
 export const RULES: readonly Rule[] = [
   { kind: 'private key', re: /-----BEGIN[A-Z ]{0,20} PRIVATE KEY(?: BLOCK)?-----[\s\S]{20,8000}?-----END[A-Z ]{0,20} PRIVATE KEY(?: BLOCK)?-----/g },
@@ -21,16 +21,17 @@ export const RULES: readonly Rule[] = [
   { kind: 'Slack token', re: /\bxox[abposr]-[A-Za-z0-9-]{10,}/g },
   { kind: 'Slack webhook', re: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/]{20,}/g },
   { kind: 'Google API key', re: /\bAIza[0-9A-Za-z_-]{35}\b/g },
-  { kind: 'npm token', re: /\bnpm_[A-Za-z0-9]{36}\b/g },
+  { kind: 'npm token', article: 'an', re: /\bnpm_[A-Za-z0-9]{36}\b/g },
   { kind: 'Hugging Face token', re: /\bhf_[A-Za-z]{34}\b/g },
   { kind: 'SendGrid key', re: /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g },
   { kind: 'JWT', re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g },
   // A connection string's password: postgres://user:PASSWORD@host
-  { kind: 'password in a URL', re: /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:/@]{1,64}:([^\s@/]{6,128})@[\w.-]+/g, group: 1, code: true },
+  { kind: 'password in a URL', plural: 'passwords in URLs', re: /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:/@]{1,64}:([^\s@/]{6,128})@[\w.-]+/g, group: 1, code: true },
   // .env style: SOME_SECRET=value, as `cat .env`, `env` and `printenv` print it. A line
   // number (`cat -n`, Read's `  12\t`) or a `grep -n` file prefix may come first.
   {
     kind: 'secret in an env variable',
+    plural: 'secrets in env variables',
     re: /^(?:[ \t]*\d{1,9}[\t→:]|[\w./-]{1,200}:(?:\d{1,9}[:-])?)?[ \t]*(?:export[ \t]+)?[A-Z0-9_]{0,60}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIALS?)[A-Z0-9_]{0,60}[ \t]*=[ \t]*["']?([^\s"'#]{8,})/gm,
     group: 1,
     code: true,
@@ -80,7 +81,10 @@ export function unique(findings: readonly Finding[]): Finding[] {
 export function describe(findings: readonly Finding[]): string {
   const counts = new Map<string, number>()
   for (const f of findings) counts.set(f.kind, (counts.get(f.kind) ?? 0) + 1)
-  const parts = [...counts].map(([kind, n]) => (n === 1 ? `${/^[aeiouAEIOU]/.test(kind) ? 'an' : 'a'} ${kind}` : `${n} ${kind}s`))
+  const parts = [...counts].map(([kind, n]) => {
+    const rule = RULES.find(r => r.kind === kind)
+    return n === 1 ? `${rule?.article ?? (/^[aeiouAEIOU]/.test(kind) ? 'an' : 'a')} ${kind}` : `${n} ${rule?.plural ?? `${kind}s`}`
+  })
   return parts.length <= 1 ? (parts[0] ?? '') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
 }
 
