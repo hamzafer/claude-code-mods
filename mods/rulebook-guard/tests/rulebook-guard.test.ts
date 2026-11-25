@@ -125,6 +125,24 @@ describe('rulebook-guard', () => {
     expect(ran.map(e => e.command)).toEqual([script, 'echo "never run git commit --amend"'])
   })
 
+  test('an apostrophe inside double quotes quotes nothing', async ($, on) => {
+    const { asked } = engine(on, { answer: 'Block it' })
+    // The ' in "it's" opens no quote, so the --amend after it is a command the shell runs.
+    const r: any = await $.tool.call({ tool: 'Bash', command: `git commit -m "it's done" && git commit --amend -m 'x'` } as any)
+    expect(r.deny).toMatch(/new commits, not amend/)
+    // An escaped \' opens no quote either.
+    await $.tool.call({ tool: 'Bash', command: `echo don\\'t && git commit --amend -m 'x'` } as any)
+    expect(asked.length).toBe(2)
+  })
+
+  test('a mention between a quoted apostrophe and a later quote is not held', async ($, on) => {
+    const { ran, asked } = engine(on)
+    const command = `echo "it's" && echo 'git commit --amend'`
+    await $.tool.call({ tool: 'Bash', command } as any)
+    expect(asked).toEqual([])
+    expect(ran.map(e => e.command)).toEqual([command])
+  })
+
   test('a push with unformatted Python asks first, and Allow once lets it through', async ($, on) => {
     const { ran, asked } = engine(on, { answer: 'Allow once', ruffFails: true })
     await $.tool.call({ tool: 'Bash', command: 'git push' } as any)

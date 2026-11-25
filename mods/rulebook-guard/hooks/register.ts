@@ -95,8 +95,9 @@ export const register: Register = on => {
 export function bare(command: string) {
   return command
     .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, ' ')
-    .replace(/'[^']*'/g, "''")
-    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    // One pass from the left, as the shell reads them: a ' inside "…" quotes nothing,
+    // and an escaped character (\') opens no quote.
+    .replace(/\\[\s\S]|"(?:[^"\\]|\\.)*"|'[^']*'/g, m => (m[0] === '\\' ? m : m[0] + m[0]))
 }
 
 // "a — b" and "a—b" both read "a, b".
