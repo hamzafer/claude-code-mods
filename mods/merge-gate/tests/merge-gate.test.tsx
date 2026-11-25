@@ -1,16 +1,22 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bare, cdTargets, countChecks, isOllama, prNumber, resetBandOrder, resolveDir } from '../hooks/register'
+import { bare, cdTargets, countChecks, isOllama, prArgs, resetBandOrder, resolveDir } from '../hooks/register'
 
 const LUNA_REVIEW = `codex review -c 'model="gpt-5.6-luna"' --base main --title "Add mods"`
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 140 } }
 
-// A folder git and gh know: its main checkout, its branch and that branch's open PR (if any).
-type Dir = { repo: string; branch: string; pr?: number }
+// A folder git and gh know: its main checkout, its branch and that branch's open PR (if any), and
+// what `gh repo view` prints there if not github.com<repo> ('' for an error).
+type Dir = { repo: string; branch: string; pr?: number; repoView?: string }
 
 // Stands for the engine beneath the mod: a repo with PR #42, its checks, the Codex config, a dialog.
 // With `dirs`, git and gh answer for the folder they run in (session folder `cwd`, /repo by default).
-function engine(on: any, opts: { config?: string; checks?: object[]; answer?: string; cwd?: string; dirs?: Record<string, Dir>; bands?: string; beneath?: unknown } = {}) {
+// With `prs`, gh answers for a PR named on the command line (`gh pr view <args>` -> its URL), and
+// `checks` are those of the PRs in o/r: asked for by URL, as gh gives it. A folder's repo is github.com<repo>.
+function engine(
+  on: any,
+  opts: { config?: string; checks?: object[]; answer?: string; cwd?: string; dirs?: Record<string, Dir>; prs?: Record<string, string>; bands?: string; beneath?: unknown } = {},
+) {
   const ran: string[] = []
   resetBandOrder()
   const store = new Map<string, unknown>()
@@ -34,19 +40,31 @@ function engine(on: any, opts: { config?: string; checks?: object[]; answer?: st
   on('process.run', (_$: any, e: any) => {
     const argv = (e.argv as string[]).join(' ')
     const ok = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '' } })
+    const named = /^gh pr view (.+) --json /.exec(argv)?.[1]
+    if (opts.prs && named !== undefined) {
+      const url = opts.prs[named]
+      const n = Number(url?.split('/').pop())
+      return url ? ok(JSON.stringify({ number: n, title: `PR ${n}`, headRefName: 'fix-x', state: 'OPEN', url })) : ok('', 1)
+    }
+    if (opts.prs && argv.startsWith('gh pr checks ')) {
+      const theirs = argv.startsWith('gh pr checks https://github.com/o/r/pull/')
+      return ok(JSON.stringify(theirs ? opts.checks : [{ name: 'test', bucket: 'pass' }]), 1)
+    }
     if (opts.dirs) {
       const cwd: string = e.init?.cwd ?? opts.cwd ?? '/repo'
       const d = opts.dirs[cwd]
       if (!d) return ok('', 128) // not a git repo
       if (argv.startsWith('git rev-parse')) return ok(`${d.repo}/.git\n`)
       if (argv.startsWith('git branch')) return ok(`${d.branch}\n`)
+      if (argv.startsWith('gh repo view')) return d.repoView === undefined ? ok(JSON.stringify({ url: `https://github.com${d.repo}` })) : ok(d.repoView, d.repoView ? 0 : 1)
       if (argv.startsWith('gh pr view')) {
-        return d.pr ? ok(JSON.stringify({ number: d.pr, title: `PR ${d.pr}`, headRefName: d.branch, state: 'OPEN' })) : ok('', 1)
+        return d.pr ? ok(JSON.stringify({ number: d.pr, title: `PR ${d.pr}`, headRefName: d.branch, state: 'OPEN', url: `https://github.com${d.repo}/pull/${d.pr}` })) : ok('', 1)
       }
     }
     if (argv.startsWith('git rev-parse')) return ok('/repo\n')
     if (argv.startsWith('git branch')) return ok('feat/mods\n')
-    if (argv.startsWith('gh pr view')) return ok(JSON.stringify({ number: 42, title: 'Add mods', headRefName: 'feat/mods', state: 'OPEN' }))
+    if (argv.startsWith('gh repo view')) return ok(JSON.stringify({ url: 'https://github.com/me/repo' }))
+    if (argv.startsWith('gh pr view')) return ok(JSON.stringify({ number: 42, title: 'Add mods', headRefName: 'feat/mods', state: 'OPEN', url: 'https://github.com/me/repo/pull/42' }))
     if (argv.startsWith('gh pr checks')) return ok(JSON.stringify(opts.checks ?? [{ name: 'test', bucket: 'pass' }]), 1)
     return ok('')
   })
@@ -175,15 +193,32 @@ describe('merge-gate', () => {
     expect(ran).toEqual([])
   })
 
-  test('bare and prNumber read the command as the shell does', () => {
+  test('bare and prArgs read the command as the shell does', () => {
     expect(bare(`grep -n "codex exec" x && echo 'gh pr merge'`)).toBe(`grep -n "" x && echo ''`)
     expect(bare('ls # codex exec\npwd')).toBe('ls \npwd')
     expect(bare("cat <<'EOF' > a.md\ncodex exec x\nEOF\nls")).toBe('cat  > a.md\n\nls')
     expect(bare('out="$(codex exec x)"')).toBe('out="(codex exec x)"')
-    expect(prNumber('gh pr merge 42 --squash')).toBe('42')
-    expect(prNumber('gh pr merge --squash 7 && ls')).toBe('7')
-    expect(prNumber('gh -R o/r pr merge --squash')).toBeUndefined()
-    expect(prNumber(bare('gh pr merge "42" --squash'))).toBe('42')
+    expect(prArgs('gh pr merge 42 --squash')).toEqual({ pr: '42' })
+    expect(prArgs('gh pr merge --squash 7 && ls')).toEqual({ pr: '7' })
+    expect(prArgs('gh -R o/r pr merge --squash')).toEqual({ repo: 'o/r' })
+    expect(prArgs(bare('gh pr merge "42" --squash'))).toEqual({ pr: '42' })
+    expect(prArgs('gh pr merge --squash')).toEqual({})
+    expect(prArgs('gh pr merge --squash && echo done')).toEqual({})
+    expect(prArgs('gh pr merge --squash 2>&1 | tee log')).toEqual({})
+    expect(prArgs('gh pr merge >out 42')).toEqual({ pr: '42' })
+    expect(prArgs('gh pr merge 2>&1 --squash fix-x > log; ls')).toEqual({ pr: 'fix-x' })
+    expect(prArgs('gh pr merge --auto -d fix-x|cat')).toEqual({ pr: 'fix-x' })
+    expect(prArgs(bare('gh pr merge -t "Ship it" --body-file notes.md https://github.com/o/r/pull/9; ls'))).toEqual({ pr: 'https://github.com/o/r/pull/9' })
+    expect(prArgs('gh pr merge 9 --repo=o/r')).toEqual({ pr: '9', repo: 'o/r' })
+    expect(prArgs('(gh pr -R o/r merge 9)')).toEqual({ pr: '9', repo: 'o/r' })
+    expect(prArgs('gh -Ro/r pr merge 9')).toEqual({ pr: '9', repo: 'o/r' })
+    expect(prArgs('gh pr merge -dRo/r 9')).toEqual({ pr: '9', repo: 'o/r' })
+    expect(prArgs('gh pr merge -dR o/r 9')).toEqual({ pr: '9', repo: 'o/r' })
+    expect(prArgs('gh pr merge -R=o/r 9')).toEqual({ pr: '9', repo: 'o/r' })
+    expect(prArgs(bare('gh pr merge -sb "Done" -tShip 9'))).toEqual({ pr: '9' })
+    expect(prArgs('gh pr merge -- 9')).toEqual({ pr: '9' })
+    expect(prArgs('gh pr merge --squash \\\n  42')).toEqual({ pr: '42' })
+    expect(prArgs('gh pr merge -A a@b.c --match-head-commit abc123 9 -R o/r')).toEqual({ pr: '9', repo: 'o/r' })
     expect(bare('cat <<EOF && ls\nbody\nEOF')).toBe('cat  && ls\n')
   })
 
@@ -265,6 +300,63 @@ describe('merge-gate', () => {
       expect({ command, deny: r.deny }).toEqual({ command, deny: undefined })
     }
     expect(ran).toEqual(commands)
+  })
+
+  test('merge: a PR named by URL, branch or -R is the one checked, not the branch the session is on', async ($, on) => {
+    const dirs: Record<string, Dir> = { '/repo': { repo: '/repo', branch: 'main' } } // main has no PR of its own
+    const theirs = 'https://github.com/o/r/pull/42'
+    const prs = { [theirs]: theirs, 'fix-x': theirs, '42 -R o/r': theirs }
+    const { ran } = engine(on, { dirs, prs, checks: [{ name: 'lint', bucket: 'fail' }] })
+    await start($)
+    const named = [
+      'gh pr merge https://github.com/o/r/pull/42 --squash',
+      'gh pr merge --squash fix-x',
+      'gh pr merge -d --body "Done" fix-x',
+      'gh -R o/r pr merge 42',
+      'gh pr merge 42 --repo o/r',
+      'gh pr merge --repo=o/r --squash 42',
+      'gh -Ro/r pr merge 42',
+      'gh pr merge -dR o/r 42',
+    ]
+    for (const command of named) {
+      const r: any = await $.tool.call({ tool: 'Bash', command } as any)
+      expect([command, r.deny]).toEqual([command, 'merge-gate: held the merge of PR #42: CI has 1 failing (lint); Codex has not reviewed it. Finish those first (failed CI: /gate rerun).'])
+    }
+    // A PR merge-gate cannot look up (a variable, a quoted name, a typo) is held, not merged unchecked
+    for (const command of ['gh pr merge "$PR" --squash', 'gh pr merge $PR', 'gh pr merge no-such-branch', 'gh -R "o/r" pr merge', 'gh pr merge --repo="$REPO"']) {
+      const r: any = await $.tool.call({ tool: 'Bash', command } as any)
+      expect([command, /^merge-gate: could not find the PR/.test(r.deny ?? '')]).toEqual([command, true])
+    }
+    // No PR named and none for this branch: gh answers that itself, as before
+    await $.tool.call({ tool: 'Bash', command: 'gh pr merge --squash' } as any)
+    expect(ran).toEqual(['gh pr merge --squash'])
+  })
+
+  test('merge: a Codex review counts for its own PR, not a PR of the same number in another repo', async ($, on) => {
+    const dirs: Record<string, Dir> = {
+      '/repo': { repo: '/repo', branch: 'fix-a', pr: 42 }, // this repo's PR #42
+      '/repo/wt/x': { repo: '/repo', branch: 'fix-x', pr: 7, repoView: '' }, // gh repo view fails
+      '/repo/wt/y': { repo: '/repo', branch: 'fix-y', pr: 8, repoView: 'not json' },
+    }
+    const ours = 'https://github.com/repo/pull/42'
+    const theirs = 'https://github.com/o/r/pull/42'
+    const prs = { '42': ours, [ours]: ours, '42 -R o/r': theirs, [theirs]: theirs, '7': 'https://github.com/repo/pull/7', '8': 'https://github.com/repo/pull/8' }
+    const { ran } = engine(on, { dirs, prs, checks: [] }) // CI green everywhere
+    await start($)
+    await $.tool.call({ tool: 'Bash', command: LUNA_REVIEW } as any) // reviews #42 here
+    for (const command of ['gh -R o/r pr merge 42', `gh pr merge ${theirs}`]) {
+      const r: any = await $.tool.call({ tool: 'Bash', command } as any)
+      expect([command, r.deny]).toEqual([command, 'merge-gate: held the merge of PR #42: Codex has not reviewed it. Finish those first.'])
+    }
+    // When gh can't say which repo the folder is, the review is not counted either
+    for (const [dir, n] of [['wt/x', 7], ['wt/y', 8]] as const) {
+      await $.tool.call({ tool: 'Bash', command: `cd ${dir} && ${LUNA_REVIEW}` } as any)
+      const r: any = await $.tool.call({ tool: 'Bash', command: `cd ${dir} && gh pr merge ${n}` } as any)
+      expect([dir, r.deny]).toEqual([dir, `merge-gate: held the merge of PR #${n}: Codex has not reviewed it. Finish those first.`])
+    }
+    await $.tool.call({ tool: 'Bash', command: 'gh pr merge 42' } as any)
+    await $.tool.call({ tool: 'Bash', command: `gh pr merge ${ours}` } as any)
+    expect(ran).toEqual([LUNA_REVIEW, `cd wt/x && ${LUNA_REVIEW}`, `cd wt/y && ${LUNA_REVIEW}`, 'gh pr merge 42', `gh pr merge ${ours}`])
   })
 
   test('merge is held when CI fails and Codex has not run', async ($, on) => {

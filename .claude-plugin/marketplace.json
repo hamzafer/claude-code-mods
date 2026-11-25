@@ -114,7 +114,7 @@
     {
       "name": "merge-gate",
       "description": "Holds `gh pr merge` until CI passes and one Codex review (OpenAI's luna model) has run. A PR line above the prompt, and /gate shows the PR's status.",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "source": "./mods/merge-gate",
       "category": "My setup (fork and adapt)",
       "tags": [
