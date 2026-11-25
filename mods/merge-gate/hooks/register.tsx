@@ -33,7 +33,7 @@ const GH_MERGE = at('gh', 'pr', 'merge')
 // Held by the host, so the band survives a hot reload of this file.
 const status = atom({ plugin: 'merge-gate', key: 'status' } as const, null as GateStatus | null)
 
-type Pr = { number: number; title: string; branch: string }
+type Pr = { number: number; title: string; branch: string; url: string }
 type Checks = { pass: number; fail: number; pending: number; failing: string[] }
 
 let bandOrder: Promise<string[]> | undefined // read once per session: restart to apply
@@ -134,10 +134,17 @@ async function codexReview($: EngineInterface, command: string, run: () => Promi
 
 async function merge($: EngineInterface, shell: string, command: string, run: () => Promise<ToolCallResult>): Promise<ToolCallResult> {
   const dir = await runDir($, command)
-  const pr = await currentPr($, dir, prNumber(shell))
+  const named = prArgs(shell)
+  const pr = await currentPr($, dir, named)
+  if (!pr && (named.pr || named.repo)) {
+    return {
+      deny: 'merge-gate: could not find the PR that `gh pr merge` names, so the merge is held. Name it by number, URL or branch, and its repo by -R owner/repo.',
+    }
+  }
   if (!pr) return run()
-  const checks = await ciChecks($, pr.number, dir)
-  const codex = Number((await $.store.get(await codexKey($, dir, pr))) ?? 0)
+  const checks = await ciChecks($, pr.url, dir)
+  const repo = await repoUrl($, dir)
+  const codex = pr.url.startsWith(`${repo}/pull/`) ? Number((await $.store.get(await codexKey($, dir, pr))) ?? 0) : 0
   const missing = [
     checks.fail > 0 && `CI has ${checks.fail} failing (${checks.failing.join(', ')})`,
     checks.pending > 0 && `CI has ${checks.pending} still running`,
@@ -244,12 +251,47 @@ export function bare(command: string): string {
   return plain()
 }
 
-// The PR number given to `gh pr merge`, if any (options may come first).
-export function prNumber(shell: string) {
+// What names the PR in `gh pr merge`: its number, URL or branch (the first word that is not an option or
+// an option's value), and a -R/--repo given to gh or to merge. Drop redirections and their target words,
+// then read up to where the command ends: ; & | ) a newline or a backtick.
+// Options that take a value: --long=x or --long x; a short one takes the rest of its word or the next
+// word, also at the end of a run of flags (-Ro/r, -R=o/r, -dR o/r), as gh reads them.
+const VALUE_OPTS = new Set(['--body', '--body-file', '--subject', '--author-email', '--match-head-commit', '--repo'])
+const SHORT_VALUE_OPTS = 'bFtAR'
+export function prArgs(shell: string): { pr?: string; repo?: string } {
   const m = GH_MERGE.exec(shell)
-  if (!m) return undefined
-  const rest = shell.slice(m.index + m[0].length)
-  return /^(?:\s+-\S+(?:\s+[^\s;&|)\x60-]\S*)?)*?\s+(\d+)(?![^\s;&|)\x60])/.exec(rest)?.[1]
+  if (!m) return {}
+  const named: { pr?: string; repo?: string } = {}
+  const read = (words: string[], positional: boolean) => {
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i]
+      if (!word.startsWith('-')) {
+        if (positional) named.pr ??= word
+        continue
+      }
+      let opt: string
+      let value: string | undefined
+      if (word.startsWith('--')) {
+        ;[opt, value] = word.split('=', 2)
+        if (!VALUE_OPTS.has(opt)) continue // a flag: --squash, --auto...
+      } else {
+        const at = [...word].findIndex((c, k) => k > 0 && SHORT_VALUE_OPTS.includes(c))
+        if (at < 0) continue // flags only: -d, -s...
+        opt = `-${word[at]}`
+        value = word.slice(at + 1).replace(/^=/, '') || undefined
+      }
+      const arg = value ?? words[++i]
+      if ((opt === '-R' || opt === '--repo') && arg !== undefined) named.repo = arg
+    }
+  }
+  const head = m[0].split(/\s+/)
+  read(head.slice(head.findIndex(w => /(?:^|[^\w-])gh$/.test(w)) + 1), false) // options before merge: gh -R o/r pr merge
+  const rest = shell
+    .slice(m.index + m[0].length)
+    .replace(/\\\n/g, ' ') // a line continued with \ goes on
+    .replace(/\d*(?:[<>]+&?|&>)[ \t]*[^\s;&|()<>\x60]*/g, ' ')
+  read(rest.split(/[;&|)\n\x60]/)[0].split(/\s+/).filter(Boolean), true)
+  return named
 }
 
 // Ollama's ChatGPT toggle rewrites the config to a local server or an Ollama model.
@@ -320,16 +362,26 @@ async function codexKey($: EngineInterface, dir: string, known?: Pr | null) {
   return `codex:${repo}@${(branch?.exitCode === 0 && branch.stdout.trim()) || dir}` // detached HEAD: per folder
 }
 
-async function currentPr($: EngineInterface, dir?: string, number?: string): Promise<Pr | null> {
-  const args = ['gh', 'pr', 'view', ...(number ? [number] : []), '--json', 'number,title,headRefName,state']
+async function currentPr($: EngineInterface, dir?: string, named?: { pr?: string; repo?: string }): Promise<Pr | null> {
+  const args = ['gh', 'pr', 'view', ...(named?.pr ? [named.pr] : []), ...(named?.repo ? ['-R', named.repo] : []), '--json', 'number,title,headRefName,state,url']
   const r = await $.process.run(args, { timeoutMs: 15_000, ...(dir ? { cwd: dir } : {}) }).catch(() => null)
   if (!r || r.exitCode !== 0) return null
   try {
-    const o = JSON.parse(r.stdout) as { number: number; title: string; headRefName: string; state: string }
+    const o = JSON.parse(r.stdout) as { number: number; title: string; headRefName: string; state: string; url: string }
     if (o.state !== 'OPEN') return null
-    return { number: o.number, title: o.title, branch: o.headRefName }
+    return { number: o.number, title: o.title, branch: o.headRefName, url: o.url }
   } catch {
     return null
+  }
+}
+
+// The URL of the repo gh works on in `dir` (the one gh pr view uses), or '' when gh can't tell.
+async function repoUrl($: EngineInterface, dir: string): Promise<string> {
+  const r = await $.process.run(['gh', 'repo', 'view', '--json', 'url'], { timeoutMs: 15_000, cwd: dir }).catch(() => null)
+  try {
+    return r?.exitCode === 0 ? String((JSON.parse(r.stdout) as { url?: string }).url ?? '') : ''
+  } catch {
+    return '' // not JSON
   }
 }
 
@@ -347,7 +399,7 @@ export function countChecks(json: string): Checks {
   }
 }
 
-async function ciChecks($: EngineInterface, pr: number, dir?: string) {
+async function ciChecks($: EngineInterface, pr: number | string, dir?: string) {
   const r = await $.process.run(['gh', 'pr', 'checks', String(pr), '--json', 'name,bucket'], { timeoutMs: 15_000, ...(dir ? { cwd: dir } : {}) }).catch(() => null)
   return countChecks(r?.stdout ?? '[]') // gh exits non-zero while checks fail or run; the JSON is still there
 }
