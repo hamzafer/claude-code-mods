@@ -134,6 +134,10 @@ describe('secret-guard', () => {
     expect(redact(`a ${GH} b ${GH}`, f)).toBe('a [hidden by secret-guard: GitHub token] b [hidden by secret-guard: GitHub token]')
     expect(say([{ kind: 'GitHub token', secret: 'x' }])).toBe('a GitHub token')
     expect(say([{ kind: 'AWS access key', secret: 'x' }, { kind: 'AWS access key', secret: 'y' }, { kind: 'JWT', secret: 'z' }])).toBe('2 AWS access keys and a JWT')
+    expect(say([{ kind: 'password in a URL', secret: 'x' }, { kind: 'password in a URL', secret: 'y' }])).toBe('2 passwords in URLs')
+    expect(say([{ kind: 'secret in an env variable', secret: 'x' }, { kind: 'secret in an env variable', secret: 'y' }])).toBe('2 secrets in env variables')
+    expect(say([{ kind: 'npm token', secret: 'x' }])).toBe('an npm token')
+    expect(say([{ kind: 'GitHub token', secret: 'x' }, { kind: 'npm token', secret: 'y' }, { kind: 'password in a URL', secret: 'z' }, { kind: 'password in a URL', secret: 'w' }])).toBe('a GitHub token, an npm token and 2 passwords in URLs')
     expect(mapStrings({ a: ['x1'], base64: 'x1', n: 3 }, s => s.replace('x', 'y'))).toEqual({ a: ['y1'], base64: 'x1', n: 3 })
     expect(addedLines('+++ b/src/a.ts\n+const k = 1\n-old\n+++ b/b.ts\n+two')).toEqual([
       { file: 'src/a.ts', text: 'const k = 1' },
