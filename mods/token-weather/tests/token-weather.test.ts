@@ -160,6 +160,28 @@ describe('token-weather', () => {
     await ui.unmount()
   })
 
+  test('a tool step does not wait for the reading', async ($, on) => {
+    let hold: Promise<void> | null = null
+    let release = () => {}
+    mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', async () => {
+      if (hold) await hold
+      return { value: { startedAt: 0, rateLimits: [], context: { tokens: 36_100, window: 200_000 } } } as any
+    })
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'tool_use', usage: null } as any
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+
+    // The usage call hangs: the step must end without it.
+    hold = new Promise(r => (release = r))
+    const ended = (work: Promise<unknown>) =>
+      Promise.race([work.then(() => true), new Promise(r => setTimeout(r, 200, false))])
+    expect(await ended(request($, 't1'))).toBe(true)
+    release()
+  })
+
   test('yields the band to a survey', async ($, on) => {
     on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
     on('session.usage', () => ({

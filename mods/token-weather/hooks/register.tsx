@@ -95,7 +95,9 @@ export const register: Register = (on, options) => {
       const now = await $.clock.now()
       await update($, lastRequestAt, () => now)
       restart($, now, now, await ttlMsFor($, override))
-      await refreshReading($) // the window filled during this request: show it before the turn ends
+      // The window filled during this request: show it before the turn ends. Not awaited, so the next
+      // request does not wait on it; one that lands after this file unloads is dropped.
+      void refreshReading($).catch(() => {})
     }
     return result
   })
