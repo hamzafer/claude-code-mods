@@ -59,10 +59,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     await takeReading($)
     await checkCacheClock($)
-    if ((await read($, detectedTtl)) === null) {
-      const known = await $.store.get('detectedTtl').catch(() => undefined) // the last session's, until this one's first response says
-      if (known === '5m' || known === '1h') await update($, detectedTtl, () => known)
-    }
+    await recallTtl($)
     const since = await read($, lastRequestAt) // kept across a hot reload: pick the countdown up again
     if (since !== null) restart($, since, await $.clock.now(), await ttlMsFor($, override))
     return result
@@ -84,7 +81,7 @@ export const register: Register = (on, options) => {
       // The engine answers for the new conversation only once the end step's time bound has passed.
       try {
         const left = next.budget.remainingMs
-        $.clock.after(Number.isFinite(left) ? left : 0, () => void takeReading($).catch(() => {}))
+        $.clock.after(Number.isFinite(left) ? left : 0, () => void Promise.all([takeReading($), recallTtl($)]).catch(() => {}))
       } catch {
         // no clock: the first request shows it
       }
@@ -191,6 +188,14 @@ async function checkCacheClock($: EngineInterface) {
 
 async function ttlMsFor($: EngineInterface, override: CacheTtl | null) {
   return TTL_MS[override ?? (await read($, detectedTtl)) ?? '5m']
+}
+
+// The lifetime the last session detected, until this one's first response says. A session's state
+// starts empty, after a /clear or a resume too.
+async function recallTtl($: EngineInterface) {
+  if ((await read($, detectedTtl)) !== null) return
+  const known = await $.store.get('detectedTtl').catch(() => undefined)
+  if (known === '5m' || known === '1h') await update($, detectedTtl, () => known)
 }
 
 // Keeps a newly detected lifetime, here and for the next session, and moves the countdown
