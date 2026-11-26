@@ -59,7 +59,7 @@ describe('token-weather', () => {
         startedAt: 0,
         rateLimits: [],
         // autoCompactWindow 400k on a 1M model: the engine's own percent is against 1M
-        context: { tokens: 164_000, window: 1_000_000, percent: 16, ...(e.breakdown ? { breakdown: { rawMaxTokens: 400_000 } } : {}) },
+        context: { tokens: 160_000, window: 1_000_000, percent: 16, ...(e.breakdown ? { breakdown: { totalTokens: 164_000, rawMaxTokens: 400_000 } } : {}) },
       },
     }) as any)
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band

@@ -274,9 +274,10 @@ async function measure($: EngineInterface): Promise<TokenWeatherReading | null> 
   // A summary breakdown is estimated locally, with no API call. A failure skips this reading alone:
   // thrown, it would skip the rest of the hook (at a turn's end, the cache-clock check and lifetime detection).
   const context = (await $.session.usage({ breakdown: 'summary' }).catch(() => null))?.context
-  const window = context?.breakdown?.rawMaxTokens || context?.window
+  // Both figures from one source: the breakdown's when it has a window, else the engine's own.
+  const b = context?.breakdown
+  const [tokens, window] = b?.rawMaxTokens ? [b.totalTokens, b.rawMaxTokens] : [context?.tokens ?? 0, context?.window]
   if (!window) return null
-  const tokens = context?.tokens ?? 0
   return { tokens, window, percent: Math.round((tokens / window) * 100) }
 }
 
