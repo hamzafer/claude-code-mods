@@ -153,6 +153,56 @@ describe('token-weather', () => {
     await ui.unmount()
   })
 
+  test('a resume hides the old window', async ($, on) => {
+    mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens: 180_000, window: 200_000 } } }) as any)
+    on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+    await $.session.end({ reason: 'resume', sessionId: 's' } as any)
+    expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test("a subagent's /compact, or a skipped one, leaves the reading alone", async ($, on) => {
+    let tokens = 180_000
+    let skips = false
+    const messages = [{ role: 'user', text: 'hi', toolUses: [] }]
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
+    on('session.compact', () => (skips ? { skip: 'blocked' } : { messages }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    tokens = 20_000 // what a reread would show
+
+    await $.session.compact({ trigger: 'manual', agentId: 'a1', messages } as any) // a subagent's own window
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    skips = true
+    await $.session.compact({ trigger: 'manual', messages } as any) // vetoed: the window is as it was
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('shows the history an earlier version stored, before the first reading of this one', async ($, on) => {
+    // 0.2.4 kept readings alone; this version adds current, still null after the hot reload.
+    const stored = [{ tokens: 50_000, window: 200_000, percent: 25 }]
+    on('state.get', (_$: any, e: any, next: any) => (e.key === 'readings' ? { value: { value: stored, version: 1 } } : next(e)))
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => {
+      throw new Error('usage unavailable') // no reading of this version's yet
+    })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /25% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('a tool step does not wait for the reading', async ($, on) => {
     let hold: Promise<void> | null = null
     let release = () => {}
