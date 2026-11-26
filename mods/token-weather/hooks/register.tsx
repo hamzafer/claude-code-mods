@@ -69,15 +69,27 @@ export const register: Register = (on, options) => {
   })
 
 
-  // A /clear or a resume leaves the old conversation, its window and its cache, behind.
+  // A /clear or a resume goes on with another conversation in this process, with no session.start:
+  // the old one's window and cache are left behind, and the new one is read as a session's start reads it.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear' || e.reason === 'resume') {
+    const isNew = e.reason === 'clear' || e.reason === 'resume'
+    if (isNew) {
       stop()
       await update($, lastRequestAt, () => null)
-      await update($, current, () => null) // hidden until the new conversation's first request
+      await update($, current, () => null)
       await update($, readings, () => [])
     }
-    return next(e)
+    const result = await next(e)
+    if (isNew) {
+      // The engine answers for the new conversation only once the end step's time bound has passed.
+      try {
+        const left = next.budget.remainingMs
+        $.clock.after(Number.isFinite(left) ? left : 0, () => void takeReading($).catch(() => {}))
+      } catch {
+        // no clock: the first request shows it
+      }
+    }
+    return result
   })
 
   // A /compact empties the window without a turn ending.

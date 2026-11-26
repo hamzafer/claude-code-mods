@@ -153,20 +153,29 @@ describe('token-weather', () => {
     await ui.unmount()
   })
 
-  test('a resume hides the old window', async ($, on) => {
-    mock.clock(on, { now: 1_000_000 })
+  test('a /clear or a resume starts over as a new session does', async ($, on) => {
+    let tokens = 180_000
+    const clock = mock.clock(on, { now: 1_000_000 })
     on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
-    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens: 180_000, window: 200_000 } } }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
     on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
     const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
-    await $.session.end({ reason: 'resume', sessionId: 's' } as any)
-    expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
+
+    // the conversation the process goes on with: an empty one, then one resumed at 150k
+    for (const [reason, now, shown] of [['clear', 16_000, /8% of context/], ['resume', 150_000, /75% of context/]] as const) {
+      tokens = now
+      await $.session.end({ reason, sessionId: 's' } as any)
+      expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined() // the old window is gone at once
+      await clock.advance(20_000) // past the end step's time bound, whatever it is
+      await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
+      expect(await ui.find({ type: 'Text', text: shown })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]$/ })).toBeDefined() // one point of history, as at a session's start
+    }
     await ui.unmount()
   })
-
   test("a subagent's /compact, or a skipped one, leaves the reading alone", async ($, on) => {
     let tokens = 180_000
     let skips = false
