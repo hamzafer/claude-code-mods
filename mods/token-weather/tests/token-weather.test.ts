@@ -64,12 +64,7 @@ describe('token-weather', () => {
     }) as any)
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
-    const ui = await $.ui.mount({
-      plugin: 'token-weather',
-      surface: 'terminal',
-      component: 'AbovePrompt',
-      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
-    } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /Cloudy/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /41% of context/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /164k \/ 400k/ })).toBeDefined()
@@ -88,12 +83,7 @@ describe('token-weather', () => {
     })
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
-    const ui = await $.ui.mount({
-      plugin: 'token-weather',
-      surface: 'terminal',
-      component: 'AbovePrompt',
-      props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 120 },
-    } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND, props: { ...BAND.props, isWorking: true } } as any)
     expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
 
     // A tool step of the main thread, before the turn ends.
@@ -101,6 +91,9 @@ describe('token-weather', () => {
     await request($, 't1')
     expect(await ui.find({ type: 'Text', text: /Storm/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
+    // The step moved the figures, not the per-turn history: still the one point from the session's start.
+    expect(await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /last turn$/ })).toBeUndefined()
 
     // A subagent's step is not the main window.
     tokens = 190_000
