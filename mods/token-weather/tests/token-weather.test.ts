@@ -133,7 +133,7 @@ describe('token-weather', () => {
 
   test('a /compact rereads the window, a /clear hides the old one', async ($, on) => {
     let tokens: number | undefined = 180_000
-    mock.clock(on, { now: 1_000_000 })
+    const clock = mock.clock(on, { now: 1_000_000 })
     on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
     on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
     on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
@@ -143,8 +143,10 @@ describe('token-weather', () => {
     const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /Compact soon/ })).toBeDefined()
 
-    tokens = 20_000
     await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    tokens = 20_000 // the engine installs the compacted messages once the hook has returned
+    await clock.advance(0)
+    await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
     expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /10% of context/ })).toBeDefined()
 

@@ -89,10 +89,17 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  // A /compact empties the window without a turn ending.
+  // A /compact empties the window without a turn ending. The engine installs the compacted
+  // messages only after this hook returns, so the window is read once it has.
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
-    if (!e.agentId && 'messages' in result) await refreshReading($)
+    if (!e.agentId && 'messages' in result) {
+      try {
+        $.clock.after(0, () => void refreshReading($).catch(() => {}))
+      } catch {
+        // no clock: the next request shows it
+      }
+    }
     return result
   })
 
