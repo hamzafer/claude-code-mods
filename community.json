@@ -206,6 +206,15 @@
       "url": "https://github.com/Nam0101/claude-multiverse",
       "description": "A theme in fourteen dark universes: each new session lands in one, from a galactic war to the deep sea, and the Claude critter works at its desk there, showing thinking, commands, errors and done. Subagents arrive through portals, ultracode adds a golden aura, and the scene fits between the desktop app's side panels. Desktop and mobile app; the terminal gets the universe's name and a sparking ULTRA row. No network requests and no model calls",
       "tags": ["band", "toast", "command"]
+    },
+    {
+      "name": "scintle",
+      "marketplace": "scintle",
+      "repo": "scintle/scintle",
+      "author": "scintle",
+      "url": "https://github.com/scintle/scintle",
+      "description": "Your AI chats, turned into a history of your ideas. You never type an idea in: Scintle finds every idea in your Claude Code sessions on its own and keeps its story (where it started, what you decided, what you dropped) on a board that opens in your browser, so you can pick any idea back up or plan it with its full history. Nothing is read until you say yes; reading uses your own claude -p with no tools, and Research, only when you press it, searches the web",
+      "tags": ["band", "command", "pane"]
     }
   ]
 }
