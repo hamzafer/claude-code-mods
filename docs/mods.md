@@ -129,7 +129,7 @@ Shows what fills the Claude Code context window, as one stacked bar.
 
 Shows how full the Claude Code context window is, and how long the prompt cache stays warm.
 
-- Levels go by percent of the window, so a 1M window stays Clear until 250k tokens
+- Levels go by percent of the window auto-compact measures: the model's, or a smaller `autoCompactWindow`. A 1M window stays Clear until 250k tokens
 - `❄ cache 4:15` estimates how long the prompt cache stays warm. It counts down from the end of the last model request. Every request restarts it, including tool steps
 - Send a prompt before it hits zero and the cached prefix is reused, billed at the cache-read rate
 - The countdown is an estimate from timing, not read from the API. A model switch or /compact starts a fresh cache

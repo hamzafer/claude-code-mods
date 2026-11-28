@@ -30,6 +30,8 @@ const TAIL_BYTES = 1024 * 1024
 
 // Held by the host, so the history survives a hot reload of this file.
 const readings = atom({ plugin: 'token-weather', key: 'readings' } as const, [] as TokenWeatherReading[])
+// The latest reading, taken after every main-thread model request, so the band moves within a long turn.
+const current = atom({ plugin: 'token-weather', key: 'current' } as const, null as TokenWeatherReading | null)
 const lastRequestAt = atom({ plugin: 'token-weather', key: 'lastRequestAt' } as const, null as number | null)
 // The cache lifetime Claude's responses last showed; null until one wrote to the cache.
 const detectedTtl = atom({ plugin: 'token-weather', key: 'detectedTtl' } as const, null as CacheTtl | null)
@@ -57,23 +59,49 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     await takeReading($)
     await checkCacheClock($)
-    if ((await read($, detectedTtl)) === null) {
-      const known = await $.store.get('detectedTtl').catch(() => undefined) // the last session's, until this one's first response says
-      if (known === '5m' || known === '1h') await update($, detectedTtl, () => known)
-    }
+    await recallTtl($)
     const since = await read($, lastRequestAt) // kept across a hot reload: pick the countdown up again
     if (since !== null) restart($, since, await $.clock.now(), await ttlMsFor($, override))
     return result
   })
 
 
-  // A /clear or a resume leaves the old conversation, and its cache, behind.
+  // A /clear or a resume goes on with another conversation in this process, with no session.start:
+  // the old one's window and cache are left behind, and the new one is read as a session's start reads it.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear' || e.reason === 'resume') {
+    const isNew = e.reason === 'clear' || e.reason === 'resume'
+    if (isNew) {
       stop()
       await update($, lastRequestAt, () => null)
+      await update($, current, () => null)
+      await update($, readings, () => [])
     }
-    return next(e)
+    const result = await next(e)
+    if (isNew) {
+      // The engine answers for the new conversation only once the end step's time bound has passed.
+      try {
+        const left = next.budget.remainingMs
+        $.clock.after(Number.isFinite(left) ? left : 0, () => void Promise.all([takeReading($), recallTtl($)]).catch(() => {}))
+      } catch {
+        // no clock: the first request shows it
+      }
+    }
+    return result
+  })
+
+  // A /compact empties the window without a turn ending. The engine installs the compacted
+  // conversation only once the whole chain has returned, so the check waits for this hook to
+  // return; a hook above may still be running then (rereadCompacted). A precompute installs nothing.
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (!e.agentId && e.trigger !== 'precompute' && 'messages' in result) {
+      try {
+        $.clock.after(0, () => void rereadCompacted($).catch(() => {}))
+      } catch {
+        // no clock: the next request shows it
+      }
+    }
+    return result
   })
 
   // One model request of a turn. The cache's clock restarts when each one on the
@@ -84,6 +112,9 @@ export const register: Register = (on, options) => {
       const now = await $.clock.now()
       await update($, lastRequestAt, () => now)
       restart($, now, now, await ttlMsFor($, override))
+      // The window filled during this request: show it before the turn ends. Not awaited, so the next
+      // request does not wait on it; one that lands after this file unloads is dropped.
+      void refreshReading($).catch(() => {})
     }
     return result
   })
@@ -105,7 +136,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const rest = await next(e) // what other mods and Claude Code draw here stays
     const history = await read($, readings)
-    const now = history.at(-1)
+    const now = (await read($, current)) ?? history.at(-1)
     if (e.props.hasSurvey || !now) {
       return rest
     }
@@ -165,6 +196,14 @@ async function checkCacheClock($: EngineInterface) {
 
 async function ttlMsFor($: EngineInterface, override: CacheTtl | null) {
   return TTL_MS[override ?? (await read($, detectedTtl)) ?? '5m']
+}
+
+// The lifetime the last session detected, until this one's first response says. A session's state
+// starts empty, after a /clear or a resume too.
+async function recallTtl($: EngineInterface) {
+  if ((await read($, detectedTtl)) !== null) return
+  const known = await $.store.get('detectedTtl').catch(() => undefined)
+  if (known === '5m' || known === '1h') await update($, detectedTtl, () => known)
 }
 
 // Keeps a newly detected lifetime, here and for the next session, and moves the countdown
@@ -254,12 +293,41 @@ function arm($: EngineInterface, since: number, now: number, ttlMs: number) {
   })
 }
 
+// The context window's fill now, against the window auto-compact measures (an `autoCompactWindow`
+// smaller than the model's counts); null when the engine has no window yet or the call fails.
+async function measure($: EngineInterface): Promise<TokenWeatherReading | null> {
+  // A summary breakdown is estimated locally, with no API call. A failure skips this reading alone:
+  // thrown, it would skip the rest of the hook (at a turn's end, the cache-clock check and lifetime detection).
+  const context = (await $.session.usage({ breakdown: 'summary' }).catch(() => null))?.context
+  // Both figures from one source: the breakdown's when it has a window, else the engine's own.
+  const b = context?.breakdown
+  const [tokens, window] = b?.rawMaxTokens ? [b.totalTokens, b.rawMaxTokens] : [context?.tokens ?? 0, context?.window]
+  if (!window) return null
+  return { tokens, window, percent: Math.round((tokens / window) * 100) }
+}
+
+// Updates the band's figures without adding a point to the per-turn history.
+async function refreshReading($: EngineInterface) {
+  const reading = await measure($)
+  if (reading) await update($, current, () => reading)
+}
+
+// After a compaction. context.tokens is the last response's fill, which the engine drops when it
+// installs a compaction. Still set, a hook above has not returned and the window is the old one:
+// the band drops its figures and history, as a /clear does, and the next request shows the new ones.
+async function rereadCompacted($: EngineInterface) {
+  const isInstalled = (await $.session.usage().catch(() => null))?.context.tokens === undefined
+  if (isInstalled) return refreshReading($)
+  await update($, current, () => null)
+  await update($, readings, () => [])
+}
+
+// A turn's end: the figures, and one more point of history.
 async function takeReading($: EngineInterface) {
-  const { context } = await $.session.usage()
-  if (!context?.window) return
-  const tokens = context.tokens ?? 0
-  const percent = context.percent ?? Math.round((tokens / context.window) * 100)
-  await update($, readings, history => [...history, { tokens, window: context.window, percent }].slice(-HISTORY))
+  const reading = await measure($)
+  if (!reading) return
+  await update($, current, () => reading)
+  await update($, readings, history => [...history, reading].slice(-HISTORY))
 }
 
 // What the cache part says with `leftMs` until the cache expires at `expiresAt`

@@ -1,6 +1,22 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
+
+import type { Engine } from 'claude-code/testing'
 
 import { resetBandOrder } from '../hooks/register'
+
+const BAND = {
+  component: 'AbovePrompt',
+  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+}
+
+// One model request, read to its end as the engine would.
+async function request($: Engine, turnId: string, agentId?: string) {
+  const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(agentId ? { agentId } : {}) } as any)
+  for await (const _ of stream) {
+    // drain
+  }
+  await stream.result
+}
 
 describe('token-weather', () => {
   test('the band follows the context window', async ($, on) => {
@@ -18,10 +34,6 @@ describe('token-weather', () => {
 
     await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
 
-    const BAND = {
-      component: 'AbovePrompt',
-      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
-    }
 
     const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
     expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
@@ -38,6 +50,233 @@ describe('token-weather', () => {
     expect(await desk.find({ type: 'Text', text: /Showers/ })).toBeDefined()
     expect(await desk.find({ type: 'Text', text: /engine band/ })).toBeDefined() // stacked, not replaced
     await desk.unmount()
+  })
+
+  test('measures against a smaller compaction window', async ($, on) => {
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', (_$, e: any) => ({
+      value: {
+        startedAt: 0,
+        rateLimits: [],
+        // autoCompactWindow 400k on a 1M model: the engine's own percent is against 1M
+        context: { tokens: 160_000, window: 1_000_000, percent: 16, ...(e.breakdown ? { breakdown: { totalTokens: 164_000, rawMaxTokens: 400_000 } } : {}) },
+      },
+    }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /Cloudy/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /41% of context/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /164k \/ 400k/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('the band follows the window within a long turn', async ($, on) => {
+    let tokens = 36_100
+    mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({
+      value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000, percent: Math.round(tokens / 2_000) } },
+    }) as any)
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'tool_use', usage: null } as any
+    })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND, props: { ...BAND.props, isWorking: true } } as any)
+    expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+
+    // A tool step of the main thread, before the turn ends.
+    tokens = 170_000
+    await request($, 't1')
+    expect(await ui.find({ type: 'Text', text: /Storm/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
+    // The step moved the figures, not the per-turn history: still the one point from the session's start.
+    expect(await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /last turn$/ })).toBeUndefined()
+
+    // A subagent's step is not the main window.
+    tokens = 190_000
+    await request($, 't2', 'a')
+    expect(await ui.find({ type: 'Text', text: /85% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a failed usage call skips the reading, not the rest of the turn end', async ($, on) => {
+    let fails = false
+    let statusLine = ''
+    mock.clock(on, { now: 1_000_000 })
+    on('settings.read', () => ({ value: { statusLine: { command: statusLine } } }) as any)
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => {
+      if (fails) throw new Error('usage unavailable')
+      return { value: { startedAt: 0, rateLimits: [], context: { tokens: 36_100, window: 200_000 } } } as any
+    })
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
+    })
+    on('turn.complete', () => ({ text: '' }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    await request($, 't1')
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeDefined()
+
+    // cache-clock set up mid-session, and the usage call fails at this turn's end
+    fails = true
+    statusLine = 'node "/h/.claude/cache-clock/cache-clock.mjs"'
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(await ui.find({ type: 'Text', text: /cache/ })).toBeUndefined() // the cache-clock check still ran
+    expect(await ui.find({ type: 'Text', text: /18% of context/ })).toBeDefined() // the last good reading
+    await ui.unmount()
+  })
+
+  test('a /compact rereads the window, a /clear hides the old one', async ($, on) => {
+    // The engine holds the last response's fill until a compaction is installed, and estimates after.
+    let fill: number | undefined = 180_000
+    let estimate = 180_000
+    const clock = mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', (_$, e: any) => ({
+      value: {
+        startedAt: 0,
+        rateLimits: [],
+        context: { tokens: fill, window: 200_000, ...(e?.breakdown ? { breakdown: { totalTokens: estimate, rawMaxTokens: 200_000 } } : {}) },
+      },
+    }) as any)
+    on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
+    on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /Compact soon/ })).toBeDefined()
+
+    await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    fill = undefined // installed once the chain has returned: the last response's fill is dropped
+    estimate = 20_000
+    await clock.advance(0)
+    await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
+    expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /10% of context/ })).toBeDefined()
+
+    await $.session.end({ reason: 'clear', sessionId: 's' } as any)
+    expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('a /compact the engine has not installed yet hides the old figures until the next request', async ($, on) => {
+    let fill = 180_000
+    const clock = mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens: fill, window: 200_000 } } }) as any)
+    on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
+    })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    // A hook above is still running: the engine still answers with the old conversation's last response.
+    await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    await clock.advance(0)
+    await new Promise(r => setTimeout(r, 50)) // the check it starts is not awaited
+    expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
+
+    fill = 20_000
+    await request($, 't1')
+    await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
+    expect(await ui.find({ type: 'Text', text: /10% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a /clear or a resume starts over as a new session does', async ($, on) => {
+    let tokens = 180_000
+    const clock = mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
+    on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    // the conversation the process goes on with: an empty one, then one resumed at 150k
+    for (const [reason, now, shown] of [['clear', 16_000, /8% of context/], ['resume', 150_000, /75% of context/]] as const) {
+      tokens = now
+      await $.session.end({ reason, sessionId: 's' } as any)
+      expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined() // the old window is gone at once
+      await clock.advance(20_000) // past the end step's time bound, whatever it is
+      await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
+      expect(await ui.find({ type: 'Text', text: shown })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]$/ })).toBeDefined() // one point of history, as at a session's start
+    }
+    await ui.unmount()
+  })
+  test("a subagent's /compact, a skipped one or a precompute leaves the reading alone", async ($, on) => {
+    let tokens = 180_000
+    let skips = false
+    const clock = mock.clock(on, { now: 1_000_000 })
+    const messages = [{ role: 'user', text: 'hi', toolUses: [] }]
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
+    on('session.compact', () => (skips ? { skip: 'blocked' } : { messages }) as any)
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    tokens = 20_000 // what a reread would show
+
+    await $.session.compact({ trigger: 'manual', agentId: 'a1', messages } as any) // a subagent's own window
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    skips = true
+    await $.session.compact({ trigger: 'manual', messages } as any) // vetoed: the window is as it was
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    skips = false
+    await $.session.compact({ trigger: 'precompute', messages } as any) // kept for later: nothing is installed
+    await clock.advance(0)
+    await new Promise(r => setTimeout(r, 50)) // a check, had one started, is not awaited
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('shows the history an earlier version stored, before the first reading of this one', async ($, on) => {
+    // 0.2.4 kept readings alone; this version adds current, still null after the hot reload.
+    const stored = [{ tokens: 50_000, window: 200_000, percent: 25 }]
+    on('state.get', (_$: any, e: any, next: any) => (e.key === 'readings' ? { value: { value: stored, version: 1 } } : next(e)))
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => {
+      throw new Error('usage unavailable') // no reading of this version's yet
+    })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /25% of context/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a tool step does not wait for the reading', async ($, on) => {
+    let hold: Promise<void> | null = null
+    let release = () => {}
+    mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', async () => {
+      if (hold) await hold
+      return { value: { startedAt: 0, rateLimits: [], context: { tokens: 36_100, window: 200_000 } } } as any
+    })
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'tool_use', usage: null } as any
+    })
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+
+    // The usage call hangs: the step must end without it.
+    hold = new Promise(r => (release = r))
+    const ended = (work: Promise<unknown>) =>
+      Promise.race([work.then(() => true), new Promise(r => setTimeout(r, 200, false))])
+    expect(await ended(request($, 't1'))).toBe(true)
+    release()
   })
 
   test('yields the band to a survey', async ($, on) => {

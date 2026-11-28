@@ -121,6 +121,29 @@ describe('token-weather cache lifetime detection', () => {
     await ui.unmount()
   })
 
+  test('a /clear or a resume keeps the lifetime the last session detected', async ($, on) => {
+    // The engine starts the next conversation with empty session state, and with no session.start:
+    // the value reads as never set until the mod sets it again.
+    let isWiped = false
+    on('state.get', (_$: any, e: any, next: any) => (isWiped && e.key === 'detectedTtl' ? { value: { value: undefined, version: 0 } } : next(e)))
+    on('state.set', (_$: any, e: any, next: any) => {
+      if (e.key === 'detectedTtl') isWiped = false
+      return next(e)
+    })
+    on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
+    const { clock, turn } = await start($, on, { detectedTtl: '1h' })
+    for (const reason of ['clear', 'resume'] as const) {
+      await $.session.end({ reason, sessionId: 's' } as any)
+      isWiped = true
+      await clock.advance(20_000) // past the end step's time bound, whatever it is
+      await new Promise(r => setTimeout(r, 50)) // what the mod starts then is not awaited
+      await turn('{"type":"user"}')
+      const ui = await $.ui.mount({ surface: 'terminal', ...BAND } as any)
+      expect(await ui.find({ type: 'Text', text: '  ❄ cache 60:00' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
   test('detection moves a running countdown onto the new lifetime', async ($, on) => {
     const { clock, turn } = await start($, on)
     await turn('{"type":"user"}')
