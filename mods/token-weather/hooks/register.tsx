@@ -90,8 +90,8 @@ export const register: Register = (on, options) => {
   })
 
   // A /compact empties the window without a turn ending. The engine installs the compacted
-  // messages only once every hook above this one has returned, so the window is looked at after
-  // this one has. A precompute installs nothing.
+  // conversation only once the whole chain has returned, so the check waits for this hook to
+  // return; a hook above may still be running then (rereadCompacted). A precompute installs nothing.
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     if (!e.agentId && e.trigger !== 'precompute' && 'messages' in result) {
@@ -312,10 +312,9 @@ async function refreshReading($: EngineInterface) {
   if (reading) await update($, current, () => reading)
 }
 
-// After a compaction. Once the engine has installed it, it holds no response's fill
-// (context.tokens) until the next one. While it still does, a hook above is still running and a
-// reading would be the old conversation's: the band then shows no figures, as after a /clear,
-// until the next request reads them.
+// After a compaction. context.tokens is the last response's fill, which the engine drops when it
+// installs a compaction. Still set, a hook above has not returned and the window is the old one:
+// the band drops its figures and history, as a /clear does, and the next request shows the new ones.
 async function rereadCompacted($: EngineInterface) {
   const isInstalled = (await $.session.usage().catch(() => null))?.context.tokens === undefined
   if (isInstalled) return refreshReading($)

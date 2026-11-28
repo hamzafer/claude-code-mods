@@ -152,7 +152,7 @@ describe('token-weather', () => {
     expect(await ui.find({ type: 'Text', text: /Compact soon/ })).toBeDefined()
 
     await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
-    fill = undefined // the engine installs the compacted messages once the hook has returned
+    fill = undefined // installed once the chain has returned: the last response's fill is dropped
     estimate = 20_000
     await clock.advance(0)
     await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
@@ -181,7 +181,7 @@ describe('token-weather', () => {
     // A hook above is still running: the engine still answers with the old conversation's last response.
     await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
     await clock.advance(0)
-    await new Promise(r => setTimeout(r, 50)) // the look it starts is not awaited
+    await new Promise(r => setTimeout(r, 50)) // the check it starts is not awaited
     expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
 
     fill = 20_000
@@ -237,7 +237,7 @@ describe('token-weather', () => {
     skips = false
     await $.session.compact({ trigger: 'precompute', messages } as any) // kept for later: nothing is installed
     await clock.advance(0)
-    await new Promise(r => setTimeout(r, 50)) // a look, had one started, is not awaited
+    await new Promise(r => setTimeout(r, 50)) // a check, had one started, is not awaited
     expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
     await ui.unmount()
   })
