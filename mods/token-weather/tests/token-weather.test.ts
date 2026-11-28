@@ -132,10 +132,18 @@ describe('token-weather', () => {
   })
 
   test('a /compact rereads the window, a /clear hides the old one', async ($, on) => {
-    let tokens: number | undefined = 180_000
+    // The engine holds the last response's fill until a compaction is installed, and estimates after.
+    let fill: number | undefined = 180_000
+    let estimate = 180_000
     const clock = mock.clock(on, { now: 1_000_000 })
     on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
-    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
+    on('session.usage', (_$, e: any) => ({
+      value: {
+        startedAt: 0,
+        rateLimits: [],
+        context: { tokens: fill, window: 200_000, ...(e?.breakdown ? { breakdown: { totalTokens: estimate, rawMaxTokens: 200_000 } } : {}) },
+      },
+    }) as any)
     on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
     on('session.end', (_$, e: any) => ({ sessionId: e.sessionId }) as any)
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
@@ -144,7 +152,8 @@ describe('token-weather', () => {
     expect(await ui.find({ type: 'Text', text: /Compact soon/ })).toBeDefined()
 
     await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
-    tokens = 20_000 // the engine installs the compacted messages once the hook has returned
+    fill = undefined // the engine installs the compacted messages once the hook has returned
+    estimate = 20_000
     await clock.advance(0)
     await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
     expect(await ui.find({ type: 'Text', text: /Clear/ })).toBeDefined()
@@ -152,6 +161,33 @@ describe('token-weather', () => {
 
     await $.session.end({ reason: 'clear', sessionId: 's' } as any)
     expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('a /compact the engine has not installed yet hides the old figures until the next request', async ($, on) => {
+    let fill = 180_000
+    const clock = mock.clock(on, { now: 1_000_000 })
+    on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens: fill, window: 200_000 } } }) as any)
+    on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }] }) as any)
+    on('turn.step', async function* (_$, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as any
+    })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine band' }) as any) // the engine's own band
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' } as any)
+    const ui = await $.ui.mount({ plugin: 'token-weather', surface: 'terminal', ...BAND } as any)
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    // A hook above is still running: the engine still answers with the old conversation's last response.
+    await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'hi', toolUses: [] }] } as any)
+    await clock.advance(0)
+    await new Promise(r => setTimeout(r, 50)) // the look it starts is not awaited
+    expect(await ui.find({ type: 'Text', text: /of context/ })).toBeUndefined()
+
+    fill = 20_000
+    await request($, 't1')
+    await new Promise(r => setTimeout(r, 50)) // the reading it starts is not awaited
+    expect(await ui.find({ type: 'Text', text: /10% of context/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -178,9 +214,10 @@ describe('token-weather', () => {
     }
     await ui.unmount()
   })
-  test("a subagent's /compact, or a skipped one, leaves the reading alone", async ($, on) => {
+  test("a subagent's /compact, a skipped one or a precompute leaves the reading alone", async ($, on) => {
     let tokens = 180_000
     let skips = false
+    const clock = mock.clock(on, { now: 1_000_000 })
     const messages = [{ role: 'user', text: 'hi', toolUses: [] }]
     on('session.start', (_$, e) => ({ sessionId: 's', cwd: e.cwd }) as any)
     on('session.usage', () => ({ value: { startedAt: 0, rateLimits: [], context: { tokens, window: 200_000 } } }) as any)
@@ -195,6 +232,12 @@ describe('token-weather', () => {
 
     skips = true
     await $.session.compact({ trigger: 'manual', messages } as any) // vetoed: the window is as it was
+    expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
+
+    skips = false
+    await $.session.compact({ trigger: 'precompute', messages } as any) // kept for later: nothing is installed
+    await clock.advance(0)
+    await new Promise(r => setTimeout(r, 50)) // a look, had one started, is not awaited
     expect(await ui.find({ type: 'Text', text: /90% of context/ })).toBeDefined()
     await ui.unmount()
   })
